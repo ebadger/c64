@@ -1,0 +1,11 @@
+# Placeholder values for scripts/dev/instantiate.sh
+# Copy to template.config, edit, then run:  scripts/dev/instantiate.sh template.config
+# (Lines starting with # are ignored. Leave a line blank/absent to skip that token.)
+
+PROJECT_NAME=My AI Project
+CEO=your-github-handle
+REPO_SLUG=your-handle/your-repo
+DEFAULT_BRANCH=main
+MISSION_ONE_LINER=a one-sentence description of what this system does and for whom.
+STACK=e.g. Python 3.12, FastAPI, Postgres 16
+PROD_URL=https://example.com
