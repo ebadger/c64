@@ -113,7 +113,9 @@ else
   [ "$changed" = "1" ] && echo "Global tokens replaced." || echo "No global tokens found."
 fi
 
-remaining=$(git grep -l '{{' -- . ':!scripts/dev/instantiate.sh' 2>/dev/null || true)
+remaining=$(git grep -l '{{' -- . \
+  ':!scripts/dev/instantiate.sh' \
+  ':!scripts/dev/review-template-updates.mjs' 2>/dev/null || true)
 if [ -n "$remaining" ]; then
   echo ""
   echo "Files still containing prose placeholders:"
