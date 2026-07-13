@@ -52,6 +52,16 @@ test("does not deny merge text that is quoted, echoed, or commented", () => {
         isSelfMergeAttempt(input("git status; gh pr merge 42 --merge")),
         true,
     );
+    assert.equal(
+        isSelfMergeAttempt(input("gh done#; gh pr merge 42 --merge")),
+        true,
+    );
+    assert.equal(
+        isSelfMergeAttempt(
+            input('echo "C:\\Users\\test\\"; gh pr merge 42 --merge'),
+        ),
+        true,
+    );
 });
 
 test("denies pushes only for confirmed dead PR states", () => {
@@ -92,6 +102,12 @@ test("classifies git lifecycle commands", () => {
     );
     assert.equal(isPullOrReset(input("git pull --ff-only")), true);
     assert.equal(isPullOrReset(input("git reset --soft HEAD~1")), true);
+    assert.equal(
+        isPushAttempt(input('Write-Host "To deploy, run git push"')),
+        false,
+    );
+    assert.equal(isCommitAttempt(input("# git commit -m test")), false);
+    assert.equal(isCommitAttempt(input("git commit-tree HEAD")), false);
 });
 
 test("extracts layer paths from current apply_patch calls", () => {
