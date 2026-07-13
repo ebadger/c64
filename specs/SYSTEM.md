@@ -28,6 +28,7 @@
 | Data store | [`DATABASE.md`](./DATABASE.md) | Schema, constraints, migrations |
 | API / Service | [`API.md`](./API.md) | Endpoints, contracts, validation, auth |
 | Client / UI | [`WEB-CLIENT.md`](./WEB-CLIENT.md) | Pages, components, interactions |
+| AI operating system | [`TEMPLATE-INHERITANCE.md`](./TEMPLATE-INHERITANCE.md) | Canonical template lineage, downstream review, upstream feedback |
 | {{...}} | {{...}} | {{...}} |
 
 > Create each sub-spec from [`_TEMPLATE.md`](./_TEMPLATE.md).

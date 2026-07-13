@@ -21,7 +21,7 @@ re-make solved mistakes, let rules rot, self-merge unreviewed work, and grow pro
 faster than it ships product. This template encodes the countermeasures **as mechanism**,
 not as good intentions.
 
-## The five ideas worth stealing
+## The six ideas worth stealing
 
 1. **Capped, tiered memory.** `docs/LEARNINGS.md` is an always-loaded **Tier-1 rules
    digest** with a hard **token cap** enforced by a `pre-push` guard. New lessons are
@@ -48,6 +48,11 @@ not as good intentions.
    **mission-clock rule** that forbids growing org machinery faster than the product needs
    it. (`docs/ROLES.md`)
 
+6. **A living template lineage.** Every specialization retains a checkpoint back to this
+   canonical template. Session-start checks expose new operating-system improvements;
+   projects explicitly adopt, adapt, defer, or reject each one, while reusable discoveries
+   flow back upstream. No blind merges, no permanent private process forks.
+
 ---
 
 ## What's in the box
@@ -60,7 +65,8 @@ not as good intentions.
   extensions/compliance-hooks/   # the governance-as-code extension
   ISSUE_TEMPLATE/ + PULL_REQUEST_TEMPLATE.md
 .githooks/pre-push               # LEARNINGS cap + test gate + PR-state guard
-scripts/dev/                     # install-hooks, learnings-budget, pre-push tests, instantiate
+scripts/dev/                     # setup guards + review canonical template updates
+.template-source                 # specialization's last reviewed upstream checkpoint
 docs/
   LEARNINGS.md                   # the capped Tier-1 rules digest (seed)
   learnings/                     # sessions/weekly/monthly/archive lifecycle
@@ -74,6 +80,8 @@ SETUP.md                         # how to instantiate
 
 - **Mechanism over memory.** If a rule matters, a hook enforces it.
 - **Small and current beats big and stale.** Capped memory, lazy-loaded specs, lean status.
+- **Improve once, inherit deliberately.** Reusable process improvements flow upstream, then
+  specializations reconcile them without overwriting local product truth.
 - **Add machinery only when the product earns it.** The mission-clock gate is load-bearing.
 - **Every guard fails open.** The hooks never block legitimate or offline work; they block
   the *forgetful* mistake, which is the common one.

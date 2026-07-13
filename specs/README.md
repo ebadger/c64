@@ -11,6 +11,8 @@ workforce — which has no persistent memory between sessions — from drifting.
 
 - `SYSTEM.md` — the **umbrella**: a short overview of the whole system that links to every
   sub-spec. Start here; read sub-specs lazily.
+- `TEMPLATE-INHERITANCE.md` — the cross-cutting contract for reviewing improvements from
+  the canonical AI operating-system template and contributing reusable lessons back.
 - One sub-spec **per layer** (copy `_TEMPLATE.md`). A typical set:
   - `DATABASE.md` — data store: schema, constraints, indexes, migrations.
   - `API.md` — endpoints, request/response contracts, validation, auth.

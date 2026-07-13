@@ -12,6 +12,17 @@
 - [ ] **Tests pass** — existing tests pass; new behaviour is covered by at least one test.
 - [ ] **Only relevant files staged** — no accidental config, build output, or unrelated changes.
 - [ ] **Second-model review** — for code/spec/config PRs, both reviewers were run, findings triaged, and the review block added (see `docs/CODE-REVIEW-PANEL.md`). Prose/typo PRs are exempt.
+- [ ] **Template lineage** — if inherited operating-system files changed, the canonical
+      template was checked; reconciliation PRs record the reviewed range and dispositions.
+
+## Template reconciliation
+
+<!-- Keep for template-reconciliation PRs; delete otherwise. Account for every cohesive upstream change. -->
+- Reviewed range: `<previous-upstream-sha>...<reviewed-upstream-sha>`
+- Adopted: <changes or none>
+- Adapted: <changes + local reason, or none>
+- Deferred: <changes + linked follow-up, or none>
+- Not applicable: <changes + reason, or none>
 
 ## Second-model review
 

@@ -1,0 +1,7 @@
+# Persistent lineage for projects instantiated from AIProjectTemplate.
+# See specs/TEMPLATE-INHERITANCE.md before changing this checkpoint.
+[template]
+	repository = https://github.com/ebadger/AIProjectTemplate.git
+	branch = main
+	lastReviewedRef = {{TEMPLATE_BASE_REF}}
+	lastReviewedAt = {{TEMPLATE_REVIEW_DATE}}

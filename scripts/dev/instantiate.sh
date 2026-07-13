@@ -19,9 +19,11 @@
 #   MISSION_ONE_LINER   one sentence for the session-start banner (optional)
 #   STACK               one-line tech stack (optional)
 #   PROD_URL            production URL if public (optional)
+#   TEMPLATE_BASE_REF   exact AIProjectTemplate commit used (required unless directly cloned)
+#   TEMPLATE_REVIEW_DATE initial lineage review date (defaults to today, UTC)
 set -euo pipefail
 
-KEYS="PROJECT_NAME CEO REPO_SLUG DEFAULT_BRANCH MISSION_ONE_LINER STACK PROD_URL"
+KEYS="PROJECT_NAME CEO REPO_SLUG DEFAULT_BRANCH MISSION_ONE_LINER STACK PROD_URL TEMPLATE_BASE_REF TEMPLATE_REVIEW_DATE"
 DRY_RUN=0
 CONFIG=""
 
@@ -55,8 +57,59 @@ else
   done
 fi
 
+normalize_github_repo() {
+  value=$1
+  case "$value" in
+    https://github.com/*) value=${value#https://github.com/} ;;
+    git@github.com:*) value=${value#git@github.com:} ;;
+    ssh://git@github.com/*) value=${value#ssh://git@github.com/} ;;
+  esac
+  value=${value%.git}
+  printf '%s\n' "${value%/}"
+}
+
+# A direct clone can prove its exact template commit from HEAD. A GitHub-generated
+# repository has unrelated history, so its source commit must be supplied explicitly;
+# using today's upstream HEAD could skip changes made after the project was generated.
+if [ -z "${VAL[TEMPLATE_BASE_REF]:-}" ] && [ -f ".template-source" ]; then
+  template_repo=$(git config --file .template-source --get template.repository 2>/dev/null || true)
+  origin_repo=$(git remote get-url origin 2>/dev/null || true)
+
+  if [ -n "$template_repo" ] && [ -n "$origin_repo" ] &&
+    [ "$(normalize_github_repo "$origin_repo")" = "$(normalize_github_repo "$template_repo")" ]; then
+    template_ref=$(git rev-parse HEAD 2>/dev/null || true)
+    if [ -n "$template_ref" ]; then
+      VAL[TEMPLATE_BASE_REF]="$template_ref"
+      echo "Detected template baseline from the direct clone: $template_ref"
+    fi
+  fi
+fi
+
+if [ -z "${VAL[TEMPLATE_BASE_REF]:-}" ]; then
+  echo "ERROR: TEMPLATE_BASE_REF is required because the exact inherited commit cannot be proven." >&2
+  echo "Set it to the AIProjectTemplate commit recorded when this specialization was created." >&2
+  exit 1
+fi
+if [[ ! "${VAL[TEMPLATE_BASE_REF]}" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]]; then
+  echo "ERROR: TEMPLATE_BASE_REF must be a full 40- or 64-character commit ID." >&2
+  exit 1
+fi
+
+if [ -z "${VAL[TEMPLATE_REVIEW_DATE]:-}" ]; then
+  VAL[TEMPLATE_REVIEW_DATE]="$(date -u +%Y-%m-%d)"
+fi
+if [[ ! "${VAL[TEMPLATE_REVIEW_DATE]}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+  echo "ERROR: TEMPLATE_REVIEW_DATE must use YYYY-MM-DD format." >&2
+  exit 1
+fi
+
 # Build the list of files to process: tracked text files, excluding this script and .git.
 FILES=$(git ls-files | grep -v -E '^scripts/dev/instantiate\.sh$' || true)
+if [ -z "$FILES" ]; then
+  echo "ERROR: no tracked files found." >&2
+  echo "Run instantiation before deleting template history, or git-add the template files first." >&2
+  exit 1
+fi
 
 echo ""
 echo "Tokens to replace:"

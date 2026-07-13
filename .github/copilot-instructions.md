@@ -5,24 +5,32 @@
 Read these at session start (the `compliance-hooks` extension also injects the start
 checklist automatically):
 
-1. `docs/LEARNINGS.md` — **canonical** workflow rules (§1–6) + distilled lessons (the
+1. `docs/LEARNINGS.md` — **canonical** workflow rules (§1–7) + distilled lessons (the
    always-loaded Tier-1 digest, capped ~2,500 tokens). This is the source of truth for how
    we work; the rules below are a pointer, not a second copy. Full incident narratives live
    in `docs/learnings/` — read on demand.
 2. `docs/MISSION.md` — organization purpose and operating principles.
 3. `specs/SYSTEM.md` — umbrella overview of the system + links to every sub-spec.
 4. `status/SYSTEM-STATUS.md` — runtime env, credentials, scripts, verification commands.
+5. `.template-source` — canonical template provenance + last reviewed upstream commit.
 
 Then read **only the sub-spec(s) for the layer you'll actually touch** — don't load all of
 them speculatively. Deep dives (runbooks, changelog) are read on demand, not at start-up.
 
-## How We Work (canonical: docs/LEARNINGS.md §1–6)
+Confirm the session-start automatic template check ran; otherwise run
+`node scripts/dev/review-template-updates.mjs check`. If it reports updates, read
+`specs/TEMPLATE-INHERITANCE.md` before changing inherited operating-system files. The
+check fails open offline and does not displace urgent product work.
+
+## How We Work (canonical: docs/LEARNINGS.md §1–7)
 
 - **Specs first, code second.** Update specs before implementing.
 - **Trace all layers** for any stored-data feature: Data store → API/Service → Client.
 - **Never self-merge.** Always open a PR and give {{CEO}} the link in the chat.
 - **Commit atomically** across specs/layers.
 - **Check PR state before pushing** (`gh pr view <n> --json state`).
+- **Reconcile the canonical template deliberately.** Adopt, adapt, defer, or reject each
+  upstream operating-system change; never merge it wholesale over local product truth.
 - **Mission clock > org clock.** Don't create net-new org/process artifacts while the
   product has unmet, higher-priority needs — fix the product first. Slimming org machinery
   is always fine; adding it waits. (See `docs/ROLES.md` gates.)

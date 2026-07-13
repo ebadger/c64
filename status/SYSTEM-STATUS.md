@@ -42,6 +42,7 @@ _Last updated: {{DATE}} — {{by whom}}_
 |--------|---------|
 | `scripts/dev/install-hooks.sh` | Activate the git `pre-push` guards (run once per clone). |
 | `scripts/dev/check-learnings-budget.sh` | Enforce the `docs/LEARNINGS.md` token cap. |
+| `scripts/dev/review-template-updates.mjs` | Check canonical template changes and record reviewed checkpoints without merging. |
 | `scripts/dev/pre-push-tests.sh` | (You create this from `.example`) the project's pre-push test gate. |
 
 ## Current state / known gaps

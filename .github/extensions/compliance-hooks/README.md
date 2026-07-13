@@ -12,7 +12,7 @@ checklist at the right moment and hard-blocks the two most expensive mistakes.
 
 | Moment | Hook | Behaviour |
 |--------|------|-----------|
-| Session start | `onSessionStart` | Injects `instructions/onsessionstart.md` (mandatory reading + core rules). |
+| Session start | `onSessionStart` | Runs the read-only canonical-template check and injects its result with mandatory reading + core rules. |
 | Feature-request prompt | `onUserPromptSubmitted` | "Which layers does this touch?" nudge. |
 | About to `gh pr merge` | `onPreToolUse` | **HARD STOP** — never self-merge (except the `docs/learnings/` markdown auto-merge). |
 | About to `git commit` | `onPreToolUse` | One-line commit checklist. |
@@ -40,6 +40,8 @@ action (or restart the session).
 - **Tool names** — the shell-detection covers `powershell`, `bash`, and `shell`. Trim
   to your environment if desired.
 - **`{{CEO}}`** placeholders — replaced at instantiation (see repo-root `SETUP.md`).
+- **`.template-source`** — keep its repository pointed at the canonical template and only
+  advance its checkpoint through `scripts/dev/review-template-updates.mjs acknowledge`.
 
 ## Honest scope
 

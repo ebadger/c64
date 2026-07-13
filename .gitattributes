@@ -3,4 +3,5 @@
 *.sh       text eol=lf
 *.example  text eol=lf
 *.mjs      text eol=lf
+.template-source text eol=lf
 .githooks/pre-push text eol=lf

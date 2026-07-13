@@ -1,7 +1,10 @@
 import { joinSession } from "@github/copilot-sdk/extension";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
+import { execFile, execSync } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 // =====================================================================
 // compliance-hooks — governance-as-code for an AI-run project.
@@ -47,6 +50,36 @@ function checkPrState(workingDirectory) {
     }
 }
 
+async function checkTemplateUpdates(workingDirectory) {
+    const cwd = getRepoRoot(workingDirectory);
+    try {
+        const { stdout, stderr } = await execFileAsync(
+            process.execPath,
+            ["scripts/dev/review-template-updates.mjs", "check"],
+            {
+                cwd,
+                encoding: "utf-8",
+                maxBuffer: 2 * 1024 * 1024,
+            }
+        );
+        return [stdout, stderr]
+            .filter(Boolean)
+            .map((value) => value.trim())
+            .filter(Boolean)
+            .join("\n") || "Template check completed with no output.";
+    } catch (err) {
+        const detail = [err.stdout, err.stderr]
+            .filter(Boolean)
+            .map((value) => value.toString().trim())
+            .filter(Boolean)
+            .join("\n");
+        return (
+            "WARNING: Automatic canonical-template check could not complete." +
+            (detail ? `\n${detail}` : "")
+        );
+    }
+}
+
 // Patterns for detecting spec/layer file edits that warrant a cross-layer check.
 // CUSTOMIZE these to your project's layout (data store, API/service, client/UI).
 const SPEC_PATTERNS = [
@@ -80,7 +113,11 @@ await joinSession({
                 "onsessionstart.md"
             );
             if (instructions) {
-                return { additionalContext: instructions };
+                const templateStatus = await checkTemplateUpdates(input.workingDirectory);
+                return {
+                    additionalContext:
+                        `${instructions}\n\n## Automatic Template Check\n\n${templateStatus}`,
+                };
             }
         },
 
