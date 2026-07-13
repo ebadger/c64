@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 const SHELL_TOOLS = new Set(["powershell", "bash", "shell"]);
 const LEGACY_FILE_TOOLS = new Set(["edit", "create"]);
 
@@ -29,8 +31,70 @@ export function getShellCommand(input) {
         : "";
 }
 
+function commandSegments(command) {
+    const segments = [];
+    let current = "";
+    let quote = null;
+
+    for (let index = 0; index < command.length; index += 1) {
+        const character = command[index];
+        const previous = command[index - 1];
+
+        if (quote) {
+            current += character;
+            if (
+                character === quote &&
+                previous !== "\\" &&
+                previous !== "`"
+            ) {
+                quote = null;
+            }
+            continue;
+        }
+
+        if (character === "'" || character === '"') {
+            quote = character;
+            current += character;
+            continue;
+        }
+
+        if (character === "#") {
+            segments.push(current.trim());
+            current = "";
+            while (index + 1 < command.length && command[index + 1] !== "\n") {
+                index += 1;
+            }
+            continue;
+        }
+
+        const next = command[index + 1];
+        if (
+            character === "\n" ||
+            character === ";" ||
+            character === "|" ||
+            (character === "&" && next === "&")
+        ) {
+            segments.push(current.trim());
+            current = "";
+            if ((character === "|" && next === "|") || next === "&") {
+                index += 1;
+            }
+            continue;
+        }
+
+        current += character;
+    }
+
+    segments.push(current.trim());
+    return segments.filter(Boolean);
+}
+
 export function isSelfMergeAttempt(input) {
-    return /\bgh(?:\.exe)?\s+pr\s+merge\b/i.test(getShellCommand(input));
+    const invocation =
+        /^(?:(?:&|command|sudo|env)\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*(?:["']?gh(?:\.exe)?["']?)\s+pr\s+merge\b/i;
+    return commandSegments(getShellCommand(input)).some((segment) =>
+        invocation.test(segment),
+    );
 }
 
 export function selfMergeDecision(input) {
@@ -40,7 +104,7 @@ export function selfMergeDecision(input) {
     return {
         permissionDecision: "deny",
         permissionDecisionReason:
-            "Self-merge is forbidden. Open the PR for {{CEO}} and stop.",
+            "Self-merge is forbidden. Open the PR for the human owner and stop.",
     };
 }
 
@@ -70,6 +134,18 @@ export function isPullOrReset(input) {
 
 export function isCreatePullRequest(input) {
     return input?.toolName === "create_pull_request";
+}
+
+export function hooksPathIsActive(configuredPath, workingDirectory) {
+    if (typeof configuredPath !== "string" || configuredPath.trim() === "") {
+        return false;
+    }
+    const expected = resolve(workingDirectory, ".githooks");
+    const configured = resolve(workingDirectory, configuredPath.trim());
+    if (process.platform === "win32") {
+        return configured.toLowerCase() === expected.toLowerCase();
+    }
+    return configured === expected;
 }
 
 function normalizePath(path) {
