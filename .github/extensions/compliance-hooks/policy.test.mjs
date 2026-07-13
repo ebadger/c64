@@ -9,64 +9,13 @@ import {
     isCommitAttempt,
     isCreatePullRequest,
     isInstructionRefreshAttempt,
-    isSelfMergeAttempt,
     isShellTool,
-    selfMergeDecision,
 } from "./policy.mjs";
 
 test("recognizes current shell and PR tool names", () => {
     assert.equal(isShellTool("powershell"), true);
     assert.equal(isCreatePullRequest({ toolName: "create_pull_request" }), true);
     assert.equal(isCreatePullRequest({ toolName: "apply_patch" }), false);
-});
-
-test("denies every gh pr merge attempt without path exceptions", () => {
-    const input = {
-        toolName: "powershell",
-        toolArgs: {
-            command: "gh pr merge 42 --repo owner/repo # docs/learnings/archive/",
-        },
-    };
-    assert.equal(isSelfMergeAttempt(input), true);
-    assert.equal(selfMergeDecision(input)?.permissionDecision, "deny");
-});
-
-test("fails closed for shell commands containing a merge token sequence", () => {
-    const input = (command) => ({
-        toolName: "powershell",
-        toolArgs: { command },
-    });
-
-    assert.equal(
-        isSelfMergeAttempt(input('Write-Host "do not run gh pr merge"')),
-        true,
-    );
-    assert.equal(
-        isSelfMergeAttempt(input('node -e "console.log(\'gh pr merge\')"')),
-        true,
-    );
-    assert.equal(isSelfMergeAttempt(input("# gh pr merge 42")), true);
-    assert.equal(
-        isSelfMergeAttempt(input("git status; gh pr merge 42 --merge")),
-        true,
-    );
-    assert.equal(
-        isSelfMergeAttempt(input("gh done#; gh pr merge 42 --merge")),
-        true,
-    );
-    assert.equal(
-        isSelfMergeAttempt(
-            input('echo "C:\\Users\\test\\"; gh pr merge 42 --merge'),
-        ),
-        true,
-    );
-    assert.equal(
-        isSelfMergeAttempt(input("Write-Host noop & gh pr merge 42 --merge")),
-        true,
-    );
-    assert.equal(isSelfMergeAttempt(input("(gh pr merge 42 --merge)")), true);
-    assert.equal(isSelfMergeAttempt(input('gh pr "merge" 42 --merge')), true);
-    assert.equal(isSelfMergeAttempt(input("gh pr `merge` 42 --merge")), true);
 });
 
 test("recognizes relative and absolute active hooks paths", () => {

@@ -13,9 +13,10 @@ declare least-privilege tools, and delete it when it no longer earns maintenance
 Do not seed projects with role rosters, personality biographies, dynamic runbooks, or
 fixed model assumptions.
 
-## Mechanical gates
+## Gates and controls
 
-1. **Human merge authority.** Agents open PRs and stop; only {{CEO}} merges.
+1. **Human merge authority.** Agents open PRs and stop; only {{CEO}} merges through
+   GitHub. Host pre-tool hook decisions are not an enforcement boundary.
 2. **Specs and data flow.** Behavior changes update the relevant spec and trace affected
    Data store → API/Service → Client links.
 3. **Dead branches stay dead.** `.githooks/pre-push` blocks a confirmed merged/closed PR

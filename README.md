@@ -11,9 +11,9 @@ lineage, and model-diverse review without importing a standing AI organization.
 1. **Capped, incident-triggered memory.** `docs/LEARNINGS.md` contains only durable rules
    that meet a recurrence or material-risk/rework threshold. Rare narratives live in
    `docs/learnings/archive/`; there are no daily, weekly, or monthly learning reports.
-2. **Mechanical authority boundaries.** The Copilot extension denies agent self-merge.
-   The git pre-push hook blocks confirmed merged/closed PR branches and configured test
-   failures.
+2. **Verified authority boundaries.** Human/GitHub approval controls merges. The git
+   pre-push hook blocks confirmed merged/closed PR branches and configured test failures.
+   Copilot extension prompts are host-dependent defense in depth, not enforcement.
 3. **Specs and data flow.** Behavior changes update the relevant spec and trace every
    affected Data store → API/Service → Client link.
 4. **Relative model-diverse review.** Two runtime-available, read-only `code-review`

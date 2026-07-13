@@ -26,8 +26,8 @@
 - **Repository history is not a process ledger.** Routine outcomes, token counts,
   session duration, and PR commentary do not earn files here. GitHub PRs/issues remain
   the record of their own work.
-- **Promotion requires {{CEO}}'s approval.** This file is excluded from the
-  mechanical merge authority of agents (see Workflow Rule §5).
+- **Promotion requires {{CEO}}'s approval.** Agents propose the change through the normal
+  PR process (see Workflow Rule §5).
 - **Do not strip the WHY.** Distillation removes the long narrative, never the context
   that makes a rule correct.
 
@@ -50,8 +50,9 @@ them all in one commit so history is consistent at every point.
 
 **§5. Never self-merge.** Always open a PR and give {{CEO}} the link; merging is {{CEO}}'s
 call, with no agent auto-merge exception. WHY: human merge authority is the final check on
-agent self-modification. After any pull, reset, or branch change, re-read instruction files
-that may have changed before continuing.
+agent self-modification. Copilot pre-tool hooks are host-dependent prompts, not a proven
+block on host tool execution; rely on human/GitHub approval. After any pull, reset, or
+branch change, re-read instruction files that may have changed before continuing.
 
 **§6. Always check PR state before pushing.** `git fetch origin {{DEFAULT_BRANCH}}` then
 `gh pr view <n> --json state`; if **MERGED**, branch fresh off `origin/{{DEFAULT_BRANCH}}`

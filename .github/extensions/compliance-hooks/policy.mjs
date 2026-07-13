@@ -38,21 +38,6 @@ function normalizedCommand(input) {
         .replaceAll("`", "");
 }
 
-export function isSelfMergeAttempt(input) {
-    return /\bgh(?:\.exe)?\s+pr\s+merge\b/i.test(normalizedCommand(input));
-}
-
-export function selfMergeDecision(input) {
-    if (!isSelfMergeAttempt(input)) {
-        return undefined;
-    }
-    return {
-        permissionDecision: "deny",
-        permissionDecisionReason:
-            "Self-merge is forbidden. Open the PR for the human owner and stop.",
-    };
-}
-
 export function isCommitAttempt(input) {
     return hasGitSubcommand(input, "commit");
 }

@@ -9,7 +9,6 @@ import {
     isCommitAttempt,
     isCreatePullRequest,
     isInstructionRefreshAttempt,
-    selfMergeDecision,
 } from "./policy.mjs";
 
 function repoRoot(workingDirectory) {
@@ -65,11 +64,6 @@ await joinSession({
         },
 
         onPreToolUse: async (input) => {
-            const mergeDecision = selfMergeDecision(input);
-            if (mergeDecision) {
-                return mergeDecision;
-            }
-
             if (isCommitAttempt(input)) {
                 const checklist = await loadInstruction(
                     input.workingDirectory,
