@@ -15,24 +15,23 @@ This sets local config in `.git/config`, so it applies to the whole repo
 ## Hooks
 
 ### `pre-push`
-Runs three independent guards on every `git push`. Each **fails open** where it
-cannot run, so it never blocks legitimate or offline work.
+Runs three independent guards on every `git push`. Configured tests fail closed.
+The PR-state guard blocks only a state confirmed by GitHub and otherwise permits
+offline/first pushes.
 
 **1. LEARNINGS.md size-cap guard** (via `scripts/dev/check-learnings-budget.sh`).
 `docs/LEARNINGS.md` is loaded into the model's context at the start of every
-session, so it is a capped **Tier-1 rules digest** (~2,500 tokens); detailed
-narratives belong in `docs/learnings/`. The guard blocks a push when the file
+session, so it is a capped **Tier-1 rules digest** (~2,500 tokens); rare incident
+narratives belong in `docs/learnings/archive/`. The guard blocks a push when the file
 exceeds the cap, forcing priority-based distillation instead of unbounded growth.
 - Counts **real tokens** with `tiktoken` when available (`pip install tiktoken`);
   otherwise falls back to a dependency-free character proxy.
 - Override deliberately with `SKIP_LEARNINGS_BUDGET=1 git push ...`.
 
-**2. Optional project test gate** (via `scripts/dev/pre-push-tests.sh`, if present
-and executable). Runs your stack's tests / critical-path eval before allowing the
-push. Copy `scripts/dev/pre-push-tests.sh.example` to `pre-push-tests.sh` and fill
-in the command. This keeps the *mechanism* (a mechanical test gate on push)
-project-agnostic. The example shows both a skippable test run and a NON-bypassable
-gate scoped to a critical path.
+**2. Project test gate** (via `scripts/dev/pre-push-tests.sh`, when installed).
+Runs routine tests and any configured critical-path eval before allowing the push.
+The example separates a deliberately skippable routine suite from a path-scoped,
+non-bypassable deterministic eval. A non-zero result always blocks the push.
 
 **3. PR-state guard.**
 Blocks pushes to a branch whose PR is already **MERGED** or **CLOSED**. Once a PR

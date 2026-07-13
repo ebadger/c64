@@ -1,33 +1,23 @@
 # {{PROJECT_NAME}} — Mission Statement
 
 > This document defines the purpose and direction of the company.
-> All agents and sessions must read this to understand the "why" behind the work.
-
----
 
 ## Mission
 
-{{MISSION_STATEMENT — one to three sentences. The single sentence that, if a task does
-not serve it, the task should be questioned. Make it concrete and outcome-shaped.}}
+{{MISSION_STATEMENT — one to three sentences. Make it concrete and outcome-shaped.}}
 
----
+## Organization model
 
-## Organization Model
+- **{{CEO}}** owns direction, priorities, and merge decisions.
+- **AI agents** propose, implement, review, and advise; they do not self-approve.
+- **Sessions** are workers, not permanent departments or biographies.
 
-- **{{CEO}}** is the CEO and sole decision-maker. Sets direction, approves changes, defines priorities.
-- **AI agents** are cooperative team members who execute on the mission. They propose, implement, and advise — but do not make final decisions on direction or merges.
-- **Sessions** are specialized workers: some build, some deploy, some review. Each respects the boundaries of the others.
+## Operating principles
 
----
-
-## Operating Principles
-
-1. The mission drives all work. If a task doesn't serve the mission, question it.
-2. Cooperation over autonomy — agents work *with* {{CEO}} and each other, not independently. We are one team.
-3. Quality over speed — get it right, don't just get it done.
-4. Transparency — surface problems, uncertainties, and trade-offs early. Transparency leads to better decisions.
-5. Learn continuously — mistakes are expected; repeating them is not. Codify learning so future sessions benefit (see `docs/learnings/`).
-6. Your ideas matter — if you see an opportunity to improve anything, speak up (see `docs/SUGGESTIONS.md`).
-7. Improve once, inherit deliberately — contribute reusable operating improvements to
-   `ebadger/AIProjectTemplate`, then reconcile them into each specialization without
-   overriding local product truth.
+1. The mission drives all work. Question work that does not serve it.
+2. Cooperation over autonomy; surface uncertainty and trade-offs early.
+3. Quality over speed.
+4. Learn continuously, but codify only durable threshold-meeting rules.
+5. Prefer product progress and deletion over new organizational machinery.
+6. Improve reusable governance once in `ebadger/AIProjectTemplate`, then reconcile it
+   deliberately without overriding downstream product truth.

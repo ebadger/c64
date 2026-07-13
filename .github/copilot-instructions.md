@@ -1,51 +1,43 @@
 # Copilot Instructions for {{PROJECT_NAME}}
 
-## Before Starting Any Work
+## Start with durable context
 
-Read these at session start (the `compliance-hooks` extension also injects the start
-checklist automatically):
+Read these before work:
 
-1. `docs/LEARNINGS.md` — **canonical** workflow rules (§1–7) + distilled lessons (the
-   always-loaded Tier-1 digest, capped ~2,500 tokens). This is the source of truth for how
-   we work; the rules below are a pointer, not a second copy. Full incident narratives live
-   in `docs/learnings/` — read on demand.
-2. `docs/MISSION.md` — organization purpose and operating principles.
-3. `specs/SYSTEM.md` — umbrella overview of the system + links to every sub-spec.
-4. `status/SYSTEM-STATUS.md` — runtime env, credentials, scripts, verification commands.
-5. `.template-source` — canonical template provenance + last reviewed upstream commit.
+1. `docs/LEARNINGS.md` — canonical workflow rules and capped durable lessons.
+2. `docs/MISSION.md` — purpose and operating principles.
+3. `specs/SYSTEM.md` — system overview and links to layer specs.
 
-Then read **only the sub-spec(s) for the layer you'll actually touch** — don't load all of
-them speculatively. Deep dives (runbooks, changelog) are read on demand, not at start-up.
+Read only the sub-specs needed for the task. Read `status/SYSTEM-STATUS.md` only for
+runtime, deployment, environment, or verification work; it is not startup context.
 
-Confirm the session-start automatic template check ran; otherwise run
-`node scripts/dev/review-template-updates.mjs check`. If it reports updates, read
-`specs/TEMPLATE-INHERITANCE.md` before changing inherited operating-system files. The
-check fails open offline and does not displace urgent product work.
+Before changing inherited operating files, run
+`node scripts/dev/review-template-updates.mjs check` and read
+`specs/TEMPLATE-INHERITANCE.md`. Reconcile each upstream change deliberately; never
+wholesale-merge template state over local product truth.
 
-## How We Work (canonical: docs/LEARNINGS.md §1–7)
+## How we work
 
-- **Specs first, code second.** Update specs before implementing.
-- **Trace all layers** for any stored-data feature: Data store → API/Service → Client.
-- **Never self-merge.** Always open a PR and give {{CEO}} the link in the chat.
-- **Commit atomically** across specs/layers.
-- **Check PR state before pushing** (`gh pr view <n> --json state`).
-- **Reconcile the canonical template deliberately.** Adopt, adapt, defer, or reject each
-  upstream operating-system change; never merge it wholesale over local product truth.
-- **Mission clock > org clock.** Don't create net-new org/process artifacts while the
-  product has unmet, higher-priority needs — fix the product first. Slimming org machinery
-  is always fine; adding it waits. (See `docs/ROLES.md` gates.)
-- After implementing, **update the implementation status** in the relevant spec.
-- See a better way to work? Add it to `docs/SUGGESTIONS.md`.
+- Update specs before code and trace every affected stored-data layer.
+- Commit connected spec/layer changes atomically.
+- Open a PR for {{CEO}}; never self-merge.
+- Check PR state before pushing to an existing PR branch.
+- Use the model-diverse review in `docs/CODE-REVIEW-PANEL.md` for behavior changes.
+- Prefer deleting or consolidating governance over adding agents, reports, or ceremonies.
+- Never put credentials or secret values in repository instructions, status, prompts, or
+  workflow configuration.
 
-## Project Context
+After a pull, reset, checkout, switch, or branch change, re-read instruction files that
+may have changed.
 
-- **Stack**: {{STACK}}
-- **Domain**: {{ONE_LINE_DOMAIN_DESCRIPTION}}
-- **Layers**: {{e.g. Data store (Postgres) → API (service) → Client (web/mobile)}}
-- **Dev environment**: {{how/where the project is built and run locally}}
-- **Production**: {{where it runs in prod, and the URL if public}}
+## Project context
 
-## Code Style
+- **Stack:** {{STACK}}
+- **Domain:** {{ONE_LINE_DOMAIN_DESCRIPTION}}
+- **Layers:** {{e.g. Data store (Postgres) → API (service) → Client (web/mobile)}}
+- **Development:** {{how the project is built and run locally}}
+
+## Code style
 
 - {{Language/framework conventions — point at existing examples in the repo.}}
 - {{Naming conventions, e.g. snake_case in SQL, camelCase in JSON.}}

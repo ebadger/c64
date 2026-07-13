@@ -1,15 +1,15 @@
-# PR Checklist
+# PR check
 
-Before creating a PR, verify:
+Before opening a behavior-changing PR:
 
-1. **PR status** — `gh pr view <N> --json state` → must be OPEN (if updating). If MERGED/CLOSED, branch from `origin/{{DEFAULT_BRANCH}}` and open fresh.
-2. **Upstream synced** — `git fetch origin {{DEFAULT_BRANCH}}` done.
-3. **Never self-merge** — Provide {{CEO}} the PR link. Do not merge.
-4. **All layers covered** — Data store / API / Client all updated if affected.
-5. **Spec status marked** — Implementation status updated in the relevant spec.
-6. **Tests pass** — All tests confirmed green.
-7. **Status document** — If your changes affect runtime behavior (new endpoints, credentials, ports, scripts, schema changes, new services), update `status/SYSTEM-STATUS.md`.
-8. **Second-model review (code/config PRs)** — For any PR that can change product or agent behaviour (application code, `specs/**`, schema/migrations, API contracts, client, config, build/deploy, or `.github/agents`·`.github/instructions`·hooks), run **both** independent reviewers on the diff (passing the `model` param explicitly), triage every finding (fix or record why-not), add the **## Second-model review** block to the PR body, and post the reviewers' verbatim output + a per-model `Scorecard` line as a PR comment. Non-product prose / comment-only / typo PRs are exempt. See `docs/CODE-REVIEW-PANEL.md`.
-9. **Template lineage** — If inherited operating-system files changed, run the canonical
-   template check. For a reconciliation PR, record the reviewed commit range and every
-   adopt/adapt/defer/not-applicable decision, then update `.template-source` in the same PR.
+1. Confirm specs, affected layers, and implementation status agree.
+2. Run the tests/evals required for the changed risk surface.
+3. If inherited operating files changed, run the canonical template check and account for
+   every upstream change under `specs/TEMPLATE-INHERITANCE.md`.
+4. Commit the candidate and record its merge-base and HEAD SHAs.
+5. Run two independent `code-review` specialists with explicit model IDs selected
+   relative to the primary; triage findings and re-run after material fixes.
+6. Put the compact SHA/model record from `docs/CODE-REVIEW-PANEL.md` in the PR body.
+7. Open the PR for {{CEO}} and stop. Never merge it.
+
+For runtime/deploy changes, update `status/SYSTEM-STATUS.md` without adding secret values.

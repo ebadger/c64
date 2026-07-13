@@ -1,3 +1,2 @@
-# Retired learning files + pre-distillation narrative snapshots — see ../README.md.
-# When a rule is demoted from docs/LEARNINGS.md to stay under the cap, its full
-# narrative lands here.
+# Optional deep dives for threshold-meeting incidents — see ../README.md.
+# Keep only evidence and context needed to understand a durable rule.

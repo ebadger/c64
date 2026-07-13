@@ -14,6 +14,10 @@ Each specialization remains the source of truth for its own mission, product beh
 architecture, domain rules, runtime configuration, and code. An upstream template change
 must never overwrite local product truth or a deliberate local adaptation without review.
 
+Credentials, secret values, runtime status, environment/deploy state, model selections,
+custom role biographies, project-earned learnings, and scheduled-workflow definitions or
+run state are always specialization-owned. They are never template update payloads.
+
 ## Persistent lineage
 
 Every specialization keeps a tracked `.template-source` file containing:
@@ -25,13 +29,11 @@ Every specialization keeps a tracked `.template-source` file containing:
 The checkpoint means **reviewed through**, not necessarily copied verbatim. It advances
 only after every upstream change in the range has an explicit disposition.
 
-## Required review triggers
+## Required review trigger
 
-Specializations check for template changes:
-
-1. at the start of every working session;
-2. before changing inherited operating-system files; and
-3. during the Process & Learning periodic retrospective.
+Specializations check for template changes before modifying inherited operating-system
+files. A deliberate maintenance pass may also check on demand, but the mechanism must not
+create per-session reports, scheduled reconciliation commits, or a periodic ceremony.
 
 The check is informational and fails open when the network is unavailable. Available
 updates must be reviewed promptly, but they do not block urgent product work.
@@ -75,4 +77,4 @@ the result.
 | Persistent source checkpoint | Implemented |
 | Read-only upstream change check | Implemented |
 | Explicit checkpoint acknowledgement | Implemented |
-| Session-start and PR workflow integration | Implemented |
+| Before-change and PR workflow integration | Implemented |

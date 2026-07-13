@@ -4,8 +4,8 @@
 # Why: docs/LEARNINGS.md is mandatory reading at the start of EVERY session, so it
 # is loaded into the model's context every single time. If it grows without bound
 # it crowds out task context and buries the durable rules among one-off incident
-# detail. It is therefore a *capped Tier-1 rules digest*; detailed narratives live
-# in docs/learnings/ (read on demand). See LEARNINGS.md "How this file is maintained".
+# detail. It is therefore a *capped Tier-1 rules digest*; rare incident narratives
+# live in docs/learnings/archive/ (read on demand). See LEARNINGS.md maintenance rules.
 #
 # Cap: 2,500 tokens. Counts REAL tokens with tiktoken when available
 # (python3 + `pip install tiktoken`); otherwise falls back to a character proxy.
@@ -30,7 +30,7 @@ block() {
   echo "x LEARNINGS budget BLOCKED: $1" >&2
   echo "  LEARNINGS.md is the always-loaded Tier-1 rules digest, not an append-only log." >&2
   echo "  Get back under the cap via priority-based distillation:" >&2
-  echo "    1. Move the full incident narrative to docs/learnings/ (sessions/ or archive/)." >&2
+  echo "    1. Move only necessary incident detail to docs/learnings/archive/." >&2
   echo "    2. Leave only a distilled rule + one-line WHY (+ archive link) in LEARNINGS.md." >&2
   echo "    3. Dedup/merge overlapping rules; demote the lowest-value detail to the archive." >&2
   echo "  Override (only if you are certain): SKIP_LEARNINGS_BUDGET=1 git push ..." >&2

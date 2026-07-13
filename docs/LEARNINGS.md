@@ -1,32 +1,33 @@
 # {{PROJECT_NAME}} — Learnings (Rules Digest)
 
 > The always-loaded **Tier 1 rules digest**: durable rules + the one-line WHY that makes
-> each correct. Full narratives live in `docs/learnings/`, read on demand.
+> each correct. Rare incident deep dives live in `docs/learnings/archive/`, read on demand.
 >
 > _This is a template seed. Replace the example rules below with your project's real,
-> earned learnings as they accrue. **Keep the "How this file is maintained" section** —
+> earned learnings. **Keep the "How this file is maintained" section** —
 > it is the mechanism that keeps this file small and high-signal forever._
 
 ---
 
 ## How this file is maintained
 
-- **Tier 1, always loaded.** This is the compact digest injected into every session
-  preamble. Detailed narratives live in `docs/learnings/`
-  (`sessions/weekly/monthly/archive/`), read **on demand only**.
+- **Tier 1, always loaded.** This is the compact digest read at session start. Rare
+  incident narratives may live in `docs/learnings/archive/`, read **on demand only**.
 - **Hard cap: 2,500 tokens** (≈9,500 chars). A `pre-push` guard enforces it
   (`scripts/dev/check-learnings-budget.sh`).
-- **Priority-based distillation.** Every new learning is distilled to rule-shape
-  (≤ ~3–5 lines): the rule + a one-line WHY + (if a deep dive matters) an archive link.
+- **Incident-triggered, not calendar-triggered.** Do not create per-session, daily,
+  weekly, or monthly learning commits. Add a rule only for recurrence, material
+  money/data/safety risk, cross-layer breakage, or costly rework.
+- **Priority-based distillation.** Every accepted learning is distilled to rule-shape
+  (≤ ~3–5 lines): the rule + a one-line WHY +, only when needed, an archive link.
   Adding a learning that would breach the cap is the TRIGGER to first **dedup/merge**
   existing rules; if still over, **demote** the lowest-value rule's detail to the
   archive. Never just grow the file.
-- **What earns a slot** (align with `learnings/README.md` Quality Criteria): recurrence
-  (same class of mistake ≥2×), money/data-loss/safety risk, cross-layer/contract
-  breakage, or high time/rework cost. One-off cosmetic or context-specific trivia stays
-  in the archive only.
+- **Repository history is not a process ledger.** Routine outcomes, token counts,
+  session duration, and PR commentary do not earn files here. GitHub PRs/issues remain
+  the record of their own work.
 - **Promotion requires {{CEO}}'s approval.** This file is excluded from the
-  `docs/learnings/` auto-merge (see Workflow Rule §5).
+  mechanical merge authority of agents (see Workflow Rule §5).
 - **Do not strip the WHY.** Distillation removes the long narrative, never the context
   that makes a rule correct.
 
@@ -48,10 +49,9 @@ spec in the same change.
 them all in one commit so history is consistent at every point.
 
 **§5. Never self-merge.** Always open a PR and give {{CEO}} the link; merging is {{CEO}}'s
-call. WHY: instruction files changed mid-session aren't in context until re-read — after
-any `git reset --hard`/branch change re-read `LEARNINGS.md`, `MISSION.md`,
-`copilot-instructions.md`. **Auto-merge exceptions** are narrow, markdown-only paths
-(e.g. `docs/learnings/` per `learnings/README.md`); everything else needs a PR + approval.
+call, with no agent auto-merge exception. WHY: human merge authority is the final check on
+agent self-modification. After any pull, reset, or branch change, re-read instruction files
+that may have changed before continuing.
 
 **§6. Always check PR state before pushing.** `git fetch origin {{DEFAULT_BRANCH}}` then
 `gh pr view <n> --json state`; if **MERGED**, branch fresh off `origin/{{DEFAULT_BRANCH}}`
@@ -60,11 +60,11 @@ and open a new PR. WHY: pushing to a merged branch orphans the commit. Backed by
 is unavailable and is overridable with `SKIP_PR_GUARD=1` — a backstop, not a replacement
 for the check.
 
-**§7. Reconcile with the canonical project template.** At session start, confirm the
-automatic template check ran (or run `node scripts/dev/review-template-updates.mjs check`);
-before changing inherited operating files, disposition every pending upstream change as
-adopt, adapt, defer, or not applicable. Advance `.template-source` only after all changes
-are accounted for, and propose reusable local improvements back to
+**§7. Reconcile with the canonical project template.** Before changing inherited
+operating files, run `node scripts/dev/review-template-updates.mjs check` and disposition
+every pending upstream change as adopt, adapt, defer, or not applicable. Advance
+`.template-source` only after all changes are accounted for, and propose reusable local
+improvements back to
 `ebadger/AIProjectTemplate`. WHY: private process forks drift and force every AI project to
 rediscover the same improvements. The template governs shared operating machinery, never a
 specialization's product truth; see `specs/TEMPLATE-INHERITANCE.md`.
@@ -96,9 +96,9 @@ branches explicitly (`git branch -D` + `git push origin --delete`).
 
 ## Project-specific clusters (fill these in)
 
-> Add topic-clustered rules here as your project earns them — e.g. `## Data & money paths`,
-> `## Frontend / caching`, `## Deploy / ops`. New learnings merge into the relevant cluster
-> **under the cap**. See `docs/learnings/README.md` for the capture → distill → promote flow.
+> Add topic-clustered rules here only as the project earns them — e.g. `## Data & money
+> paths`, `## Frontend / caching`, `## Deploy / ops`. Merge overlapping rules into the
+> relevant cluster **under the cap**.
 
 ---
 

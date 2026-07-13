@@ -10,8 +10,8 @@
 #   2. Optional project test gate   -- runs scripts/dev/pre-push-tests.sh if present.
 #   3. PR-state guard               -- blocks pushes to a MERGED/CLOSED PR branch.
 #
-# Each guard fails OPEN where it cannot run (missing tool, offline) so it never
-# blocks legitimate work. Escape hatches are per-guard env vars, noted below.
+# Configured budget/test failures block. PR state blocks only when GitHub confirms
+# MERGED/CLOSED; unavailable or offline lookups permit the push.
 
 remote_url="$2"
 
@@ -37,7 +37,8 @@ fi
 # eval suite, lint, etc.) and returns non-zero to BLOCK the push. This keeps the
 # *mechanism* (a mechanical test gate on push) project-agnostic -- copy
 # pre-push-tests.sh.example to pre-push-tests.sh and fill it in.
-# Escape hatch (only if the script itself honors it): SKIP_TEST_GUARD=1 git push ...
+# The project script may let routine tests honor SKIP_TEST_GUARD, but configured
+# critical-path evals must remain non-bypassable.
 _tests="$(cd "$(dirname "$0")" && pwd)/../scripts/dev/pre-push-tests.sh"
 if [ -f "$_tests" ] && [ -x "$_tests" ]; then
   echo "pre-push: running project test gate (scripts/dev/pre-push-tests.sh)..." >&2

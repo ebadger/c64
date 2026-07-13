@@ -1,50 +1,43 @@
-# {{PROJECT_NAME}} — System Status
+# {{PROJECT_NAME}} — Runtime Reference
 
-> The **current runtime reality** of the system: how to run it, where it lives, how to
-> verify it's healthy. Read at session start. Keep it lean and *current* — stale status is
-> worse than no status. Move historical detail to `status/CHANGELOG.md` and deep runbooks to
-> `docs/runbooks/`.
+> Downstream-owned, task-loaded state. Read this only for runtime, deployment,
+> environment, or verification work. Template updates must never overwrite it.
 
-_Last updated: {{DATE}} — {{by whom}}_
-
----
+_Last verified: {{DATE}} — {{by whom}}_
 
 ## Environments
 
-| Environment | Where | URL | Notes |
-|-------------|-------|-----|-------|
-| Dev | {{local / WSL / container}} | {{http://localhost:PORT}} | {{...}} |
-| Production | {{host}} | {{https://...}} | {{...}} |
+| Environment | Location | URL |
+|-------------|----------|-----|
+| Development | {{local / container}} | {{http://localhost:PORT}} |
+| Production | {{host}} | {{PROD_URL}} |
 
-## How to run it (dev)
+## Run locally
 
-```
-{{the exact commands to build and start the system locally}}
-```
-
-## How to verify it's healthy
-
-```
-{{the exact command(s) — e.g. curl a health endpoint — and the expected output}}
+```text
+{{exact build/start commands}}
 ```
 
-## Credentials & secrets (dev only — NEVER commit real secrets)
+## Verify health
 
-| What | Where it's configured | Dev value |
-|------|----------------------|-----------|
-| {{DB connection}} | {{env var / config file}} | {{dev-only placeholder}} |
+```text
+{{exact verification command and expected result}}
+```
 
-> Real production secrets live outside the repo (env, secret store). Do not commit secrets.
+## Configuration (names and locations only)
+
+| Variable/config | Purpose | Where supplied |
+|-----------------|---------|----------------|
+| `{{VARIABLE_NAME}}` | {{purpose}} | {{local env / secret manager / CI setting}} |
+
+Never record credential values, tokens, connection strings, private keys, or copied
+secret-store output here. Store all secrets outside the repository.
 
 ## Key scripts
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/dev/install-hooks.sh` | Activate the git `pre-push` guards (run once per clone). |
-| `scripts/dev/check-learnings-budget.sh` | Enforce the `docs/LEARNINGS.md` token cap. |
-| `scripts/dev/review-template-updates.mjs` | Check canonical template changes and record reviewed checkpoints without merging. |
-| `scripts/dev/pre-push-tests.sh` | (You create this from `.example`) the project's pre-push test gate. |
-
-## Current state / known gaps
-
-- {{What's deployed, what's in flight, what's broken. Keep it honest and short.}}
+| `scripts/dev/install-hooks.sh` | Activate repo-tracked pre-push guards. |
+| `scripts/dev/check-learnings-budget.sh` | Enforce the durable-rules budget. |
+| `scripts/dev/pre-push-tests.sh` | Project-owned routine and critical-path test gate. |
+| `scripts/dev/review-template-updates.mjs` | Review canonical policy changes and record an explicit checkpoint. |
