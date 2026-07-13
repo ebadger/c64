@@ -28,15 +28,14 @@ exceeds the cap, forcing priority-based distillation instead of unbounded growth
   otherwise falls back to a dependency-free character proxy.
 - Override deliberately with `SKIP_LEARNINGS_BUDGET=1 git push ...`.
 
-**2. Project test gate** (via `scripts/dev/pre-push-tests.sh`, when installed).
+**2. PR-state guard.**
+Blocks pushes to a branch whose PR is already **MERGED** or **CLOSED**. Once a PR
+is merged its branch is stale; pushing more commits orphans them.
+- Uses `gh pr list --head <branch> --state all` to look up PR state.
+- Only blocks on a confirmed MERGED/CLOSED state with no competing OPEN PR.
+- Override deliberately with `SKIP_PR_GUARD=1 git push ...`.
+
+**3. Project test gate** (via `scripts/dev/pre-push-tests.sh`, when installed).
 Runs routine tests and any configured critical-path eval before allowing the push.
 The example separates a deliberately skippable routine suite from a path-scoped,
 non-bypassable deterministic eval. A non-zero result always blocks the push.
-
-**3. PR-state guard.**
-Blocks pushes to a branch whose PR is already **MERGED** or **CLOSED**. Once a PR
-is merged its branch is stale; pushing more commits orphans them (the merged PR
-never updates) — the recurring footgun documented in `docs/LEARNINGS.md` §6.
-- Uses `gh pr list --head <branch> --state all` to look up PR state.
-- Only ever blocks on a confirmed MERGED/CLOSED state with no competing OPEN PR.
-- Override deliberately with `SKIP_PR_GUARD=1 git push ...`.

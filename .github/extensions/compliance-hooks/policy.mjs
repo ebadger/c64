@@ -31,93 +31,15 @@ export function getShellCommand(input) {
         : "";
 }
 
-function isEscaped(command, index, toolName) {
-    const escapeCharacter = toolName === "powershell" ? "`" : "\\";
-    let escapeCount = 0;
-    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-        if (command[cursor] !== escapeCharacter) {
-            break;
-        }
-        escapeCount += 1;
-    }
-    return escapeCount % 2 === 1;
-}
-
-function commandSegments(command, toolName) {
-    const segments = [];
-    let current = "";
-    let quote = null;
-
-    for (let index = 0; index < command.length; index += 1) {
-        const character = command[index];
-        if (quote) {
-            current += character;
-            const singleQuotedPosix =
-                toolName !== "powershell" && quote === "'";
-            if (
-                character === quote &&
-                (singleQuotedPosix ||
-                    !isEscaped(command, index, toolName))
-            ) {
-                quote = null;
-            }
-            continue;
-        }
-
-        if (character === "'" || character === '"') {
-            quote = character;
-            current += character;
-            continue;
-        }
-
-        const previous = command[index - 1];
-        const startsComment =
-            character === "#" &&
-            !isEscaped(command, index, toolName) &&
-            (index === 0 || /[\s;&|()]/.test(previous));
-        if (startsComment) {
-            segments.push(current.trim());
-            current = "";
-            while (index + 1 < command.length && command[index + 1] !== "\n") {
-                index += 1;
-            }
-            continue;
-        }
-
-        const next = command[index + 1];
-        const escaped = isEscaped(command, index, toolName);
-        const separator =
-            character === "\n" ||
-            character === ";" ||
-            character === "|" ||
-            character === "&" ||
-            character === "(" ||
-            character === ")";
-        if (!escaped && separator) {
-            segments.push(current.trim());
-            current = "";
-            if (
-                (character === "|" && next === "|") ||
-                (character === "&" && next === "&")
-            ) {
-                index += 1;
-            }
-            continue;
-        }
-
-        current += character;
-    }
-
-    segments.push(current.trim());
-    return segments.filter(Boolean);
+function normalizedCommand(input) {
+    return getShellCommand(input)
+        .replaceAll('"', "")
+        .replaceAll("'", "")
+        .replaceAll("`", "");
 }
 
 export function isSelfMergeAttempt(input) {
-    const invocation =
-        /^(?:(?:&|command|sudo|env)\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*(?:["']?gh(?:\.exe)?["']?)\s+pr\s+merge\b/i;
-    return commandSegments(getShellCommand(input), input?.toolName).some((segment) =>
-        invocation.test(segment),
-    );
+    return /\bgh(?:\.exe)?\s+pr\s+merge\b/i.test(normalizedCommand(input));
 }
 
 export function selfMergeDecision(input) {
@@ -131,44 +53,22 @@ export function selfMergeDecision(input) {
     };
 }
 
-export function blockedPrStateDecision(pr) {
-    if (pr?.state !== "MERGED" && pr?.state !== "CLOSED") {
-        return undefined;
-    }
-    return {
-        permissionDecision: "deny",
-        permissionDecisionReason:
-            `Push blocked: PR #${pr.number} is ${pr.state}. ` +
-            "Move the work to a fresh branch from the default branch.",
-    };
-}
-
 export function isCommitAttempt(input) {
-    return hasGitInvocation(input, "commit");
+    return hasGitSubcommand(input, "commit");
 }
 
-export function isPushAttempt(input) {
-    return hasGitInvocation(input, "push");
+export function isInstructionRefreshAttempt(input) {
+    return ["pull", "reset", "checkout", "switch"].some((subcommand) =>
+        hasGitSubcommand(input, subcommand),
+    );
 }
 
-export function isPullOrReset(input) {
-    return hasGitInvocation(input, "pull") || hasGitInvocation(input, "reset");
-}
-
-function hasGitInvocation(input, subcommand) {
-    const globalOption =
-        "(?:(?:\\s+(?:-c|-C)\\s+\\S+)|" +
-        "(?:\\s+--(?:exec-path|git-dir|work-tree|namespace)(?:=\\S+|\\s+\\S+))|" +
-        "(?:\\s+--?\\S+))*";
+function hasGitSubcommand(input, subcommand) {
     const invocation = new RegExp(
-        "^(?:(?:&|command|sudo|env)\\s+)*" +
-            "(?:[A-Za-z_][A-Za-z0-9_]*=\\S+\\s+)*" +
-            `(?:["']?git(?:\\.exe)?["']?)${globalOption}\\s+${subcommand}(?=\\s|$)`,
+        `\\bgit(?:\\.exe)?\\b[\\s\\S]*?[\\s;&|(){}]${subcommand}(?=$|[\\s;&|(){}])`,
         "i",
     );
-    return commandSegments(getShellCommand(input), input?.toolName).some(
-        (segment) => invocation.test(segment),
-    );
+    return invocation.test(normalizedCommand(input));
 }
 
 export function isCreatePullRequest(input) {

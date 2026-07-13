@@ -3,14 +3,12 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import {
-    blockedPrStateDecision,
     changedLayerPaths,
     changedPaths,
     hooksPathIsActive,
     isCommitAttempt,
     isCreatePullRequest,
-    isPullOrReset,
-    isPushAttempt,
+    isInstructionRefreshAttempt,
     isSelfMergeAttempt,
     isShellTool,
     selfMergeDecision,
@@ -33,7 +31,7 @@ test("denies every gh pr merge attempt without path exceptions", () => {
     assert.equal(selfMergeDecision(input)?.permissionDecision, "deny");
 });
 
-test("does not deny merge text that is quoted, echoed, or commented", () => {
+test("fails closed for shell commands containing a merge token sequence", () => {
     const input = (command) => ({
         toolName: "powershell",
         toolArgs: { command },
@@ -41,13 +39,13 @@ test("does not deny merge text that is quoted, echoed, or commented", () => {
 
     assert.equal(
         isSelfMergeAttempt(input('Write-Host "do not run gh pr merge"')),
-        false,
+        true,
     );
     assert.equal(
         isSelfMergeAttempt(input('node -e "console.log(\'gh pr merge\')"')),
-        false,
+        true,
     );
-    assert.equal(isSelfMergeAttempt(input("# gh pr merge 42")), false);
+    assert.equal(isSelfMergeAttempt(input("# gh pr merge 42")), true);
     assert.equal(
         isSelfMergeAttempt(input("git status; gh pr merge 42 --merge")),
         true,
@@ -67,23 +65,8 @@ test("does not deny merge text that is quoted, echoed, or commented", () => {
         true,
     );
     assert.equal(isSelfMergeAttempt(input("(gh pr merge 42 --merge)")), true);
-});
-
-test("denies pushes only for confirmed dead PR states", () => {
-    assert.equal(
-        blockedPrStateDecision({ number: 7, state: "MERGED" })
-            ?.permissionDecision,
-        "deny",
-    );
-    assert.equal(
-        blockedPrStateDecision({ number: 8, state: "CLOSED" })
-            ?.permissionDecision,
-        "deny",
-    );
-    assert.equal(
-        blockedPrStateDecision({ number: 9, state: "OPEN" }),
-        undefined,
-    );
+    assert.equal(isSelfMergeAttempt(input('gh pr "merge" 42 --merge')), true);
+    assert.equal(isSelfMergeAttempt(input("gh pr `merge` 42 --merge")), true);
 });
 
 test("recognizes relative and absolute active hooks paths", () => {
@@ -100,28 +83,17 @@ test("classifies git lifecycle commands", () => {
     });
 
     assert.equal(isCommitAttempt(input("git commit -m test")), true);
-    assert.equal(isPushAttempt(input("git push origin feature")), true);
-    assert.equal(
-        isPushAttempt(input("git commit -m test && git push origin feature")),
-        true,
-    );
-    assert.equal(
-        isPushAttempt(input("Write-Host noop & git push origin feature")),
-        true,
-    );
-    assert.equal(isPushAttempt(input("(git push origin feature)")), true);
-    assert.equal(isPushAttempt(input("git --no-pager push origin feature")), true);
     assert.equal(
         isCommitAttempt(input("git -c user.name=bot commit -m test")),
         true,
     );
-    assert.equal(isPullOrReset(input("git pull --ff-only")), true);
-    assert.equal(isPullOrReset(input("git reset --soft HEAD~1")), true);
+    assert.equal(isInstructionRefreshAttempt(input("git pull --ff-only")), true);
     assert.equal(
-        isPushAttempt(input('Write-Host "To deploy, run git push"')),
-        false,
+        isInstructionRefreshAttempt(input("git reset --soft HEAD~1")),
+        true,
     );
-    assert.equal(isCommitAttempt(input("# git commit -m test")), false);
+    assert.equal(isInstructionRefreshAttempt(input("git checkout main")), true);
+    assert.equal(isInstructionRefreshAttempt(input("git switch feature")), true);
     assert.equal(isCommitAttempt(input("git commit-tree HEAD")), false);
 });
 

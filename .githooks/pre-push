@@ -7,8 +7,8 @@
 #
 # Three independent guards run in order:
 #   1. LEARNINGS.md size-cap guard  -- keeps the always-loaded Tier-1 digest small.
-#   2. Optional project test gate   -- runs scripts/dev/pre-push-tests.sh if present.
-#   3. PR-state guard               -- blocks pushes to a MERGED/CLOSED PR branch.
+#   2. PR-state guard               -- blocks pushes to a MERGED/CLOSED PR branch.
+#   3. Optional project test gate   -- runs scripts/dev/pre-push-tests.sh if present.
 #
 # Configured budget/test failures block. PR state blocks only when GitHub confirms
 # MERGED/CLOSED; unavailable or offline lookups permit the push.
@@ -31,53 +31,35 @@ if [ -f "$_budget" ]; then
 fi
 # ---------------------------------------------------------------------------
 
-# --- 2. Optional project test gate -----------------------------------------
-# If the project provides scripts/dev/pre-push-tests.sh, run it before allowing
-# the push. The script decides WHAT to test (build, unit tests, a critical-path
-# eval suite, lint, etc.) and returns non-zero to BLOCK the push. This keeps the
-# *mechanism* (a mechanical test gate on push) project-agnostic -- copy
-# pre-push-tests.sh.example to pre-push-tests.sh and fill it in.
-# The project script may let routine tests honor SKIP_TEST_GUARD, but configured
-# critical-path evals must remain non-bypassable.
-_tests="$(cd "$(dirname "$0")" && pwd)/../scripts/dev/pre-push-tests.sh"
-if [ -f "$_tests" ] && [ -x "$_tests" ]; then
-  echo "pre-push: running project test gate (scripts/dev/pre-push-tests.sh)..." >&2
-  REFS_FILE="$_refs_tmp" sh "$_tests" </dev/null || {
-    echo "" >&2
-    echo "x pre-push BLOCKED: project test gate failed. Fix failures before pushing." >&2
-    echo "" >&2
-    exit 1
-  }
-fi
-# ---------------------------------------------------------------------------
-
-# --- 3. PR-state guard -----------------------------------------------------
+# --- 2. PR-state guard -----------------------------------------------------
 # Blocks pushes to a branch whose PR is already MERGED or CLOSED. Once a PR is
 # merged its branch is stale; pushing more commits orphans them. See LEARNINGS §6.
 # Escape hatch (rare, deliberate): SKIP_PR_GUARD=1 git push ...
+_skip_pr_guard=0
 if [ "${SKIP_PR_GUARD:-}" = "1" ]; then
   echo "pre-push: SKIP_PR_GUARD=1 -- skipping PR-state check." >&2
-  exit 0
-fi
-
-if ! command -v gh >/dev/null 2>&1; then
+  _skip_pr_guard=1
+elif ! command -v gh >/dev/null 2>&1; then
   echo "pre-push: 'gh' CLI not found -- skipping PR-state check (fail-open)." >&2
-  exit 0
+  _skip_pr_guard=1
 fi
 
 # Derive owner/repo from the push URL so the check targets the remote actually
 # being pushed to. Only GitHub remotes are checkable.
-case "$remote_url" in
-  https://github.com/*)   repo=${remote_url#https://github.com/} ;;
-  git@github.com:*)       repo=${remote_url#git@github.com:} ;;
-  ssh://git@github.com/*) repo=${remote_url#ssh://git@github.com/} ;;
-  *) repo="" ;;
-esac
-repo=${repo%.git}
-repo=${repo%/}
-if [ -z "$repo" ]; then
-  echo "pre-push: '$remote_url' is not a recognized GitHub remote -- skipping check." >&2
-  exit 0
+repo=""
+if [ "$_skip_pr_guard" -eq 0 ]; then
+  case "$remote_url" in
+    https://github.com/*)   repo=${remote_url#https://github.com/} ;;
+    git@github.com:*)       repo=${remote_url#git@github.com:} ;;
+    ssh://git@github.com/*) repo=${remote_url#ssh://git@github.com/} ;;
+    *) repo="" ;;
+  esac
+  repo=${repo%.git}
+  repo=${repo%/}
+  if [ -z "$repo" ]; then
+    echo "pre-push: '$remote_url' is not a recognized GitHub remote -- skipping check." >&2
+    _skip_pr_guard=1
+  fi
 fi
 
 zero="0000000000000000000000000000000000000000"
@@ -85,6 +67,7 @@ status=0
 
 # git feeds pre-push one line per ref; we read from the captured temp file.
 #   <local ref> <local sha> <remote ref> <remote sha>
+if [ "$_skip_pr_guard" -eq 0 ]; then
 while read -r local_ref local_sha remote_ref remote_sha; do
   # Branch deletion (local sha all-zero) -- nothing to guard.
   [ "$local_sha" = "$zero" ] && continue
@@ -131,5 +114,25 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   echo "" >&2
   status=1
 done < "$_refs_tmp"
+fi
 
-exit $status
+[ "$status" -eq 0 ] || exit "$status"
+# ---------------------------------------------------------------------------
+
+# --- 3. Optional project test gate -----------------------------------------
+# If the project provides scripts/dev/pre-push-tests.sh, run it before allowing
+# the push. Routine tests may honor SKIP_TEST_GUARD, but configured critical-path
+# evals must remain non-bypassable.
+_tests="$(cd "$(dirname "$0")" && pwd)/../scripts/dev/pre-push-tests.sh"
+if [ -f "$_tests" ] && [ -x "$_tests" ]; then
+  echo "pre-push: running project test gate (scripts/dev/pre-push-tests.sh)..." >&2
+  REFS_FILE="$_refs_tmp" sh "$_tests" </dev/null || {
+    echo "" >&2
+    echo "x pre-push BLOCKED: project test gate failed. Fix failures before pushing." >&2
+    echo "" >&2
+    exit 1
+  }
+fi
+# ---------------------------------------------------------------------------
+
+exit 0
