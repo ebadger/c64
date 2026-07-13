@@ -90,11 +90,16 @@ function commandSegments(command, toolName) {
             character === "\n" ||
             character === ";" ||
             character === "|" ||
-            (character === "&" && next === "&");
+            character === "&" ||
+            character === "(" ||
+            character === ")";
         if (!escaped && separator) {
             segments.push(current.trim());
             current = "";
-            if ((character === "|" && next === "|") || next === "&") {
+            if (
+                (character === "|" && next === "|") ||
+                (character === "&" && next === "&")
+            ) {
                 index += 1;
             }
             continue;
@@ -151,8 +156,14 @@ export function isPullOrReset(input) {
 }
 
 function hasGitInvocation(input, subcommand) {
+    const globalOption =
+        "(?:(?:\\s+(?:-c|-C)\\s+\\S+)|" +
+        "(?:\\s+--(?:exec-path|git-dir|work-tree|namespace)(?:=\\S+|\\s+\\S+))|" +
+        "(?:\\s+--?\\S+))*";
     const invocation = new RegExp(
-        `^(?:(?:&|command|sudo|env)\\s+)*(?:[A-Za-z_][A-Za-z0-9_]*=\\S+\\s+)*(?:["']?git(?:\\.exe)?["']?)\\s+${subcommand}(?=\\s|$)`,
+        "^(?:(?:&|command|sudo|env)\\s+)*" +
+            "(?:[A-Za-z_][A-Za-z0-9_]*=\\S+\\s+)*" +
+            `(?:["']?git(?:\\.exe)?["']?)${globalOption}\\s+${subcommand}(?=\\s|$)`,
         "i",
     );
     return commandSegments(getShellCommand(input), input?.toolName).some(

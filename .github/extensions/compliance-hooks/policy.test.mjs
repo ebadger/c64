@@ -62,6 +62,11 @@ test("does not deny merge text that is quoted, echoed, or commented", () => {
         ),
         true,
     );
+    assert.equal(
+        isSelfMergeAttempt(input("Write-Host noop & gh pr merge 42 --merge")),
+        true,
+    );
+    assert.equal(isSelfMergeAttempt(input("(gh pr merge 42 --merge)")), true);
 });
 
 test("denies pushes only for confirmed dead PR states", () => {
@@ -98,6 +103,16 @@ test("classifies git lifecycle commands", () => {
     assert.equal(isPushAttempt(input("git push origin feature")), true);
     assert.equal(
         isPushAttempt(input("git commit -m test && git push origin feature")),
+        true,
+    );
+    assert.equal(
+        isPushAttempt(input("Write-Host noop & git push origin feature")),
+        true,
+    );
+    assert.equal(isPushAttempt(input("(git push origin feature)")), true);
+    assert.equal(isPushAttempt(input("git --no-pager push origin feature")), true);
+    assert.equal(
+        isCommitAttempt(input("git -c user.name=bot commit -m test")),
         true,
     );
     assert.equal(isPullOrReset(input("git pull --ff-only")), true);
