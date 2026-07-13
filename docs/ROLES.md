@@ -20,7 +20,7 @@ them** — not all at once. A typical roster (rename/cut to fit your domain):
 | **Product & Strategy** | What to build next and why, specs, prioritization, mission alignment, roadmap, business model | Pure technical decisions with no product impact |
 | **Build & Operations** | Build pipeline, deploy, infra, migration execution, service health, observability, prod ops | Feature design, architecture, product calls |
 | **Domain Expert** | The deep domain knowledge your product depends on being correct | Infra, deployment, software architecture |
-| **Process & Learning** | Retrospectives & failure-pattern capture, knowledge curation, org/process design, **CEO coaching for {{CEO}}**. Runs as a **periodic** review, not a per-task gate | Implementation, deployment, feature/architecture decisions |
+| **Process & Learning** | Retrospectives, failure-pattern capture, knowledge curation, template reconciliation/upstream feedback, org/process design, **CEO coaching for {{CEO}}**. Runs as a **periodic** review, not a per-task gate | Implementation, deployment, feature/architecture decisions |
 
 ---
 
@@ -65,6 +65,11 @@ scripts where possible, not by memory.
 7. **Self-modification needs {{CEO}}.** Any change to agent authority, role boundaries, or
    this operating model requires {{CEO}}'s explicit approval. Agents propose; they never
    self-approve.
+8. **Canonical-template reconciliation.** At session start and during the Process &
+   Learning retrospective, check `ebadger/AIProjectTemplate` through
+   `scripts/dev/review-template-updates.mjs`. Every upstream change gets an explicit
+   disposition; reusable local improvements flow back upstream. Never wholesale-merge the
+   template over specialization-specific truth. See `specs/TEMPLATE-INHERITANCE.md`.
 
 ---
 

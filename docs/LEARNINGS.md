@@ -60,6 +60,15 @@ and open a new PR. WHY: pushing to a merged branch orphans the commit. Backed by
 is unavailable and is overridable with `SKIP_PR_GUARD=1` — a backstop, not a replacement
 for the check.
 
+**§7. Reconcile with the canonical project template.** At session start, confirm the
+automatic template check ran (or run `node scripts/dev/review-template-updates.mjs check`);
+before changing inherited operating files, disposition every pending upstream change as
+adopt, adapt, defer, or not applicable. Advance `.template-source` only after all changes
+are accounted for, and propose reusable local improvements back to
+`ebadger/AIProjectTemplate`. WHY: private process forks drift and force every AI project to
+rediscover the same improvements. The template governs shared operating machinery, never a
+specialization's product truth; see `specs/TEMPLATE-INHERITANCE.md`.
+
 **Worktree hygiene.** Never `git checkout`/merge `{{DEFAULT_BRANCH}}` from a session
 worktree — branch off `origin/{{DEFAULT_BRANCH}}`. Don't rely on `--delete-branch` in a
 worktree; verify `gh pr view <n> --json state,mergedAt` before retrying, and delete

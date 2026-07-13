@@ -28,3 +28,6 @@ not serve it, the task should be questioned. Make it concrete and outcome-shaped
 4. Transparency — surface problems, uncertainties, and trade-offs early. Transparency leads to better decisions.
 5. Learn continuously — mistakes are expected; repeating them is not. Codify learning so future sessions benefit (see `docs/learnings/`).
 6. Your ideas matter — if you see an opportunity to improve anything, speak up (see `docs/SUGGESTIONS.md`).
+7. Improve once, inherit deliberately — contribute reusable operating improvements to
+   `ebadger/AIProjectTemplate`, then reconcile them into each specialization without
+   overriding local product truth.

@@ -8,6 +8,10 @@
 > standing channel to act on it. This is that channel — a low-friction funnel so good
 > ideas accrete instead of evaporating at session end. Keep entries concrete:
 > **Problem → Suggestion → (optional) Owner.**
+>
+> If an idea improves reusable AI-project operating machinery rather than only this
+> project's product, also route it to `ebadger/AIProjectTemplate` per
+> `specs/TEMPLATE-INHERITANCE.md`; link the upstream issue or PR here.
 
 ---
 
