@@ -38,8 +38,12 @@ zero=0000000000000000000000000000000000000000
 while read -r _local_ref local_sha _remote_ref remote_sha; do
   [ "$local_sha" = "$zero" ] && continue
   if [ "$remote_sha" = "$zero" ]; then
-    empty_tree=$(git hash-object -t tree /dev/null)
-    git diff --name-only "$empty_tree" "$local_sha" >>"$changed"
+    base=$(git merge-base "$local_sha" "origin/{{DEFAULT_BRANCH}}" 2>/dev/null || true)
+    if [ -z "$base" ]; then
+      echo "pre-push-tests: cannot find merge-base with origin/{{DEFAULT_BRANCH}}." >&2
+      exit 1
+    fi
+    git diff --name-only "$base" "$local_sha" >>"$changed"
   else
     git diff --name-only "$remote_sha" "$local_sha" >>"$changed"
   fi
