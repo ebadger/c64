@@ -3,19 +3,27 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-14 — Copilot repository-specialization session_
+_Last verified: 2026-07-14 — Copilot milestone-1 source-pipeline session_
 
 ## Environments
 
 | Environment | Current location | URL | State |
 |-------------|------------------|-----|-------|
-| Development | Repository checkout | None | Foundation docs and operating validation only; no app build |
+| Development | Repository checkout | None | Deterministic source-to-artifact pipeline runs and tests under Node; no emulator, WASM, or web app build |
 | Production | Planned GitHub Pages | `https://ebadger.github.io/c64/` | Not deployed; no workflow or site assets exist |
 
 ## Run locally
 
-There is no application runtime yet. No emulator, assembler, web client, CMake project, npm
-package, generated WebAssembly, or static server configuration exists in this repository.
+The deterministic source-to-artifact pipeline (assembler → PRG → D64) runs under Node.js 18+
+with no dependency install. From the repository root:
+
+```sh
+node --test tests/                 # full pipeline test suite (uses production modules in src/)
+node examples/build-example.mjs    # verify committed example golden vectors
+```
+
+There is no emulator, WebAssembly artifact, web client, CMake project, or static server yet;
+the browser IDE and C64 core described in the specs are not implemented.
 
 ## Verify the files that exist
 
@@ -26,13 +34,17 @@ node scripts/dev/review-template-updates.mjs check
 sh scripts/dev/check-learnings-budget.sh
 sh -n .githooks/pre-push
 sh -n scripts/dev/pre-push-tests.sh
+sh -n scripts/dev/test-critical-path.sh
 node --check .github/extensions/compliance-hooks/extension.mjs
 node --test .github/extensions/compliance-hooks/policy.test.mjs
+node --test tests/
+node examples/build-example.mjs
 ```
 
 Expected result: template lineage is current, the learnings digest is under budget, shell
-syntax checks pass, and all compliance policy tests pass. These checks do not validate a C64
-implementation because one is not present.
+syntax checks pass, all compliance policy tests pass, the pipeline test suite passes, and the
+committed example rebuilds to its recorded golden `buildId`/PRG/D64. These checks validate the
+milestone-1 pipeline; they do not validate an emulator or web client because neither exists.
 
 ## Planned build and deployment (not implemented)
 
@@ -59,13 +71,16 @@ configuration and never repository or CI data.
 |--------|-----------------|
 | `scripts/dev/install-hooks.sh` | Set `core.hooksPath=.githooks`. |
 | `scripts/dev/check-learnings-budget.sh` | Enforce the durable-rules budget. |
-| `scripts/dev/pre-push-tests.sh` | Run current operating validations and reserve a fail-closed product critical-path gate. |
+| `scripts/dev/pre-push-tests.sh` | Run operating validations and, when critical-path files change, the non-bypassable pipeline eval. |
+| `scripts/dev/test-critical-path.sh` | Product critical-path eval: full `node --test tests/` plus example golden-vector verification. |
 | `scripts/dev/review-template-updates.mjs` | Check canonical policy changes and record reviewed checkpoints. |
 
 ## Current known gaps
 
-- All product implementation described by the layer specs is not started.
+- The emulator core, VIC-II, SID/CIA/input, WebAssembly build, ROM handling, web client, and
+  GitHub Pages deployment described by the layer specs are not started.
 - No redistributable replacement ROM set has been selected or legally reviewed.
-- No native/WASM golden vectors, browser compatibility matrix, or external D64
-  interoperability checks exist.
-- No Pages workflow or deployed URL exists.
+- Generated D64 images are covered by byte-exact Node tests but have not been independently
+  verified against external 1541 tooling or physical hardware.
+- No native/WASM golden vectors, browser compatibility matrix, or GitHub Pages workflow
+  exist.

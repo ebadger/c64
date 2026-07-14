@@ -53,6 +53,12 @@ AssemblyResult {
 bytes. Canonical JSON uses fixed key order, UTF-8, normalized `\n` line endings, and no
 insignificant whitespace.
 
+The build-id preimage is constructed deterministically as the UTF-8 bytes of
+`"c64-buildid\0" + assemblerVersion + "\0" + canonicalJson + "\0"` followed by the raw PRG
+bytes; the NUL separators keep the field boundaries unambiguous. The pipeline uses a
+dependency-light synchronous SHA-256 (no `node:crypto`, no `crypto.subtle`) so one
+implementation produces the same `buildId` in browsers and Node.js.
+
 ## Source language
 
 - Target documented NMOS 6502/6510 opcodes and addressing modes. 65C02-only instructions are
@@ -68,6 +74,42 @@ insignificant whitespace.
 - A deterministic multi-pass resolver supports forward labels and reports undefined,
   duplicate, phase-changing, overflow, branch-range, and addressing-mode errors.
 
+### Expression grammar (as implemented)
+
+Operand and directive expressions use a small, unambiguous grammar:
+
+```text
+expression := [ '<' | '>' ] additive          ; '<' = low byte, '>' = high byte of the result
+additive   := primary ( ('+' | '-') primary )*
+primary    := number | charLiteral | identifier | '*'   ; '*' = current program counter
+```
+
+Parentheses are reserved for indirect addressing and are not expression grouping, and there
+is no `*`/`/` operator (so `*` is always the program counter). Numbers are `$hex`, `%binary`,
+or decimal. A character literal `'c'` evaluates to its PETSCII byte.
+
+### PETSCII text mapping (as implemented)
+
+`.text` and character literals use a fixed, documented mapping. Rendering depends on the
+active C64 charset, but the byte mapping is deterministic:
+
+| Input code points | PETSCII byte |
+|-------------------|--------------|
+| `0x20..0x5A` (space, digits, punctuation, `@`, `A`–`Z`) | identity |
+| `[` and `]` | `0x5B`, `0x5D` |
+| `a`–`z` (`0x61..0x7A`) | `0xC1..0xDA` (add `0x60`) |
+
+Every other input — control characters, `\ ^ _ ` { | } ~`, and any non-ASCII/Unicode code
+point — is an `unsupported-character` error rather than a lossy conversion.
+
+### Directives (as implemented)
+
+`* =`/`.org` set the program counter; `.byte`, `.word`, and `.text` emit data; `.fill count
+[, value]` emits repeated bytes; `.align n` advances the program counter to the next multiple
+of `n` (the gap is `$00`-filled by the image serializer). Instruction size selection between
+zero page and absolute is a grow-only multi-pass fixpoint: unresolved and forward references
+are assumed absolute-width and never shrink, which converges deterministically.
+
 ## PRG and entry rules
 
 - Every PRG begins with the two-byte little-endian load address, followed by a contiguous
@@ -81,6 +123,12 @@ insignificant whitespace.
   program correctly, and places machine code after the stub unless source explicitly
   selects a non-overlapping later origin. Browser Run uses the same stub through the BASIC
   environment. The resulting PRG can be loaded and started with `RUN` on a standard C64.
+- In basic-sys mode the assembler derives `runAddress` from final addresses: it equals the
+  first emitted machine-code byte. By default that is the byte immediately after the stub
+  (`$080D` for a 4-digit SYS target), computed as the fixed point of
+  `origin = $0801 + stubLength(origin)`; if the source relocates to a higher origin, the SYS
+  target and the recorded `runAddress` follow it and the gap is `$00`-filled. The
+  `SourceProject.runAddress` field is authoritative only in `direct` mode.
 - The SYS decimal text, BASIC next-line pointer, terminators, and machine-code origin are
   generated from final addresses and covered by byte-exact vectors.
 
@@ -123,8 +171,9 @@ converted to empty successful artifacts.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Source project schema | Specified | Implementation not started |
-| Lexer/parser and NMOS instruction table | Not started | No 65C02 extensions |
-| Multi-pass symbol resolution | Not started | Stable diagnostics required |
-| PRG serializer and BASIC SYS stub | Not started | Byte-exact vectors required |
-| Browser/Node dual-use packaging | Not started | Single implementation |
+| Source project schema | Implemented | Validation, defaults, LF normalization, canonical JSON, SHA-256 buildId |
+| Lexer/parser and NMOS instruction table | Implemented | Complete 151-opcode documented set; no 65C02/undocumented opcodes |
+| Multi-pass symbol resolution | Implemented | Grow-only zero-page/absolute fixpoint; stable sorted diagnostics |
+| PRG serializer and BASIC SYS stub | Implemented | Byte-exact stub and gap/overlap/range handling under golden vectors |
+| Browser/Node dual-use packaging | Implemented | Single ES module in `src/`; no runtime deps or environment globals |
+| Worker integration and UI wiring | Not started | Owned by `WEB-CLIENT.md`; no client exists yet |

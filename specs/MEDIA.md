@@ -78,6 +78,10 @@ error-byte table:
 - Generated disk label, two-character ID, DOS type, filename mapping, allocation order, and
   padding are deterministic. Allocation proceeds by a documented fixed track/sector order
   that avoids track 18 until directory growth requires it.
+- The implemented file-data allocation walk visits tracks in ascending order
+  `1,2,…,17,19,…,35` (track 18 is reserved for the BAM and directory) and, within each track,
+  sectors `0…max` with no interleave. Interleave is a drive-performance optimization that does
+  not affect byte-exactness, so it is intentionally omitted for determinism.
 - The generated D64 contains the exact PRG byte stream produced by `CODEGEN.md`; rebuilding
   the same project produces identical D64 bytes.
 
@@ -124,8 +128,11 @@ visible but marks them stale.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| PRG parser/validator | Not started | Shares serializer vectors with codegen |
-| Deterministic 35-track D64 builder | Not started | Byte and external-tool validation required |
-| D64 parser/import | Not started | Read-only initial media |
-| 1541 drive behavior | Not started | Emulator design must select fidelity level |
-| Curated D64 routes | Optional / not started | Same-origin IDs only |
+| PRG parser/validator | Implemented | `parsePrg` shares serializer golden vectors with codegen |
+| Deterministic 35-track D64 builder | Implemented | Byte-exact BAM/directory/chain construction under tests |
+| D64 parser/import | Implemented | `parseD64`/`extractPrg` validate geometry, BAM, and chains; read-only |
+| 1541 drive behavior | Not started | Emulator design must select fidelity level; `mountD64` only validates media |
+| Curated D64 routes | Optional / not started | Same-origin IDs only; owned by `WEB-CLIENT.md` |
+
+External-tool D64 interoperability (loading generated images in real 1541 tooling or hardware)
+is not yet independently verified and is tracked as an open gap in `status/SYSTEM-STATUS.md`.
