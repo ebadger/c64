@@ -5,14 +5,15 @@ const LEGACY_FILE_TOOLS = new Set(["edit", "create"]);
 
 const LAYER_PATTERNS = [
     /(^|\/)specs\//i,
-    /(^|\/)schema/i,
-    /(^|\/)migrations?\//i,
-    /(^|\/)api\//i,
-    /(^|\/)server\//i,
     /(^|\/)src\//i,
     /(^|\/)web\//i,
-    /(^|\/)client\//i,
-    /(^|\/)wwwroot\//i,
+    /(^|\/)tests?\//i,
+    /(^|\/)examples?\//i,
+    /(^|\/)assets?\//i,
+    /(^|\/)cmake\//i,
+    /(^|\/)scripts\/(build|ci)\//i,
+    /(^|\/)\.github\/workflows\//i,
+    /(^|\/)(CMakeLists\.txt|gallery\.json)$/i,
 ];
 
 export function isShellTool(toolName) {

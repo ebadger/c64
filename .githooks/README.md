@@ -35,7 +35,9 @@ is merged its branch is stale; pushing more commits orphans them.
 - Only blocks on a confirmed MERGED/CLOSED state with no competing OPEN PR.
 - Override deliberately with `SKIP_PR_GUARD=1 git push ...`.
 
-**3. Project test gate** (via `scripts/dev/pre-push-tests.sh`, when installed).
-Runs routine tests and any configured critical-path eval before allowing the push.
-The example separates a deliberately skippable routine suite from a path-scoped,
-non-bypassable deterministic eval. A non-zero result always blocks the push.
+**3. Project test gate** (via `scripts/dev/pre-push-tests.sh`).
+Runs the current operating tests before allowing a push. Product implementation paths are
+already classified as critical and fail closed until the first implementation adds
+`scripts/dev/test-critical-path.sh` with native/WASM/artifact verification. Routine tests
+may be deliberately skipped; the configured critical-path eval may not. A non-zero result
+always blocks the push.

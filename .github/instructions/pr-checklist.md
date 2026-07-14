@@ -19,6 +19,6 @@ Before opening a behavior-changing PR:
 8. Re-run both reviewers after fixes or re-scoping. Confirm no gated finding awaits a
    decision and put the compact SHA/model and decision record from
    `docs/CODE-REVIEW-PANEL.md` in the PR body.
-9. Open the PR for {{CEO}} and stop. Never merge it.
+9. Open the PR for ebadger and stop. Never merge it.
 
 For runtime/deploy changes, update `status/SYSTEM-STATUS.md` without adding secret values.

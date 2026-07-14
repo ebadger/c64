@@ -3,7 +3,7 @@
 Behavior-changing PRs receive two independent reviews through the runtime's actual
 read-only `code-review` specialist. The reviewers are selected relative to the primary
 model, not from a permanent roster. Every blocker and every finding estimated to take more
-than one minute to implement and validate is a decision checkpoint for {{CEO}}, not
+than one minute to implement and validate is a decision checkpoint for ebadger, not
 something an agent may silently resolve or dismiss.
 
 ## Scope
@@ -21,7 +21,7 @@ exempt unless they change behavior.
    - neither may be the primary model;
    - prefer a different provider/model family from the primary;
    - prefer different providers/model families from each other.
-4. If two meaningfully diverse alternatives are unavailable, stop and tell {{CEO}} the
+4. If two meaningfully diverse alternatives are unavailable, stop and tell ebadger the
    review gate cannot be satisfied. Do not silently reuse the primary.
 
 Do not create or invoke standing reviewer agents. Invoke `task` twice with
@@ -32,7 +32,7 @@ read-only and reviews the repository diff directly.
 
 1. Finish and validate the implementation, then commit the candidate.
 2. Record:
-   - `BASE=$(git merge-base origin/{{DEFAULT_BRANCH}} HEAD)`
+   - `BASE=$(git merge-base origin/main HEAD)`
    - `HEAD=$(git rev-parse HEAD)`
 3. Independently invoke the two selected reviewers on the committed
    `<BASE>...<HEAD>` range. Give each the relevant spec/test context, not the author's
@@ -46,27 +46,27 @@ read-only and reviews the repository diff directly.
 6. If any finding is gated, present all decision packets and wait for every item-level
    decision. Do not edit, stage, commit, or re-run review on the candidate while a decision
    is pending.
-7. Apply {{CEO}}'s decision for each gated finding:
+7. Apply ebadger's decision for each gated finding:
    - **Implement now** — fix it in the current change.
    - **Do not implement** — leave it unchanged and record the accepted risk or override
-     reason. For a blocker, {{CEO}} also explicitly decides that it does not block.
+     reason. For a blocker, ebadger also explicitly decides that it does not block.
    - **Re-scope or defer** — remove the affected scope or create the directed tracked
      follow-up.
 8. Triage findings that are both non-blocking and estimated at one minute or less: fix a
    true positive or record a short, checkable reason for overriding it.
 9. If a fix or re-scope changes `HEAD`, commit it and repeat both reviews on the new exact
    range. The recorded `HEAD` must be the reviewed commit.
-10. On re-review, match findings by substance against prior {{CEO}} decisions. Carry a
+10. On re-review, match findings by substance against prior ebadger decisions. Carry a
     decision forward without re-escalation only when the affected scope, classification,
     evidence, and recommendation are materially unchanged; otherwise treat it as a new
     gated finding and return to step 5.
 11. Confirm no gated finding is awaiting a decision, put the compact record below in the PR
-   body, and open the PR for {{CEO}}.
+   body, and open the PR for ebadger.
 
 Do not copy verbatim reviewer transcripts into a process ledger, create scorecard
 reports, or schedule review harvesting. The PR record is enough.
 
-## {{CEO}} decision gate
+## ebadger decision gate
 
 A finding enters this gate when either condition is true:
 
@@ -80,7 +80,7 @@ feedback. It excludes passive wait time but includes the edits and active valida
 for a complete fix. When uncertain whether the estimate exceeds one minute, escalate. The
 primary must not relabel reviewer-blocking feedback as non-blocking before escalation.
 
-For each gated finding, present {{CEO}} with:
+For each gated finding, present ebadger with:
 
 - **Finding and classification:** a faithful, concise summary, its reviewer/source, and
   whether it is blocking.
@@ -96,7 +96,7 @@ Present findings through the active session's human-decision channel and pause f
 answer. If the execution context cannot request and await a decision, report the work
 blocked and stop; do not represent the review as complete or open the PR. Multiple findings
 may be presented together for context, but each requires a distinct decision. Mark every
-undecided item `awaiting {{CEO}} decision`.
+undecided item `awaiting ebadger decision`.
 
 ## PR record
 
@@ -108,15 +108,15 @@ undecided item `awaiting {{CEO}} decision`.
 - Reviewer 2: `<model-id>` — `<verdict>` — `<N findings>`
 - Agent-triaged findings (non-blocking, <=1 minute): `<N fixed>`, `<N overridden>`
   - Override: `<finding>` — `<checkable reason>` (omit when none)
-- {{CEO}}-decision findings: `<none, or N escalated / N fixed / N accepted / N re-scoped>`
+- ebadger-decision findings: `<none, or N escalated / N fixed / N accepted / N re-scoped>`
   - Finding: `<summary>`
     - Classification: `<blocking / non-blocking>`; estimate:
       `<implementation + active validation time>`
     - Agent recommendation: `<fix / do not fix / re-scope + rationale>`
-    - {{CEO}} decision:
+    - ebadger decision:
       `<implement / do not implement / re-scope; blocker status if needed>`
     - Disposition: `<fix commit / accepted-risk reason / follow-up>`
 ```
 
 Reviewers advise, the primary owns trivial non-blocking triage and recommendations,
-{{CEO}} decides the priority of every gated finding, and only {{CEO}} merges.
+ebadger decides the priority of every gated finding, and only ebadger merges.

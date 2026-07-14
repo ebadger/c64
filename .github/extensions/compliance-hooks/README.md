@@ -22,9 +22,10 @@ Node tests pin the
 current CLI names (`powershell`, `create_pull_request`, and `apply_patch`) while retaining
 compatibility with `bash`, `shell`, `edit`, and `create`.
 
-Customize only the layer patterns in `policy.mjs`. Keep project credentials, runtime
-state, model selections, scheduled-workflow state, and template checkpoints out of this
-extension. Template lineage is reviewed explicitly through
+The c64 layer patterns cover specs, C++/web/test/example/asset surfaces, CMake/build scripts,
+gallery metadata, and deployment workflows. Keep project credentials, runtime state, model
+selections, user ROM/media data, scheduled-workflow state, and template checkpoints out of
+this extension. Template lineage is reviewed explicitly through
 `scripts/dev/review-template-updates.mjs`, not injected every session.
 
 ```sh

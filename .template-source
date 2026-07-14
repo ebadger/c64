@@ -3,5 +3,5 @@
 [template]
 	repository = https://github.com/ebadger/AIProjectTemplate.git
 	branch = main
-	lastReviewedRef = {{TEMPLATE_BASE_REF}}
-	lastReviewedAt = {{TEMPLATE_REVIEW_DATE}}
+	lastReviewedRef = 66a14469787860a1b08918f4089f9070680bb3e9
+	lastReviewedAt = 2026-07-14
