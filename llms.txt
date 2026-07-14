@@ -1,0 +1,32 @@
+# c64
+
+> Zero-install browser Commodore 64 assembly development, software emulation, sharing, and
+> standard PRG/D64 interoperability.
+
+Current state: architecture and repository specialization only. The application, emulator,
+assembler, examples, build, tests, and deployment are not implemented yet.
+
+## Start here
+
+- [Mission](docs/MISSION.md): purpose and explicit software-only boundary
+- [System](specs/SYSTEM.md): architecture, data flows, critical path, implementation status
+- [Runtime status](status/SYSTEM-STATUS.md): current versus planned build/deployment truth
+- [Contributing](CONTRIBUTING.md): product invariants and review workflow
+
+## Layer contracts
+
+- [Emulator](specs/EMULATOR.md): NMOS 6510, C64 bus/banking, deterministic native/WASM core
+- [VIC-II](specs/VIC-II.md): PAL/NTSC raster timing and video output
+- [SID/CIA/input](specs/IO.md): audio, timers, ports, keyboard, joystick, IEC-facing signals
+- [Code generation](specs/CODEGEN.md): browser/Node assembler, PRG and run-entry behavior
+- [Media](specs/MEDIA.md): standards-compatible PRG/D64 generation and import
+- [ROM assets](specs/ROM-ASSETS.md): replacements, user-supplied ROMs, licensing and privacy
+- [Web client](specs/WEB-CLIENT.md): static IDE, URL sharing, autosave and presentation
+
+## Hard boundaries
+
+- No runtime backend, accounts, database, secrets, private shares, or in-app publishing.
+- No copyrighted Commodore ROMs in the repository or generated site.
+- No custom transfer hardware, firmware, PCB/HDL, KiCad, GAL/address-decode, or other
+  physical 3RIC work.
+- GitHub pull requests are the only canonical publishing path; only `ebadger` merges.

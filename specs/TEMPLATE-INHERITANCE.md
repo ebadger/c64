@@ -29,6 +29,15 @@ Every specialization keeps a tracked `.template-source` file containing:
 The checkpoint means **reviewed through**, not necessarily copied verbatim. It advances
 only after every upstream change in the range has an explicit disposition.
 
+For c64, the initial specialization was seeded from
+`ebadger/AIProjectTemplate@66a14469787860a1b08918f4089f9070680bb3e9`. The
+`.template-source` checkpoint records that exact inherited commit and the date on which the
+specialization review was performed. Product specs, runtime status, examples, and emulator
+implementation remain c64-owned even when adjacent operating files continue to inherit
+template improvements. The initial 2026-07-14 check found no upstream commits beyond that
+baseline, so this specialization adapts only downstream-owned product context and retains
+the applicable inherited governance.
+
 ## Required review trigger
 
 Specializations check for template changes before modifying inherited operating-system
@@ -78,3 +87,4 @@ the result.
 | Read-only upstream change check | Implemented |
 | Explicit checkpoint acknowledgement | Implemented |
 | Before-change and PR workflow integration | Implemented |
+| c64 initial seed checkpoint | Implemented at `66a14469787860a1b08918f4089f9070680bb3e9` |

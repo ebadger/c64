@@ -1,21 +1,20 @@
-name: "🐛 Bug report (technical)"
-description: "Log a defect with technical detail. Critical-path bugs (money / data loss / safety) get a fast lane."
+name: "🐛 c64 bug report"
+description: "Report an assembler, artifact, emulator, media, or browser defect."
 title: "[BUG] <area>: <short summary>"
 labels: ["type: bug", "status: triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for logging a defect. Keep it concrete. If this bug touches the
-        **critical path** (money, irreversible actions, data loss, or a core flow being
-        down), set severity = critical and say so in the summary — those get a fast lane
-        and a stricter review gate.
+        Keep evidence concrete. Artifact corruption, nondeterministic rebuilds, incorrect
+        machine behavior, ROM-license/privacy violations, or a core edit/build/run/download
+        flow being unavailable are critical-path defects.
 
   - type: textarea
     id: summary
     attributes:
       label: Summary
-      description: One or two sentences. What is broken?
+      description: What is broken?
     validations:
       required: true
 
@@ -24,10 +23,10 @@ body:
     attributes:
       label: Severity (proposed — triage confirms)
       options:
-        - "critical — money/data wrong, safety bypass, data loss, core flow down"
-        - "high — core flow broken for some users, no clean workaround"
-        - "medium — feature broken but workaround exists"
-        - "low — cosmetic / minor / polish"
+        - "critical — corrupt/nondeterministic artifact, legal/privacy boundary, or core flow down"
+        - "high — incorrect emulation/build behavior for common software, no clean workaround"
+        - "medium — feature broken but a practical workaround exists"
+        - "low — cosmetic, minor, or documentation-only"
     validations:
       required: true
 
@@ -35,21 +34,26 @@ body:
     id: layers
     attributes:
       label: Affected layer(s)
-      description: "Trace it — most real bugs cross layers."
+      description: "Select every layer the bytes or machine state cross."
       options:
-        - label: "Data store (schema / data / constraints)"
-        - label: "API / Service (endpoint / validation / server logic)"
-        - label: "Client / UI"
+        - label: "Assembler / source project"
+        - label: "PRG / D64 media"
+        - label: "CPU / bus / banking"
+        - label: "VIC-II"
+        - label: "SID / CIA / keyboard / joystick"
+        - label: "ROM assets"
+        - label: "WASM bridge / web client"
+        - label: "Build / tests / Pages deployment"
         - label: "Unknown — needs investigation"
 
   - type: textarea
     id: repro
     attributes:
-      label: Repro steps
-      description: Numbered steps. Include the account/role used.
+      label: Reproduction steps
+      description: Include source/media, timing profile, ROM-set identity, and exact actions when relevant.
       placeholder: |
-        1. ...
-        2. ...
+        1. Open/build ...
+        2. Select PAL/NTSC and ...
         3. Observe ...
     validations:
       required: true
@@ -57,7 +61,7 @@ body:
   - type: textarea
     id: expected_actual
     attributes:
-      label: Expected vs actual
+      label: Expected versus actual
       placeholder: |
         Expected: ...
         Actual:   ...
@@ -68,7 +72,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Build/commit SHA, where observed, browser/device if applicable.
+      description: Commit/build ID, browser/OS, timing profile, and ROM digest/role metadata only. Do not attach ROM bytes.
     validations:
       required: true
 
@@ -76,4 +80,4 @@ body:
     id: evidence
     attributes:
       label: Evidence (optional)
-      description: Logs, screenshots, failing test name, relevant queries.
+      description: Diagnostics, hashes, screenshots, minimal source, failing test, or external-tool result. Never attach copyrighted ROMs.

@@ -52,12 +52,16 @@ test("extracts layer paths from current apply_patch calls", () => {
         toolArgs: {
             patch: [
                 "*** Begin Patch",
-                "*** Update File: specs/API.md",
+                "*** Update File: specs/MEDIA.md",
                 "@@",
                 "-old",
                 "+new",
-                "*** Add File: src/service.ts",
-                "+export {};",
+                "*** Add File: src/core/machine.cpp",
+                "+int machine = 0;",
+                "*** Update File: gallery.json",
+                "@@",
+                "-[]",
+                "+[{}]",
                 "*** Update File: docs/MISSION.md",
                 "@@",
                 "-old",
@@ -68,22 +72,44 @@ test("extracts layer paths from current apply_patch calls", () => {
     };
 
     assert.deepEqual(changedPaths(input), [
-        "specs/API.md",
-        "src/service.ts",
+        "specs/MEDIA.md",
+        "src/core/machine.cpp",
+        "gallery.json",
         "docs/MISSION.md",
     ]);
     assert.deepEqual(changedLayerPaths(input), [
-        "specs/API.md",
-        "src/service.ts",
+        "specs/MEDIA.md",
+        "src/core/machine.cpp",
+        "gallery.json",
     ]);
 });
 
-test("retains compatibility with structured legacy edit calls", () => {
+test("recognizes c64 implementation and build surfaces", () => {
     assert.deepEqual(
         changedLayerPaths({
             toolName: "edit",
-            toolArgs: { path: "client\\pages\\home.tsx" },
+            toolArgs: { path: "web\\emulator.js" },
         }),
-        ["client/pages/home.tsx"],
+        ["web/emulator.js"],
+    );
+    assert.deepEqual(
+        changedLayerPaths({
+            toolName: "apply_patch",
+            toolArgs: {
+                patch: [
+                    "*** Begin Patch",
+                    "*** Update File: CMakeLists.txt",
+                    "@@",
+                    "-old",
+                    "+new",
+                    "*** Update File: .github/workflows/pages.yml",
+                    "@@",
+                    "-old",
+                    "+new",
+                    "*** End Patch",
+                ].join("\n"),
+            },
+        }),
+        ["CMakeLists.txt", ".github/workflows/pages.yml"],
     );
 });

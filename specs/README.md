@@ -1,34 +1,21 @@
-# Specs (`specs/`)
+# c64 specifications
 
 **Specs are the source of truth. Code follows specs, not the other way around.**
 
-This is the single most load-bearing convention in the whole operating model: every
-stored-data feature is specified across *all* the layers it touches **before** it is built,
-and the spec is updated **in the same commit** as the code. That is what keeps an AI
-workforce — which has no persistent memory between sessions — from drifting.
+Start with [`SYSTEM.md`](./SYSTEM.md), then read only the layer being changed:
 
-## How specs are organized
+| Spec | Layer |
+|------|-------|
+| [`EMULATOR.md`](./EMULATOR.md) | NMOS 6510, memory bus, deterministic core, native/WASM boundary |
+| [`VIC-II.md`](./VIC-II.md) | PAL/NTSC raster timing and video |
+| [`IO.md`](./IO.md) | SID, CIA, keyboard, joystick, and IEC-facing signals |
+| [`CODEGEN.md`](./CODEGEN.md) | Dual-use assembler, source project, PRG output and run entry |
+| [`MEDIA.md`](./MEDIA.md) | PRG/D64 generation, validation, import, and downloads |
+| [`ROM-ASSETS.md`](./ROM-ASSETS.md) | Redistributable and user-supplied ROM policy |
+| [`WEB-CLIENT.md`](./WEB-CLIENT.md) | Static IDE, sharing, autosave, emulator presentation |
+| [`TEMPLATE-INHERITANCE.md`](./TEMPLATE-INHERITANCE.md) | Shared operating-system lineage |
 
-- `SYSTEM.md` — the **umbrella**: a short overview of the whole system that links to every
-  sub-spec. Start here; read sub-specs lazily.
-- `TEMPLATE-INHERITANCE.md` — the cross-cutting contract for reviewing improvements from
-  the canonical AI operating-system template and contributing reusable lessons back.
-- One sub-spec **per layer** (copy `_TEMPLATE.md`). A typical set:
-  - `DATABASE.md` — data store: schema, constraints, indexes, migrations.
-  - `API.md` — endpoints, request/response contracts, validation, auth.
-  - `WEB-CLIENT.md` — client/UI: pages, components, interactions, caching.
-  - (add more layers as your architecture requires)
-
-## The rules (canonical in `docs/LEARNINGS.md` §1–4)
-
-1. **Layer checklist.** Before committing, verify every layer the change could touch.
-2. **Data flow, not documents.** Specify every link:
-   `User action → request → server logic → write → read → response → render`.
-3. **Specs before code.** Update the spec first; code implements the spec.
-4. **Commit atomically.** A feature spanning multiple specs/layers updates them all in one
-   commit, so history is consistent at every point.
-
-After implementing, update the **Implementation Status** section of the relevant sub-spec.
-
-> The `compliance-hooks` extension nudges a cross-layer check whenever you modify a file that
-> looks like a layer/spec file (see `.github/extensions/compliance-hooks/`).
+Use [`_TEMPLATE.md`](./_TEMPLATE.md) when a genuinely new layer is needed. A behavior change
+must update every affected spec and trace the full path from user action through build or
+machine state to presentation/download. Keep implementation status honest: a specified
+feature is not shipped until its code and required verification exist.

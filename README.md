@@ -1,73 +1,79 @@
-# AIProjectTemplate
+# c64
 
-**A small, reusable governance layer for software projects operated with AI agents.**
+**A zero-install browser development environment for Commodore 64 software.**
 
-This repository is not an application skeleton. It provides durable project instructions,
-spec discipline, human merge authority, mechanical pre-push guards, deliberate template
-lineage, and model-diverse review without importing a standing AI organization.
+c64 is designed to let people write NMOS 6510 assembly, assemble it, run it in a software
+C64 emulator, share and remix source, and download standard PRG and D64 files. The target is
+a static GitHub Pages application with no runtime backend, accounts, database, or secrets.
 
-## Controls worth inheriting
+> **Current status:** this repository contains the specialized mission, architecture, and
+> operating foundation. The IDE, assembler, emulator, examples, tests, build, and Pages
+> deployment are specified but not yet implemented. There is no runnable application or
+> live production site today.
 
-1. **Capped, incident-triggered memory.** `docs/LEARNINGS.md` contains only durable rules
-   that meet a recurrence or material-risk/rework threshold. Rare narratives live in
-   `docs/learnings/archive/`; there are no daily, weekly, or monthly learning reports.
-2. **Verified authority boundaries.** Human/GitHub approval controls merges. The git
-   pre-push hook blocks confirmed merged/closed PR branches and configured test failures.
-   Copilot extension prompts are host-dependent defense in depth, not enforcement.
-3. **Specs and data flow.** Behavior changes update the relevant spec and trace every
-   affected Data store → API/Service → Client link.
-4. **Relative model-diverse review.** Two runtime-available, read-only `code-review`
-   specialists use explicit model IDs selected relative to the primary. Exact SHAs and
-   models are recorded in the PR, without a duplicate review ledger. Every blocker and
-   every finding estimated above one minute is presented with evidence, effort, and the
-   agent's recommendation for an explicit item-level {{CEO}} decision before disposition.
-5. **Deliberate inheritance.** `.template-source` records the reviewed canonical commit;
-   a read-only updater reports changes for adopt/adapt/defer/not-applicable review without
-   overwriting local product truth.
-6. **Mission-clock discipline.** Product work outranks new agents, dashboards, scheduled
-   governance, ceremonies, and meta-documentation. Deletion is always allowed.
+## Planned user workflow
+
+1. Open the static site without installing a toolchain.
+2. Edit NMOS 6510/6502 assembly in the browser.
+3. Build deterministic PRG and D64 artifacts with the same assembler used by headless tests.
+4. Run the PRG in the shared C++17 emulator core compiled to WebAssembly.
+5. Share editable source through `?src` or base64url UTF-8 `?code`.
+6. Download the standard PRG or D64 for external C64 tools or transfer to physical hardware.
+
+Canonical examples will be curated through GitHub pull requests and `gallery.json`. URL
+shares are public bearer data: anyone with the URL can read and copy the source, and long
+source produces long URLs.
+
+## Architecture
+
+- **Emulator:** deterministic C++17 NMOS 6510, bus/banking, VIC-II, SID, CIA, input, and
+  disk/media modules.
+- **Execution:** one Emscripten/embind WebAssembly artifact for browser use and headless WASM
+  tests; the same C++ sources also compile natively for diagnostics.
+- **Code generation:** one dependency-light ES module assembler for browser and Node.js,
+  targeting NMOS 6510/6502 semantics rather than 65C02 extensions.
+- **Artifacts:** client-side PRG and standards-compatible 35-track D64 generation and D64
+  import.
+- **Client:** vanilla static HTML/CSS/JavaScript with browser pacing outside the deterministic
+  core.
+- **Hosting:** planned GitHub Pages deployment at `https://ebadger.github.io/c64/`.
+
+Start with [`specs/SYSTEM.md`](./specs/SYSTEM.md) for the full layer map and data flows.
+
+## ROM and hardware boundary
+
+Copyrighted Commodore BASIC, KERNAL, and character ROMs are not committed or distributed.
+The application may ship only redistributable replacements and may accept user-supplied ROM
+files locally.
+
+This project ends at software emulation and standard PRG/D64 interoperability. It does not
+include custom transfer devices, firmware, PCBs, HDL, KiCad, GAL/address-decode logic, or
+other physical 3RIC hardware work.
 
 ## Repository map
 
 ```text
-.github/
-  copilot-instructions.md
-  agents/template-agent.md
-  instructions/
-  extensions/compliance-hooks/
-.githooks/pre-push
-.template-source
-scripts/dev/
-  instantiate.sh
-  review-template-updates.mjs
-docs/
-  LEARNINGS.md
-  learnings/archive/
-  MISSION.md
-  ROLES.md
-  CODE-REVIEW-PANEL.md
-specs/
-  SYSTEM.md
-  TEMPLATE-INHERITANCE.md
-status/SYSTEM-STATUS.md
-SETUP.md
+docs/MISSION.md             Product purpose and boundary
+docs/LEARNINGS.md           Capped operating rules
+specs/SYSTEM.md             System overview
+specs/EMULATOR.md           CPU, bus, deterministic core, WASM API
+specs/VIC-II.md             Raster/video contract
+specs/IO.md                 SID, CIA, keyboard, joystick, IEC-facing signals
+specs/CODEGEN.md            Assembler and PRG entry contract
+specs/MEDIA.md              PRG/D64 generation and import
+specs/ROM-ASSETS.md         ROM licensing, privacy, and validation
+specs/WEB-CLIENT.md         Static IDE, sharing, autosave, presentation
+status/SYSTEM-STATUS.md      Current implementation and environment truth
 ```
 
-## Inheritance boundary
+## Work on the repository
 
-`scripts/dev/instantiate.sh` performs one-time bootstrap. Later,
-`review-template-updates.mjs` only reports canonical changes and advances a reviewed
-checkpoint after explicit reconciliation; it never copies files automatically.
+See [`SETUP.md`](./SETUP.md) for the currently available validation commands and
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) for product and review rules. The required tracked
+git guards are activated per clone with:
 
-| Durable template material | Downstream-owned; never overwrite or propagate |
-|---------------------------|-----------------------------------------------|
-| Generic merge/test guards and their tests | Credentials, secret values, or secret-store output |
-| Generic review and specs/data-flow policy | Runtime status, environment values, deploy state |
-| Minimal least-privilege agent skeleton | Model pins, agent rosters, role biographies, dynamic runbooks |
-| Capped-memory and lineage mechanisms | Mission/spec content, learned project rules, scheduled-workflow records |
+```sh
+git config core.hooksPath .githooks
+```
 
-Do not copy scheduler databases, disabled workflow records, or communication state between
-projects. Check lineage before changing inherited operating files, not as a recurring
-commit/report ceremony.
-
-See [`SETUP.md`](./SETUP.md) to instantiate the template.
+Agents open pull requests for `ebadger` and never self-merge.

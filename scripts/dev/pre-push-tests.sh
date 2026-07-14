@@ -1,21 +1,26 @@
 #!/bin/sh
-# Copy to pre-push-tests.sh and replace the two functions/config values below.
-# Routine tests may be deliberately skipped. A configured critical-path eval may not.
+# Current project test gate. Product paths fail closed until their deterministic eval exists.
 set -eu
 
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$REPO_ROOT"
+
 run_routine_tests() {
-  # Replace with: dotnet test / npm test / pytest / go test ./... / cargo test
-  echo "pre-push-tests: routine test command not configured." >&2
+  node --check .github/extensions/compliance-hooks/extension.mjs
+  node --test .github/extensions/compliance-hooks/policy.test.mjs
+  sh scripts/dev/check-learnings-budget.sh
 }
 
-# Configure both values after naming the critical path in specs/SYSTEM.md.
-# Example: CRITICAL_PATH_REGEX='^(src/payments/|tests/payment-golden/)'
-CRITICAL_PATH_REGEX=''
+CRITICAL_PATH_REGEX='^(src/|web/|tests?/|examples?/|assets?/|cmake/|scripts/(build|ci)/|\.github/workflows/|CMakeLists\.txt$|gallery\.json$)'
 
 run_critical_eval() {
-  # Replace with one deterministic command that returns non-zero on failure.
-  echo "pre-push-tests: critical eval command not configured." >&2
-  return 1
+  critical_eval="scripts/dev/test-critical-path.sh"
+  if [ ! -x "$critical_eval" ]; then
+    echo "pre-push-tests: product critical-path eval is not implemented." >&2
+    echo "Add $critical_eval with the first product implementation; product paths fail closed until then." >&2
+    return 1
+  fi
+  "$critical_eval"
 }
 
 if [ "${SKIP_TEST_GUARD:-}" = "1" ]; then
@@ -23,8 +28,6 @@ if [ "${SKIP_TEST_GUARD:-}" = "1" ]; then
 else
   run_routine_tests
 fi
-
-[ -n "$CRITICAL_PATH_REGEX" ] || exit 0
 
 if [ -z "${REFS_FILE:-}" ] || [ ! -f "$REFS_FILE" ]; then
   echo "pre-push-tests: cannot determine changed files for configured critical gate." >&2
@@ -67,6 +70,6 @@ while read -r _local_ref local_sha remote_ref remote_sha; do
 done <"$REFS_FILE"
 
 if [ "$critical_changed" = "1" ]; then
-  echo "pre-push-tests: critical path changed; running non-bypassable eval." >&2
+  echo "pre-push-tests: product critical path changed; running non-bypassable eval." >&2
   run_critical_eval
 fi

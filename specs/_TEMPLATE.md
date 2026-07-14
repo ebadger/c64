@@ -1,4 +1,4 @@
-# {{PROJECT_NAME}} — {{LAYER_NAME}} Spec
+# c64 — {{LAYER_NAME}} Spec
 
 > Copy this file to `specs/<LAYER>.md` (e.g. `DATABASE.md`, `API.md`, `WEB-CLIENT.md`) and
 > fill it in. One sub-spec per layer. Keep it the source of truth — update it in the same

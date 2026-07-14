@@ -1,5 +1,5 @@
-name: "💬 Report a problem (non-technical)"
-description: "Something seems wrong but you don't have technical detail. We'll triage it."
+name: "💬 Report a c64 problem (non-technical)"
+description: "Report an edit, build, run, share, import, or download problem without technical detail."
 title: "[PROBLEM] <short summary>"
 labels: ["status: triage"]
 body:
@@ -27,4 +27,4 @@ body:
     id: where
     attributes:
       label: Where did you see this?
-      placeholder: "page / screen / time / device"
+      placeholder: "page / action / browser / device"

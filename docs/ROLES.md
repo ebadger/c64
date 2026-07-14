@@ -1,7 +1,7 @@
-# {{PROJECT_NAME}} — Lenses & Gates
+# c64 — Lenses & Gates
 
 The main session does the work. Optional custom agents are narrow specialist lenses, not
-executives, biographies, or a hierarchy. {{CEO}} owns product direction and merge
+executives, biographies, or a hierarchy. ebadger owns product direction and merge
 authority, including the item-level disposition of every blocker and every review finding
 above the one-minute implementation threshold.
 
@@ -16,17 +16,17 @@ fixed model assumptions.
 
 ## Gates and controls
 
-1. **Human merge authority.** Agents open PRs and stop; only {{CEO}} merges through
+1. **Human merge authority.** Agents open PRs and stop; only ebadger merges through
    GitHub. Host pre-tool hook decisions are not an enforcement boundary.
 2. **Specs and data flow.** Behavior changes update the relevant spec and trace affected
-   Data store → API/Service → Client links.
+   source/assembler → artifact → emulator/device → bridge → client links.
 3. **Dead branches stay dead.** `.githooks/pre-push` blocks a confirmed merged/closed PR
    branch before running expensive tests.
 4. **Capped durable memory.** `docs/LEARNINGS.md` receives incident-triggered rules, not
    calendar reports.
 5. **Model-diverse review.** Behavior-changing PRs use two explicit, runtime-available,
    read-only reviewer models selected relative to the primary. Every blocker and every
-   finding estimated above one minute pauses agent disposition until {{CEO}} receives its
+   finding estimated above one minute pauses agent disposition until ebadger receives its
    evidence, effort estimate, and agent recommendation and decides its priority.
 6. **Risk-based deterministic tests.** Configured critical-path evals are path-scoped and
    non-bypassable; routine tests may have a deliberate escape hatch.
@@ -36,10 +36,10 @@ fixed model assumptions.
 8. **Mission clock over org clock.** Delete or consolidate freely. Do not add agents,
    dashboards, ceremonies, scheduled governance, or meta-docs while higher-priority
    product needs remain.
-9. **Self-modification needs {{CEO}}.** Agents propose governance changes but never approve
+9. **Self-modification needs ebadger.** Agents propose governance changes but never approve
    or merge them.
 
 Disagreements and decision-gated review findings should identify evidence, effort, and
 trade-offs, state the agent's recommendation, then leave the item-level scope decision to
-{{CEO}}. Handoffs should point to the relevant PR, issue, or commit rather than duplicate
+ebadger. Handoffs should point to the relevant PR, issue, or commit rather than duplicate
 its contents in a ledger.
