@@ -1,0 +1,33 @@
+# CMake, native, and generated web build trees
+/build/
+/out/
+/dist/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/compile_commands.json
+
+# JavaScript dependencies and test output
+/node_modules/
+/coverage/
+/.nyc_output/
+/.cache/
+npm-debug.log*
+
+# Local Emscripten state
+/.emscripten_cache/
+
+# Editors and operating systems
+/.idea/
+/.vs/
+/.vscode/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# Local environment overrides; commit only explicit examples
+.env
+.env.*
+!.env.example

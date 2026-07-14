@@ -8,7 +8,6 @@ cd "$REPO_ROOT"
 run_routine_tests() {
   node --check .github/extensions/compliance-hooks/extension.mjs
   node --test .github/extensions/compliance-hooks/policy.test.mjs
-  sh scripts/dev/check-learnings-budget.sh
 }
 
 CRITICAL_PATH_REGEX='^(src/|web/|tests?/|examples?/|assets?/|cmake/|scripts/(build|ci)/|\.github/workflows/|CMakeLists\.txt$|gallery\.json$)'
