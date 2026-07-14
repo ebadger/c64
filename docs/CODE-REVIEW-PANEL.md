@@ -1,122 +1,61 @@
-# Code-Review Panel — Multi-Model PR Review (mandatory for code PRs)
+# Code-Review Panel — Model-Diverse Review
 
-> **Why this exists.** Every line of product code is written by one model family (the
-> primary engineering agent). A single model has consistent blind spots. Before a code
-> change ships, two reviewers running on **different model families** challenge it, so a
-> defect the primary can't see has two more chances to get caught. This is cheap
-> insurance on the thing you can't afford to get wrong: your critical path.
+Behavior-changing PRs receive two independent reviews through the runtime's actual
+read-only `code-review` specialist. The reviewers are selected relative to the primary
+model, not from a permanent roster.
 
-## The two reviewers
+## Scope
 
-| Agent | File | Vendor |
-|-------|------|--------|
-| **GPT Reviewer** (`gpt-reviewer`) | `.github/agents/gpt-reviewer.md` | a strong non-primary vendor |
-| **Gemini Reviewer** (`gemini-reviewer`) | `.github/agents/gemini-reviewer.md` | a strong third vendor |
+Run the panel for application code, specs, schema/migrations, API or client contracts,
+behavior-defining configuration, build/deploy code, custom agents, instructions, and
+compliance hooks. Narrative prose, status-only updates, comments, and typo fixes are
+exempt unless they change behavior.
 
-Both are **pinned** to their model via the `model:` frontmatter key and **structurally
-read-only** (`tools: ["read","search"]` — no `edit`, no shell). They return findings; they
-never touch code and never merge.
+## Select reviewers at runtime
 
-**Guaranteeing the model pin.** The `model:` frontmatter is the documented way to bind an
-agent to a model, but to stay safe against any invocation path that ignores it, when the
-primary agent invokes a reviewer via the `task` tool it **MUST also pass the `model`
-parameter explicitly**. Belt and suspenders: never let a reviewer silently fall back to
-the primary model — that would destroy the model diversity this whole procedure buys.
+1. Record the primary model's exact ID.
+2. Inspect the models currently available to the `task` tool.
+3. Choose two explicit reviewer model IDs:
+   - neither may be the primary model;
+   - prefer a different provider/model family from the primary;
+   - prefer different providers/model families from each other.
+4. If two meaningfully diverse alternatives are unavailable, stop and tell {{CEO}} the
+   review gate cannot be satisfied. Do not silently reuse the primary.
 
-## The rule (mandatory)
+Do not create or invoke standing reviewer agents. Invoke `task` twice with
+`agent_type: "code-review"` and an explicit `model` parameter. That specialist is
+read-only and reviews the repository diff directly.
 
-**Before publishing a PR that contains code, the primary agent MUST:**
+## Procedure
 
-1. Finish a complete draft implementation (reviewers need a real diff, not a plan).
-2. Invoke **both** reviewers on the diff, **passing the `model` parameter explicitly**.
-   - The reviewers have **no shell**, so **paste the diff (and point them at the relevant
-     spec + tests)** in the prompt.
-   - Do **not** feed them your own justification — independence is the point.
-3. **Triage every finding.** For each one, either **fix it** or **record a one-line
-   reason** for not fixing (e.g. "false positive — X is validated upstream at Y").
-   - **Reviewers can be wrong too** — verify a claimed bug against ground truth (the spec,
-     the schema, the actual API) and **override with a cited reason** when they're mistaken.
-   - **If your fixes change the diff materially, re-run both reviewers** until they raise
-     no new BLOCK/HIGH findings. The diff you ship must be the diff that was reviewed.
-4. **Record the summary in the PR body** (format below) so the review is visible at a glance.
-5. **Open the PR** for {{CEO}}.
-6. **Post the persistent record as a PR comment.** Post each reviewer's **verbatim** output
-   plus your **per-finding tags** (`gh pr comment <N> --body ...`). This is the durable,
-   GitHub-native record {{CEO}} reads. The reviewers stay read-only — the primary agent
-   posts on their behalf; never give the reviewer agents GitHub write access.
+1. Finish and validate the implementation, then commit the candidate.
+2. Record:
+   - `BASE=$(git merge-base origin/{{DEFAULT_BRANCH}} HEAD)`
+   - `HEAD=$(git rev-parse HEAD)`
+3. Independently invoke the two selected reviewers on the committed
+   `<BASE>...<HEAD>` range. Give each the relevant spec/test context, not the author's
+   defense of the change.
+4. Triage every material finding:
+   - fix a true positive;
+   - or record a short, checkable reason for overriding it.
+5. If fixes change `HEAD`, commit them and repeat both reviews on the new exact range.
+   The recorded `HEAD` must be the reviewed commit.
+6. Put the compact record below in the PR body and open the PR for {{CEO}}.
 
-### Scope — what triggers the panel
+Do not copy verbatim reviewer transcripts into a process ledger, create scorecard
+reports, or schedule review harvesting. The PR record is enough.
 
-**Triggers** (panel required): any PR touching application code, **specs** (`specs/**` —
-even though Markdown), schema/migrations, API contracts, the client, config, the
-build/deploy path, or **behaviour-defining config** such as `.github/agents/*.md`,
-`.github/instructions/*.md`, and the compliance hooks. In-scope if it can alter how the
-product or the agents behave — regardless of file extension.
+## PR record
 
-**Exempt** (panel optional): non-product **prose** with no behavioural effect — narrative
-docs, `status/`, `README`, `CHANGELOG`, and comment-only or typo fixes. Don't burn two
-model reviews on a typo. **When in doubt, run the panel.**
-
-### Disagreement protocol
-
-- If a reviewer raises a **BLOCK** you disagree with, write **one** rebuttal in the PR
-  body. If still unresolved, **escalate to {{CEO}}** — do not silently override a BLOCK and
-  do not loop the reviewers indefinitely.
-- If the two reviewers disagree with each other, treat the stricter finding as the default
-  and note the split for {{CEO}}.
-
-### PR body record format
-
-```
-## Second-model review
-- Reviewed diff: `<merge-base-sha>...<HEAD-sha>`
-- GPT Reviewer (<model>): <verdict> — <N> findings
-- Gemini Reviewer (<model>): <verdict> — <N> findings
-- Resolved: <M> fixed, <K> overridden
-  - Overridden: <finding> — <reason>
+```text
+## Model-diverse review
+- Reviewed range: `<base-sha>...<head-sha>`
+- Primary: `<model-id>`
+- Reviewer 1: `<model-id>` — `<verdict>` — `<N findings>`
+- Reviewer 2: `<model-id>` — `<verdict>` — `<N findings>`
+- Resolution: `<N fixed>`, `<N overridden>`
+  - Override: `<finding>` — `<checkable reason>` (omit when none)
 ```
 
-### Persistent review record + model scorecard (PR comment)
-
-After opening the PR, post the reviewers' **verbatim** output and **tag every finding**:
-
-~~~
-### GPT Reviewer (<model>) — verdict: <verdict>
-1. [HIGH] <finding, verbatim> — accepted · true-positive · fixed (<commit/where>)
-2. [MEDIUM] <finding, verbatim> — overridden · false-positive · <cited reason>
-...
-Scorecard — <model>: findings <N> | true-positive <T> | false-positive <F> | led-to-fix <X>
-~~~
-
-Tag vocabulary per finding: **accepted / overridden** (did you act?), **true-positive /
-false-positive** (was it real?), **led-to-fix y/n** (did it change shipped code?).
-
-Because every PR carries a `Scorecard` line on GitHub, **the evaluation needs no separate
-database** — a periodic review harvests scorecards across merged PRs (`gh pr list` /
-`gh api`) and tallies true-positive vs false-positive and bugs-caught per model. **Don't
-build an eval harness or dashboard yet** — let the scorecards accumulate first.
-
-**Honest caveat — grading bias.** The primary agent scores the very reviewers whose job is
-to challenge it. Guards: every `false-positive`/`overridden` needs a **cited, checkable
-reason**; {{CEO}} spot-checks at merge; and the metric to trust most is the hard-to-game
-one — **material bugs caught that were actually fixed** — not subjective "usefulness."
-
-## Enforcement & honesty about it
-
-Enforced as a **rule + advisory nudge**, not a hard mechanical block:
-`.github/instructions/pr-checklist.md` reminds the agent at PR-creation time (the nudge
-fires on the **`create_pull_request` tool** — create PRs that way, not via `gh pr create`,
-or the reminder is skipped), and {{CEO}} can refuse to merge a code PR with no review
-record. A brittle "Reviewed-by line present?" gate is easy to satisfy with theatre; if the
-panel proves its worth, a hard gate can come later.
-
-## Kill criterion (this must earn its keep)
-
-This is net-new process machinery, which the mission-clock rule tells us to resist. It is
-justified only if it catches real defects. **Review at 30–60 days:** if the panel has not
-caught a material issue the primary missed, **slim or delete it.**
-
-## Changing the models
-
-Edit the `model:` line in each agent file. Use the latest strong reviewer from each
-vendor. Keep the two reviewers on **different vendors** — that diversity is the entire value.
+An unresolved blocking finding goes to {{CEO}}. Reviewers advise, the primary triages,
+and only {{CEO}} merges.

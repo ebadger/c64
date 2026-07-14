@@ -30,5 +30,5 @@ workforce — which has no persistent memory between sessions — from drifting.
 
 After implementing, update the **Implementation Status** section of the relevant sub-spec.
 
-> The `compliance-hooks` extension nudges a cross-layer check whenever you edit a file that
+> The `compliance-hooks` extension nudges a cross-layer check whenever you modify a file that
 > looks like a layer/spec file (see `.github/extensions/compliance-hooks/`).

@@ -1,145 +1,89 @@
-# SETUP — instantiate a new project from this template
+# Setup
 
-This turns the template into a working project's operating system. Budget ~30 minutes.
+Use this repository as a GitHub template or direct clone, then perform the one-time
+bootstrap below.
 
-## 0. Get a copy
+## 1. Preserve and stamp provenance
 
-Either click **"Use this template"** on GitHub, or:
-
-```sh
-git clone https://github.com/ebadger/AIProjectTemplate.git my-new-project
-cd my-new-project
-```
-
-Keep the template history until after placeholder stamping so the script can identify
-tracked files and record the exact source commit. You can start fresh history after step 1.
-If you use GitHub's template button, record the exact 40-character
-`ebadger/AIProjectTemplate` commit at creation time; GitHub creates unrelated history, so
-the instantiation script cannot recover that provenance safely afterward.
-
-## 1. Stamp the global placeholders
-
-The template uses two kinds of placeholders:
-
-- **Global tokens** — one value, used in many files. Replaced automatically by the script.
-- **Prose placeholders** — per-file fill-in spots (mission text, spec contracts, lens
-  roles). You write these by hand; the script lists which files still contain them.
+Keep template history until placeholder stamping so the script can identify tracked files
+and, for direct clones, the exact source commit. GitHub-generated repositories have
+unrelated history, so record the exact 40-character template commit at creation time.
 
 ```sh
 cp template.config.example template.config
-# edit template.config
-scripts/dev/instantiate.sh --dry-run template.config   # preview
-scripts/dev/instantiate.sh template.config             # apply
+scripts/dev/instantiate.sh --dry-run template.config
+scripts/dev/instantiate.sh template.config
 ```
 
-### Global token reference
+Global tokens are `PROJECT_NAME`, `CEO`, `REPO_SLUG`, `DEFAULT_BRANCH`, `STACK`,
+`PROD_URL`, `TEMPLATE_BASE_REF`, and `TEMPLATE_REVIEW_DATE`. A direct canonical clone can
+auto-detect `TEMPLATE_BASE_REF`; a GitHub-generated project must supply it.
 
-| Token | Meaning | Example |
-|-------|---------|---------|
-| `{{PROJECT_NAME}}` | System/company name | `Acme Widgets Platform` |
-| `{{CEO}}` | Owner / final decision-maker handle | `ebadger` |
-| `{{REPO_SLUG}}` | `owner/repo` | `ebadger/acme` |
-| `{{DEFAULT_BRANCH}}` | Default branch | `main` |
-| `{{MISSION_ONE_LINER}}` | Session-start banner sentence | `pays kids to master math` |
-| `{{STACK}}` | One-line tech stack | `.NET 9, Postgres 16` |
-| `{{PROD_URL}}` | Production URL (if public) | `https://example.com` |
-| `{{TEMPLATE_BASE_REF}}` | Exact canonical template commit inherited | Required for GitHub-generated projects; direct clones auto-detect |
-| `{{TEMPLATE_REVIEW_DATE}}` | Initial lineage review date | Today's UTC date if blank |
+The script seeds `.template-source` from the exact inherited commit. The checkpoint means
+"reviewed through," not "copy this commit blindly."
 
-The script seeds `.template-source` from the exact inherited commit. It auto-detects that
-commit only when `origin` is the canonical template clone; otherwise
-`TEMPLATE_BASE_REF` is required. The checkpoint must describe what was actually inherited,
-never merely today's upstream HEAD.
+## 2. Fill project-owned seeds
 
-To start fresh history, do it only after the script succeeds:
+- `docs/MISSION.md` — mission and operating principles.
+- `specs/SYSTEM.md` — architecture, layers, and critical path.
+- `specs/_TEMPLATE.md` — copy once per real layer.
+- `status/SYSTEM-STATUS.md` — runtime commands and non-secret configuration names.
+- `.github/copilot-instructions.md` — project context and code conventions.
+- `.github/extensions/compliance-hooks/policy.mjs` — layer path patterns.
 
-```sh
-rm -rf .git
-git init -b {{DEFAULT_BRANCH}}
-git remote add origin https://github.com/{{REPO_SLUG}}.git
-git add .
-git commit -m "Instantiate {{PROJECT_NAME}}"
-```
+Never commit credentials or secret values. Runtime status, mission/spec content, learned
+rules, custom agents, model choices, and automation schedules are project-owned.
 
-> No bash? On Windows you can do the same replacements with your editor's
-> find-in-files, or run `instantiate.sh` under WSL/Git Bash.
-
-## 2. Verify the template lineage
+## 3. Verify lineage
 
 ```sh
 cat .template-source
 node scripts/dev/review-template-updates.mjs check
 ```
 
-This read-only check compares the recorded checkpoint with
-`ebadger/AIProjectTemplate:main`; it never merges upstream into the specialization. Keep
-`.template-source` tracked. It requires Node (the same runtime used by the compliance
-extension). Follow `specs/TEMPLATE-INHERITANCE.md` whenever updates appear.
+The check is read-only. Run it before changing inherited operating files and follow
+`specs/TEMPLATE-INHERITANCE.md` when updates appear. Do not schedule it to generate routine
+commits or reports.
 
-## 3. Activate the mechanical guards
-
-```sh
-git config core.hooksPath .githooks      # or: scripts/dev/install-hooks.sh
-pip install tiktoken                      # optional: exact LEARNINGS token counting
-```
-
-## 4. Wire the pre-push test gate (optional but recommended)
+## 4. Activate mechanical guards
 
 ```sh
+git config core.hooksPath .githooks
 cp scripts/dev/pre-push-tests.sh.example scripts/dev/pre-push-tests.sh
 chmod +x scripts/dev/pre-push-tests.sh
-# edit it to run your stack's tests (dotnet test / npm test / pytest / go test / ...)
 ```
 
-## 5. Fill in the prose placeholders
+Configure routine tests, which may honor a deliberate `SKIP_TEST_GUARD=1`, and
+critical-path deterministic evals, which must be non-bypassable and run only from the
+clean, checked-out commit being pushed.
 
-Work through the files the script flagged (search for `{{`):
+## 5. Keep agents minimal
 
-- `docs/MISSION.md` — your real mission + the one sentence that justifies every task.
-- `specs/SYSTEM.md` — the umbrella overview; name your **critical path** explicitly.
-- `specs/_TEMPLATE.md` → copy to one sub-spec **per layer** (`DATABASE.md`, `API.md`, …).
-- `status/SYSTEM-STATUS.md` — how to run + verify the system.
-- `.github/copilot-instructions.md` — stack, layers, code style.
-- `.github/extensions/compliance-hooks/extension.mjs` — tune `SPEC_PATTERNS` to your layer
-  directories so the cross-layer check fires on the right edits.
+Do not create reviewer agents. For behavior-changing PRs, follow
+`docs/CODE-REVIEW-PANEL.md` and invoke the runtime's read-only `code-review` specialist
+twice with explicit model IDs selected relative to the primary.
 
-## 6. Build your agent roster (only as needed)
+Create another custom agent only when a recurring, expensive decision class earns one.
+Start from `.github/agents/template-agent.md` and retain least-privilege tools.
 
-- The two **reviewers** (`gpt-reviewer`, `gemini-reviewer`) are ready to use — just update
-  the `model:` pins to the current strongest model from each vendor.
-- Add **lenses** from `.github/agents/template-lens-agent.md` when a real, recurring class
-  of expensive decision justifies one. Heed the **mission-clock gate** (`docs/ROLES.md` #6):
-  don't add org machinery faster than the product needs it.
-
-## 7. Verify
+## 6. Validate
 
 ```sh
-# Canonical template lineage is configured:
 node scripts/dev/review-template-updates.mjs check
-# LEARNINGS cap guard runs clean:
 sh scripts/dev/check-learnings-budget.sh
-# Extension parses (needs Node):
+sh -n .githooks/pre-push
+sh -n scripts/dev/pre-push-tests.sh.example
 node --check .github/extensions/compliance-hooks/extension.mjs
+node --test .github/extensions/compliance-hooks/policy.test.mjs
+scripts/dev/instantiate.sh --dry-run template.config.example
 ```
 
-Then start a Copilot CLI session in the repo — you should see the session-start checklist
-injected automatically. You're live.
+## Updating downstream projects
 
----
+Review canonical changes as a normal PR. Adopt, adapt, defer, or mark each cohesive change
+not applicable, then acknowledge the reviewed commit with
+`review-template-updates.mjs acknowledge <full-sha>`.
 
-## What you just inherited
-
-A condensed map of the machinery and why each piece exists:
-
-| Piece | What it buys you |
-|-------|------------------|
-| `docs/LEARNINGS.md` + `docs/learnings/` + budget guard | **Capped, tiered memory** — durable rules stay loaded every session without unbounded growth crowding out task context. |
-| `.githooks/pre-push` | **Mechanical backstop** — caps LEARNINGS, runs your test gate, blocks pushes to merged/closed PR branches, for *any* caller. |
-| `.github/extensions/compliance-hooks` | **Governance-as-code** — injects the right checklist at the right moment; hard-stops self-merge and pushes to dead branches. |
-| `.github/instructions/*` | The **refreshing checklists** the extension injects (session start, commit, push, PR, merge-block, cross-layer). |
-| `.github/agents/*` | The **agent template** — anti-sycophancy core + model-diverse review panel. |
-| `.template-source` + `review-template-updates.mjs` | **Living template lineage** — discover shared improvements, reconcile them deliberately, and retain an auditable checkpoint. |
-| `docs/ROLES.md` | **Lenses & gates** — the org model, the non-negotiable gates, and the mission-clock rule. |
-| `docs/CODE-REVIEW-PANEL.md` | The **multi-model review** procedure and its kill criterion. |
-| `specs/` | **Specs-as-source-of-truth** scaffolding + the cross-layer discipline. |
-| `docs/SUGGESTIONS.md` | A standing **process-improvement funnel** so good ideas accrete. |
+Never overwrite or transport credentials, runtime/deploy state, mission or product spec
+content, project-earned learnings, model assumptions, custom rosters/biographies, or
+scheduled-workflow definitions and run history.

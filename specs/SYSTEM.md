@@ -43,4 +43,5 @@
 
 | Area | Status |
 |------|--------|
+| Template lineage review | Implemented |
 | {{feature/area}} | {{Not started / In progress / Shipped}} |

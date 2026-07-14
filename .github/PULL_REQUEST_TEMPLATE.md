@@ -1,38 +1,35 @@
 ## Summary
 
-<!-- What does this PR do? One or two sentences. -->
+<!-- What changed and why? -->
 
-## Checklist
+## Verification
 
-<!-- Tick every item that applies. For items that genuinely don't apply, strike through with ~~strikethrough~~ and briefly note why. -->
+- [ ] Relevant specs and affected layers are consistent.
+- [ ] Tests/evals required for this risk level pass.
+- [ ] No credentials, generated output, or unrelated files are included.
+- [ ] Behavior-changing diff received the required model-diverse review, or this PR is
+      correctly exempt under `docs/CODE-REVIEW-PANEL.md`.
+- [ ] If inherited operating files changed, canonical template changes were reviewed and
+      every upstream change was dispositioned.
 
-- [ ] **Spec updated** — if this touches stored data, API shape, or client behaviour, the relevant spec under `specs/` is updated in this commit.
-- [ ] **Migration included** — if the data schema changed, a migration is included and tested.
-- [ ] **Contract verified** — field names, types, and casing match between the server contract and the client.
-- [ ] **Tests pass** — existing tests pass; new behaviour is covered by at least one test.
-- [ ] **Only relevant files staged** — no accidental config, build output, or unrelated changes.
-- [ ] **Second-model review** — for code/spec/config PRs, both reviewers were run, findings triaged, and the review block added (see `docs/CODE-REVIEW-PANEL.md`). Prose/typo PRs are exempt.
-- [ ] **Template lineage** — if inherited operating-system files changed, the canonical
-      template was checked; reconciliation PRs record the reviewed range and dispositions.
+## Model-diverse review
+
+<!-- Delete for an exempt prose-only PR. -->
+- Reviewed range: `<base-sha>...<head-sha>`
+- Primary: `<model-id>`
+- Reviewer 1: `<model-id>` — `<verdict>` — `<N findings>`
+- Reviewer 2: `<model-id>` — `<verdict>` — `<N findings>`
+- Resolution: `<N fixed>`, `<N overridden>`
+  - Override: `<finding>` — `<checkable reason>`
 
 ## Template reconciliation
 
-<!-- Keep for template-reconciliation PRs; delete otherwise. Account for every cohesive upstream change. -->
-- Reviewed range: `<previous-upstream-sha>...<reviewed-upstream-sha>`
-- Adopted: <changes or none>
-- Adapted: <changes + local reason, or none>
-- Deferred: <changes + linked follow-up, or none>
-- Not applicable: <changes + reason, or none>
-
-## Second-model review
-
-<!-- For code/spec/config PRs. Delete this section for exempt prose/typo PRs. -->
-- Reviewed diff: `<merge-base-sha>...<HEAD-sha>`
-- GPT Reviewer (`<model>`): <verdict> — <N> findings
-- Gemini Reviewer (`<model>`): <verdict> — <N> findings
-- Resolved: <M> fixed, <K> overridden
-  - Overridden: <finding> — <reason>
+<!-- Keep only for template-reconciliation PRs. -->
+- Reviewed upstream range: `<previous-sha>...<reviewed-sha>`
+- Adopted/adapted: `<changes or none>`
+- Deferred: `<changes + follow-up, or none>`
+- Not applicable: `<changes + reason, or none>`
 
 ## Related issues
 
-<!-- Closes #XXX -->
+<!-- Closes #123 -->
