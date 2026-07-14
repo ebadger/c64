@@ -9,6 +9,8 @@
 - [ ] No credentials, generated output, or unrelated files are included.
 - [ ] Behavior-changing diff received the required model-diverse review, or this PR is
       correctly exempt under `docs/CODE-REVIEW-PANEL.md`.
+- [ ] Every blocker and every review finding estimated above one minute has an explicit
+      item-level {{CEO}} decision recorded below; none is awaiting a decision.
 - [ ] If inherited operating files changed, canonical template changes were reviewed and
       every upstream change was dispositioned.
 
@@ -19,8 +21,16 @@
 - Primary: `<model-id>`
 - Reviewer 1: `<model-id>` — `<verdict>` — `<N findings>`
 - Reviewer 2: `<model-id>` — `<verdict>` — `<N findings>`
-- Resolution: `<N fixed>`, `<N overridden>`
+- Agent-triaged findings (non-blocking, <=1 minute): `<N fixed>`, `<N overridden>`
   - Override: `<finding>` — `<checkable reason>`
+- {{CEO}}-decision findings: `<none, or N escalated / N fixed / N accepted / N re-scoped>`
+  - Finding: `<summary>`
+    - Classification: `<blocking / non-blocking>`; estimate:
+      `<implementation + active validation time>`
+    - Agent recommendation: `<fix / do not fix / re-scope + rationale>`
+    - {{CEO}} decision:
+      `<implement / do not implement / re-scope; blocker status if needed>`
+    - Disposition: `<fix commit / accepted-risk reason / follow-up>`
 
 ## Template reconciliation
 

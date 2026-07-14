@@ -23,6 +23,9 @@ wholesale-merge template state over local product truth.
 - Open a PR for {{CEO}}; never self-merge.
 - Check PR state before pushing to an existing PR branch.
 - Use the model-diverse review in `docs/CODE-REVIEW-PANEL.md` for behavior changes.
+- Escalate every blocker and every review finding estimated above one minute to {{CEO}}
+  with its evidence, effort, and the agent's fix/do-not-fix/re-scope recommendation. Take
+  no disposition action until {{CEO}} decides that specific item's priority.
 - Prefer deleting or consolidating governance over adding agents, reports, or ceremonies.
 - Never put credentials or secret values in repository instructions, status, prompts, or
   workflow configuration.

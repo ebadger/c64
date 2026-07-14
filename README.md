@@ -18,7 +18,9 @@ lineage, and model-diverse review without importing a standing AI organization.
    affected Data store → API/Service → Client link.
 4. **Relative model-diverse review.** Two runtime-available, read-only `code-review`
    specialists use explicit model IDs selected relative to the primary. Exact SHAs and
-   models are recorded in the PR, without a duplicate review ledger.
+   models are recorded in the PR, without a duplicate review ledger. Every blocker and
+   every finding estimated above one minute is presented with evidence, effort, and the
+   agent's recommendation for an explicit item-level {{CEO}} decision before disposition.
 5. **Deliberate inheritance.** `.template-source` records the reviewed canonical commit;
    a read-only updater reports changes for adopt/adapt/defer/not-applicable review without
    overwriting local product truth.

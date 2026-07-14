@@ -8,8 +8,10 @@
 
 ## Organization model
 
-- **{{CEO}}** owns direction, priorities, and merge decisions.
-- **AI agents** propose, implement, review, and advise; they do not self-approve.
+- **{{CEO}}** owns direction, priorities, review-scope decisions, and merge decisions.
+- **AI agents** propose, implement, review, and advise; they surface every blocker and every
+  review finding above the one-minute effort threshold with a recommendation rather than
+  disposing of it unilaterally.
 - **Sessions** are workers, not permanent departments or biographies.
 
 ## Operating principles
