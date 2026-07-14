@@ -70,6 +70,14 @@ improvements back to
 rediscover the same improvements. The template governs shared operating machinery, never a
 specialization's product truth; see `specs/TEMPLATE-INHERITANCE.md`.
 
+**§8. Escalate blockers and >1-minute review work before acting.** Present every blocking
+finding and any finding estimated to require more than one minute to implement and validate
+to {{CEO}} with its evidence, risk/value, effort estimate, and the agent's recommendation to
+fix, not fix, or re-scope it. Obtain an explicit item-level decision before disposition.
+WHY: even non-blocking feedback can silently redirect execution away from {{CEO}}'s intent;
+only non-blocking findings at or below one minute remain agent-triaged. See
+`docs/CODE-REVIEW-PANEL.md`.
+
 **Worktree hygiene.** Never `git checkout`/merge `{{DEFAULT_BRANCH}}` from a session
 worktree — branch off `origin/{{DEFAULT_BRANCH}}`. Don't rely on `--delete-branch` in a
 worktree; verify `gh pr view <n> --json state,mergedAt` before retrying, and delete

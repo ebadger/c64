@@ -2,7 +2,8 @@
 
 The main session does the work. Optional custom agents are narrow specialist lenses, not
 executives, biographies, or a hierarchy. {{CEO}} owns product direction and merge
-authority.
+authority, including the item-level disposition of every blocker and every review finding
+above the one-minute implementation threshold.
 
 ## Optional lenses
 
@@ -24,7 +25,9 @@ fixed model assumptions.
 4. **Capped durable memory.** `docs/LEARNINGS.md` receives incident-triggered rules, not
    calendar reports.
 5. **Model-diverse review.** Behavior-changing PRs use two explicit, runtime-available,
-   read-only reviewer models selected relative to the primary.
+   read-only reviewer models selected relative to the primary. Every blocker and every
+   finding estimated above one minute pauses agent disposition until {{CEO}} receives its
+   evidence, effort estimate, and agent recommendation and decides its priority.
 6. **Risk-based deterministic tests.** Configured critical-path evals are path-scoped and
    non-bypassable; routine tests may have a deliberate escape hatch.
 7. **Deliberate template reconciliation.** Check canonical changes before modifying
@@ -36,6 +39,7 @@ fixed model assumptions.
 9. **Self-modification needs {{CEO}}.** Agents propose governance changes but never approve
    or merge them.
 
-Disagreements should identify evidence and trade-offs, then leave the decision to
+Disagreements and decision-gated review findings should identify evidence, effort, and
+trade-offs, state the agent's recommendation, then leave the item-level scope decision to
 {{CEO}}. Handoffs should point to the relevant PR, issue, or commit rather than duplicate
 its contents in a ledger.
