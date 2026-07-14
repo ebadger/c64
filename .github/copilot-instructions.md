@@ -25,7 +25,9 @@ wholesale-merge template state over local product truth.
 - Use the model-diverse review in `docs/CODE-REVIEW-PANEL.md` for behavior changes.
 - Escalate every blocker and every review finding estimated above one minute to {{CEO}}
   with its evidence, effort, and the agent's fix/do-not-fix/re-scope recommendation. Take
-  no disposition action until {{CEO}} decides that specific item's priority.
+  no disposition action until {{CEO}} decides that specific item's priority. Present it
+  through the active session and pause; if no human-decision channel is available, report
+  the work blocked.
 - Prefer deleting or consolidating governance over adding agents, reports, or ceremonies.
 - Never put credentials or secret values in repository instructions, status, prompts, or
   workflow configuration.

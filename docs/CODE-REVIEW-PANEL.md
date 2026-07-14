@@ -40,21 +40,27 @@ read-only and reviews the repository diff directly.
    non-blocking and explain any blocking designation.
 4. Before acting, classify every finding and estimate the implementation plus required
    validation effort. Preserve every reviewer's blocking designation.
-5. Triage only findings that are both non-blocking and estimated at one minute or less:
-   fix a true positive or record a short, checkable reason for overriding it.
-6. Send every blocker and every finding estimated above one minute through the decision
+5. Send every blocker and every finding estimated above one minute through the decision
    gate below before fixing, overriding, downgrading, deferring, or otherwise disposing of
    it.
+6. If any finding is gated, present all decision packets and wait for every item-level
+   decision. Do not edit, stage, commit, or re-run review on the candidate while a decision
+   is pending.
 7. Apply {{CEO}}'s decision for each gated finding:
    - **Implement now** — fix it in the current change.
    - **Do not implement** — leave it unchanged and record the accepted risk or override
      reason. For a blocker, {{CEO}} also explicitly decides that it does not block.
    - **Re-scope or defer** — remove the affected scope or create the directed tracked
      follow-up.
-8. If a fix or re-scope changes `HEAD`, commit it and repeat both reviews on the new exact
-   range. Escalate any new gated finding through the same gate. The recorded `HEAD` must be
-   the reviewed commit.
-9. Confirm no gated finding is awaiting a decision, put the compact record below in the PR
+8. Triage findings that are both non-blocking and estimated at one minute or less: fix a
+   true positive or record a short, checkable reason for overriding it.
+9. If a fix or re-scope changes `HEAD`, commit it and repeat both reviews on the new exact
+   range. The recorded `HEAD` must be the reviewed commit.
+10. On re-review, match findings by substance against prior {{CEO}} decisions. Carry a
+    decision forward without re-escalation only when the affected scope, classification,
+    evidence, and recommendation are materially unchanged; otherwise treat it as a new
+    gated finding and return to step 5.
+11. Confirm no gated finding is awaiting a decision, put the compact record below in the PR
    body, and open the PR for {{CEO}}.
 
 Do not copy verbatim reviewer transcripts into a process ledger, create scorecard
@@ -86,11 +92,11 @@ For each gated finding, present {{CEO}} with:
 - **Decision requested:** whether to spend current-change scope on this specific item and,
   for a blocker, whether it blocks the change.
 
-Multiple findings may be presented together for context, but each requires a distinct
-decision. Mark every undecided item `awaiting {{CEO}} decision`. The agent may continue
-unrelated, non-blocking work estimated at one minute or less when safe, but must not alter
-the gated finding's affected scope or represent the review as complete while that decision
-is pending.
+Present findings through the active session's human-decision channel and pause for the
+answer. If the execution context cannot request and await a decision, report the work
+blocked and stop; do not represent the review as complete or open the PR. Multiple findings
+may be presented together for context, but each requires a distinct decision. Mark every
+undecided item `awaiting {{CEO}} decision`.
 
 ## PR record
 
@@ -103,11 +109,13 @@ is pending.
 - Agent-triaged findings (non-blocking, <=1 minute): `<N fixed>`, `<N overridden>`
   - Override: `<finding>` — `<checkable reason>` (omit when none)
 - {{CEO}}-decision findings: `<none, or N escalated / N fixed / N accepted / N re-scoped>`
-  - Finding: `<summary>` — Classification: `<blocking / non-blocking>` — Estimate:
-    `<time>` — Agent recommendation: `<fix / do not fix / re-scope + why>` —
-    {{CEO}} decision:
-    `<implement / do not implement / re-scope; blocker status if needed>` — Disposition:
-    `<fix commit / accepted-risk reason / follow-up>`
+  - Finding: `<summary>`
+    - Classification: `<blocking / non-blocking>`; estimate:
+      `<implementation + active validation time>`
+    - Agent recommendation: `<fix / do not fix / re-scope + rationale>`
+    - {{CEO}} decision:
+      `<implement / do not implement / re-scope; blocker status if needed>`
+    - Disposition: `<fix commit / accepted-risk reason / follow-up>`
 ```
 
 Reviewers advise, the primary owns trivial non-blocking triage and recommendations,
