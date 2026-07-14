@@ -82,5 +82,9 @@ configuration and never repository or CI data.
 - No redistributable replacement ROM set has been selected or legally reviewed.
 - Generated D64 images are covered by byte-exact Node tests but have not been independently
   verified against external 1541 tooling or physical hardware.
+- D64 import (`parseD64`/`mountD64`) validates geometry, the directory chain, and file chains,
+  but does not yet validate full BAM consistency (DOS version, free-count/bitmap agreement,
+  allocation conflicts); an image whose only defect is an inconsistent BAM is currently
+  accepted. Tracked in ebadger/c64#2.
 - No native/WASM golden vectors, browser compatibility matrix, or GitHub Pages workflow
   exist.

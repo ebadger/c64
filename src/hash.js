@@ -36,7 +36,9 @@ export function sha256Hex(bytes) {
 
   const messageLengthBits = bytes.length * 8;
   // Pad to a multiple of 64 bytes: 0x80, then zeros, then a 64-bit big-endian bit length.
-  const paddedLength = (((bytes.length + 8) >> 6) + 1) << 6;
+  // Use float arithmetic (not 32-bit bitwise shifts) so lengths above ~2 GiB do not overflow
+  // to a negative padded length.
+  const paddedLength = (Math.floor((bytes.length + 8) / 64) + 1) * 64;
   const padded = new Uint8Array(paddedLength);
   padded.set(bytes);
   padded[bytes.length] = 0x80;

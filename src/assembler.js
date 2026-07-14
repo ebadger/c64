@@ -88,12 +88,21 @@ function lexLine(text, lineNumber) {
       continue;
     }
     if (ch === "'") {
-      // character literal: exactly one character between single quotes
-      if (i + 2 >= n || text[i + 2] !== "'") {
+      // Character literal: exactly one Unicode code point between single quotes. A code point
+      // may occupy two UTF-16 units (a surrogate pair), so measure by code point rather than
+      // assuming a single unit; PETSCII validation then decides supported vs unsupported so
+      // an astral character reports `unsupported-character`, not a lexer `syntax` error.
+      const codePoint = text.codePointAt(i + 1);
+      if (codePoint === undefined || text[i + 1] === "'") {
         return { tokens, diagnostic: error("syntax", "Malformed character literal.", lineNumber, col, 1) };
       }
-      tokens.push({ type: "char", ch: text[i + 1], col });
-      i += 3;
+      const charStr = String.fromCodePoint(codePoint);
+      const closeIndex = i + 1 + charStr.length;
+      if (text[closeIndex] !== "'") {
+        return { tokens, diagnostic: error("syntax", "Malformed character literal.", lineNumber, col, 1) };
+      }
+      tokens.push({ type: "char", ch: charStr, col });
+      i = closeIndex + 1;
       continue;
     }
     if (ch === '"') {
@@ -372,7 +381,23 @@ function parseLine(text, lineNumber) {
         diagnostics: [],
       };
     } else {
-      // label definition
+      // A leading identifier that is not a mnemonic is a label only when what follows can
+      // begin a statement: end of line, a ':' , a directive, or a mnemonic. Otherwise it is
+      // most likely a misspelled/unsupported instruction (e.g. `bra target`, `lax $10`) and
+      // is reported as an unknown opcode against that identifier rather than being silently
+      // absorbed as a label with a confusing downstream diagnostic.
+      const next = tokens[1];
+      const beginsStatement =
+        !next ||
+        next.type === "colon" ||
+        next.type === "directive" ||
+        (next.type === "ident" && isMnemonic(next.value));
+      if (!beginsStatement) {
+        return {
+          statement: null,
+          diagnostics: [error("unknown-opcode", `Unknown instruction '${name}'.`, lineNumber, tokens[0].col, name.length)],
+        };
+      }
       label = { name, col: tokens[0].col };
       idx = 1;
       if (tokens[idx] && tokens[idx].type === "colon") {
@@ -544,13 +569,19 @@ function assembleBody(source, initialPc) {
     }
   }
 
-  // Layout fixpoint: recompute addresses/sizes until the size vector stabilizes.
+  // Layout fixpoint: recompute addresses/sizes until BOTH the size vector and every symbol
+  // value stabilize. The symbol table PERSISTS across passes (each pass is seeded with the
+  // previous pass's values) so a forward reference resolves to its prior-pass address during
+  // sizing; combined with the grow-only zero-page/absolute decision this converges and keeps
+  // the emission-pass sizes identical to the converged layout. Rebuilding an empty table each
+  // pass would leave forward references permanently unresolved during sizing and silently
+  // emit wrong operands and sizes.
   const maxPasses = statements.length + 8;
-  let symbols = new Map();
+  const symbols = new Map();
   let previousVector = null;
+  let previousSnapshot = null;
   let converged = false;
   for (let pass = 0; pass < maxPasses; pass++) {
-    symbols = new Map();
     let pc = initialPc;
     const vector = [];
     const scratch = { pc, symbols };
@@ -561,9 +592,12 @@ function assembleBody(source, initialPc) {
       }
       if (stmt.kind === "assign") {
         const evaluated = evaluateExpression(stmt.expr, scratch, stmt.line);
+        const previous = symbols.get(stmt.name.toLowerCase());
         symbols.set(stmt.name.toLowerCase(), {
           name: stmt.name,
-          value: evaluated.undefined ? undefined : evaluated.value,
+          // Keep the prior-pass value when this pass cannot yet resolve the expression, so a
+          // symbol assigned from a forward reference converges instead of flapping to zero.
+          value: evaluated.undefined ? (previous ? previous.value : undefined) : evaluated.value,
         });
         vector.push(0);
       } else if (stmt.kind === "setpc") {
@@ -582,11 +616,21 @@ function assembleBody(source, initialPc) {
         vector.push(0);
       }
     }
-    if (previousVector && vector.length === previousVector.length && vector.every((v, k) => v === previousVector[k])) {
+    const snapshot = [...symbols.entries()]
+      .map(([key, entry]) => `${key}=${entry.value === undefined ? "?" : entry.value}`)
+      .sort()
+      .join(";");
+    if (
+      previousVector &&
+      vector.length === previousVector.length &&
+      vector.every((v, k) => v === previousVector[k]) &&
+      snapshot === previousSnapshot
+    ) {
       converged = true;
       break;
     }
     previousVector = vector;
+    previousSnapshot = snapshot;
   }
 
   const diagnostics = [...dupDiagnostics];
@@ -871,6 +915,13 @@ function emitData(stmt, ctx, diagnostics, pushByte, setPc) {
       return;
     }
     const aligned = Math.ceil(ctx.pc / n) * n;
+    // The program counter must not wrap past the top of memory. setPc masks to 16 bits, so an
+    // alignment that would advance beyond $FFFF is rejected rather than silently wrapping to
+    // $0000 (which would reorder the image).
+    if (aligned > 0xffff) {
+      diagnostics.push(error("range", `.align advances past $FFFF (to $${aligned.toString(16)}).`, stmt.line, stmt.col, 6));
+      return;
+    }
     setPc(aligned);
     return;
   }

@@ -105,10 +105,24 @@ test("rebuilding the same project and PRG yields byte-identical D64 images", () 
   assert.deepEqual([...a], [...b]);
 });
 
-test("an oversized PRG reports disk-full", () => {
-  const r = buildD64(project(), makePrg(173000));
+test("a wrapping PRG is rejected by buildD64 as invalid-prg (shared with parsePrg)", () => {
+  // A load address + length that wraps past $FFFF is invalid; buildD64 must not package it.
+  const wrapping = Uint8Array.of(0xff, 0xff, 0x00, 0x00);
+  const r = buildD64(project(), wrapping);
   assert.equal(r.ok, false);
-  assert.equal(r.error.code, "disk-full");
+  assert.equal(r.error.code, "invalid-prg");
+});
+
+test("a maximal valid PRG still fits on a 35-track disk (disk-full is defensive)", () => {
+  // The largest valid PRG (load $0000, ~64 KiB) needs ~259 sectors, well under the 681
+  // available, so a single-file 35-track build never reports disk-full; the guard is
+  // defensive. Verify the boundary builds successfully.
+  const big = new Uint8Array(0x10000);
+  big[0] = 0x00;
+  big[1] = 0x00;
+  const r = buildD64(project(), big);
+  assert.ok(r.ok);
+  assert.equal(r.d64.length, D64_SIZE);
 });
 
 test("wrong image size is unsupported-geometry", () => {

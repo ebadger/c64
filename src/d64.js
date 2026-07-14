@@ -10,6 +10,7 @@
 // a drive-performance optimization irrelevant to byte-exact artifacts.
 
 import { encodePetsciiString } from "./petscii.js";
+import { parsePrg } from "./prg.js";
 
 export const D64_SIZE = 174848;
 export const D64_SIZE_WITH_ERRORS = 175531; // 174848 + 683 error bytes
@@ -81,8 +82,11 @@ function* allocationOrder() {
  * @returns {{ ok: boolean, d64: Uint8Array|null, error: object|null }}
  */
 export function buildD64(project, prg) {
-  if (!(prg instanceof Uint8Array) || prg.length < 3) {
-    return { ok: false, d64: null, error: { code: "invalid-prg", message: "PRG is too short to store." } };
+  // Reject any PRG the shared validator would reject (too short, non-Uint8Array, or a load
+  // address + length that wraps past $FFFF) so the two MEDIA entry points agree.
+  const prgCheck = parsePrg(prg);
+  if (!prgCheck.ok) {
+    return { ok: false, d64: null, error: prgCheck.error };
   }
   const nameCheck = encodePetsciiString(project.outputName);
   if (!nameCheck.ok || project.outputName.length > 16 || project.outputName.length < 1) {
