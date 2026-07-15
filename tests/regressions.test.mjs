@@ -112,3 +112,29 @@ test("R5: excess directive arguments are rejected, not ignored", () => {
   assert.equal(assembleDirect(".fill 2,$aa,$bb", 0x1000).diagnostics[0].code, "syntax");
   assert.equal(assembleDirect(".align 4,8\n.byte 1", 0x1000).diagnostics[0].code, "syntax");
 });
+
+// --- Third review round (T2..T4) ----------------------------------------------------------
+
+// T2: a branch target outside 0..$FFFF must be a range error, not silently masked.
+test("T2: an out-of-range branch target is rejected before wrap normalization", () => {
+  const r = assembleDirect("beq $10000", 0xfffe);
+  assert.equal(r.ok, false);
+  assert.ok(r.diagnostics.some((d) => d.code === "range"));
+  // The legitimate in-range wrap case still assembles.
+  assert.deepEqual(assembleCode("beq $0000", 0xfffe), [0xf0, 0x00]);
+});
+
+// T3: empty directive argument slices are malformed, not zero.
+test("T3: empty .fill/.align arguments are syntax errors", () => {
+  assert.equal(assembleDirect(".fill ,$aa\nrts", 0x1000).diagnostics[0].code, "syntax");
+  assert.equal(assembleDirect(".fill 2,\nrts", 0x1000).diagnostics[0].code, "syntax");
+  // A single-argument .fill is still valid (fills with $00).
+  assert.deepEqual(assembleCode(".fill 2\nrts", 0x1000), [0x00, 0x00, 0x60]);
+});
+
+// T4: blank/comment lines must not amplify resolver work or alter output.
+test("T4: many blank lines do not change output (no amplification)", () => {
+  const blanks = Array(10000).fill("").join("\n");
+  const bytes = assembleCode(`.byte 1\n${blanks}\n; a comment\n.byte 2`, 0x1000);
+  assert.deepEqual(bytes, [0x01, 0x02]);
+});

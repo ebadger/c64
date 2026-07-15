@@ -518,7 +518,14 @@ function dataSize(stmt, ctx, diagnostics, requireDefined) {
 }
 
 function evaluateArg(argTokens, ctx, lineNumber, diagnostics, requireDefined) {
-  if (!argTokens || argTokens.length === 0) return 0;
+  if (!argTokens || argTokens.length === 0) {
+    // An empty argument slice (e.g. `.fill ,$aa` or `.fill 2,`) is malformed rather than a
+    // zero; report a stable syntax diagnostic during the emission pass.
+    if (requireDefined && diagnostics) {
+      diagnostics.push(error("syntax", "Expected an expression.", lineNumber, 1, 0));
+    }
+    return 0;
+  }
   const { expr, diagnostic } = parseExpression(argTokens, lineNumber);
   if (diagnostic) {
     if (requireDefined && diagnostics) diagnostics.push(diagnostic);
@@ -541,16 +548,22 @@ function evaluateArg(argTokens, ctx, lineNumber, diagnostics, requireDefined) {
 
 function assembleBody(source, initialPc) {
   const lines = source.split("\n");
-  const statements = [];
+  const allStatements = [];
   const parseDiagnostics = [];
   for (let i = 0; i < lines.length; i++) {
     const { statement, diagnostics } = parseLine(lines[i], i + 1);
     for (const d of diagnostics) parseDiagnostics.push(d);
-    if (statement) statements.push(statement);
+    if (statement) allStatements.push(statement);
   }
   if (parseDiagnostics.length > 0) {
     return { ok: false, segments: [], symbols: [], diagnostics: parseDiagnostics };
   }
+
+  // Drop no-op statements (blank and comment-only lines carry neither a label nor content).
+  // They contribute nothing to layout or emission, so excluding them keeps the pass count and
+  // per-pass work proportional to real content rather than to source length, avoiding a
+  // blank-line amplification of the resolver's worst-case cost.
+  const statements = allStatements.filter((stmt) => !(stmt.kind === "empty" && !stmt.label));
 
   // Duplicate-symbol detection (single scan, independent of layout passes).
   const dupDiagnostics = [];
@@ -770,6 +783,10 @@ function emitInstruction(stmt, ctx, diagnostics, pushByte) {
   }
 
   if (BRANCH_MNEMONICS.has(mnem) && form === "plain") {
+    if (value < 0 || value > 0xffff) {
+      diagnostics.push(error("range", `Branch target ${value} is outside 0..$FFFF.`, stmt.line, stmt.mnemCol, mnem.length));
+      return;
+    }
     // The 6502 program counter is 16-bit and the branch offset is added to the (wrapped)
     // address of the following instruction, so compute the displacement modulo $10000 and
     // normalize it into the signed 8-bit range. This lets branches that legitimately cross

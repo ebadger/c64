@@ -26,6 +26,10 @@ const SUPPORTED_TARGET = "nmos-6510";
 const RUN_MODES = new Set(["basic-sys", "direct"]);
 const TIMING_PROFILES = new Set(["pal-6569", "ntsc-6567r8"]);
 
+// Production source-size limit. Matches the web client's 256 KiB decoded-source cap
+// (specs/WEB-CLIENT.md) and bounds the assembler's worst-case work at the pipeline boundary.
+export const MAX_SOURCE_BYTES = 256 * 1024;
+
 export const DEFAULT_PROJECT = Object.freeze({
   schema: 1,
   name: "untitled",
@@ -85,6 +89,12 @@ export function validateProject(input) {
     diagnostics.push(error("invalid-project", "Project field 'source' must be a string."));
   } else {
     project.source = normalizeLineEndings(input.source);
+    const sourceBytes = new TextEncoder().encode(project.source).length;
+    if (sourceBytes > MAX_SOURCE_BYTES) {
+      diagnostics.push(
+        error("invalid-project", `Source is ${sourceBytes} bytes, exceeding the ${MAX_SOURCE_BYTES}-byte limit.`),
+      );
+    }
   }
 
   if (input.name !== undefined) {

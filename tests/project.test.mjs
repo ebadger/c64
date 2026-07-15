@@ -97,3 +97,11 @@ test("outputName must be 1..16 PETSCII characters", () => {
   assert.equal(validateProject({ source: "", outputName: "X".repeat(17) }).ok, false);
   assert.equal(validateProject({ source: "", outputName: "GAME" }).ok, true);
 });
+
+test("source is capped at 256 KiB at the pipeline boundary", () => {
+  const ok = validateProject({ source: "a".repeat(256 * 1024) });
+  assert.equal(ok.ok, true);
+  const tooBig = validateProject({ source: "a".repeat(256 * 1024 + 1) });
+  assert.equal(tooBig.ok, false);
+  assert.equal(tooBig.diagnostics[0].code, "invalid-project");
+});

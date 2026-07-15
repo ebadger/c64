@@ -110,6 +110,18 @@ of `n` (the gap is `$00`-filled by the image serializer). Instruction size selec
 zero page and absolute is a grow-only multi-pass fixpoint: unresolved and forward references
 are assumed absolute-width and never shrink, which converges deterministically.
 
+### Limits and bounds (as implemented)
+
+- Source is capped at 256 KiB UTF-8 at the pipeline boundary (`invalid-project` above that),
+  matching the web client's decoded-source limit in [`WEB-CLIENT.md`](./WEB-CLIENT.md).
+- The multi-pass resolver uses a deterministic bounded pass limit (`statements*3 + 64`, over
+  content-bearing statements only; blank and comment lines do not count). Ordinary source
+  converges in a few passes. **Accepted limitation:** a pathologically deep chain of forward
+  width-dependent dependencies whose true convergence would need a super-linear number of
+  passes is reported as `phase-error` rather than assembled. This is deliberate: an unbounded
+  or quadratic pass limit would create a CPU-exhaustion risk for a browser-hosted assembler,
+  and real 6502 source does not require it.
+
 ## PRG and entry rules
 
 - Every PRG begins with the two-byte little-endian load address, followed by a contiguous
