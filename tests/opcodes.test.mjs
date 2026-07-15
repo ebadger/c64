@@ -74,3 +74,14 @@ test("hand-verified multi-byte vectors", () => {
   assert.deepEqual(assembleCode("brk"), [0x00]);
   assert.deepEqual(assembleCode("nop"), [0xea]);
 });
+
+test("the exported OPCODES table is deep-frozen and cannot mutate assembler output", () => {
+  assert.ok(Object.isFrozen(OPCODES));
+  assert.ok(Object.isFrozen(OPCODES.LDA));
+  // In an ES module (strict mode) mutating a frozen object throws; either way it is a no-op.
+  assert.throws(() => {
+    OPCODES.LDA.imm = 0;
+  });
+  assert.equal(OPCODES.LDA.imm, 0xa9);
+  assert.deepEqual(assembleCode("lda #1"), [0xa9, 0x01]);
+});

@@ -93,6 +93,13 @@ export const OPCODES = {
   BRK: { imp: 0x00 },
 };
 
+// Deep-freeze the table and every nested mode entry so the exported constant cannot be
+// mutated by a consumer to alter deterministic assembler output.
+for (const entry of Object.values(OPCODES)) {
+  Object.freeze(entry);
+}
+Object.freeze(OPCODES);
+
 /** True when `name` (any case) is a documented NMOS mnemonic. */
 export function isMnemonic(name) {
   return Object.prototype.hasOwnProperty.call(OPCODES, name.toUpperCase());
