@@ -167,3 +167,19 @@ test("mountD64 returns an immutable copy and rejects malformed media", () => {
   assert.notEqual(mounted.media, image); // a copy, not the same reference
   assert.equal(mountD64(new Uint8Array(10)).error.code, "unsupported-geometry");
 });
+
+test("extractPrg rejects a non-PRG directory entry", () => {
+  const image = buildD64(project(), makePrg(20)).d64;
+  image[sectorOffset(18, 1) + 2] = 0x81; // SEQ instead of closed PRG
+  const ex = extractPrg(image, 0);
+  assert.equal(ex.ok, false);
+  assert.equal(ex.error.code, "invalid-prg");
+});
+
+test("extractPrg rejects a corrupt final-sector length that yields too few bytes", () => {
+  const image = buildD64(project(), makePrg(20)).d64;
+  image[sectorOffset(1, 0) + 1] = 1; // final-sector byte 1 = 1 -> empty payload
+  const ex = extractPrg(image, 0);
+  assert.equal(ex.ok, false);
+  assert.equal(ex.error.code, "invalid-prg");
+});

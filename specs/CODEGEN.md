@@ -107,13 +107,20 @@ point — is an `unsupported-character` error rather than a lossy conversion.
 `* =`/`.org` set the program counter; `.byte`, `.word`, and `.text` emit data; `.fill count
 [, value]` emits repeated bytes; `.align n` advances the program counter to the next multiple
 of `n` (the gap is `$00`-filled by the image serializer). Instruction size selection between
-zero page and absolute is a grow-only multi-pass fixpoint: unresolved and forward references
-are assumed absolute-width and never shrink, which converges deterministically.
+zero page and absolute is a grow-only multi-pass fixpoint: an unresolved zero-page-capable
+operand begins at zero-page width and grows to absolute once its resolved value requires it,
+never shrinking, so the layout converges deterministically. Final zero-page selection requires
+a resolved value `<= $FF` and a supported zero-page addressing mode; otherwise the absolute
+form is used. Because forward references are resolved (not forced wide), a forward reference to
+a zero-page address encodes as zero page.
 
 ### Limits and bounds (as implemented)
 
-- Source is capped at 256 KiB UTF-8 at the pipeline boundary (`invalid-project` above that),
-  matching the web client's decoded-source limit in [`WEB-CLIENT.md`](./WEB-CLIENT.md).
+- The normalized canonical source (after line-ending normalization) is capped at 256 KiB
+  UTF-8 at the pipeline boundary (`invalid-project` above that). The cap is measured on the
+  normalized source, not on raw pre-normalization bytes. The web client separately rejects
+  oversized decoded payloads before allocation per [`WEB-CLIENT.md`](./WEB-CLIENT.md); that is
+  a distinct client-side limit.
 - The multi-pass resolver uses a deterministic bounded pass limit (`statements*3 + 64`, over
   content-bearing statements only; blank and comment lines do not count). Ordinary source
   converges in a few passes. **Accepted limitation:** a pathologically deep chain of forward

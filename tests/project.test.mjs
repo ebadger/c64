@@ -105,3 +105,10 @@ test("source is capped at 256 KiB at the pipeline boundary", () => {
   assert.equal(tooBig.ok, false);
   assert.equal(tooBig.diagnostics[0].code, "invalid-project");
 });
+
+test("the source cap is measured on the normalized source (accepted behavior)", () => {
+  // 262146 raw CRLF bytes normalize to 131073 LF bytes, under the cap; the cap is measured on
+  // the normalized canonical source, not on raw pre-normalization bytes.
+  const crlf = "\r\n".repeat(131073);
+  assert.equal(validateProject({ source: crlf }).ok, true);
+});

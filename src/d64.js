@@ -331,11 +331,23 @@ export function extractPrg(bytes, directoryIndex) {
   if (!entry) {
     return { ok: false, prg: null, error: { code: "invalid-track-sector", message: `No directory entry at index ${directoryIndex}.` } };
   }
+  // The entry must be a PRG file (the low nibble of the CBM DOS file type is 2); other file
+  // types do not carry a PRG load address.
+  if ((entry.fileType & 0x0f) !== 0x02) {
+    return { ok: false, prg: null, error: { code: "invalid-prg", message: `Directory entry ${directoryIndex} is not a PRG file (type $${entry.fileType.toString(16)}).` } };
+  }
   const walk = walkFileChain(bytes, entry.startTrack, entry.startSector);
   if (!walk.ok) {
     return { ok: false, prg: null, error: walk.error };
   }
-  return { ok: true, prg: Uint8Array.from(walk.payload), error: null };
+  const prg = Uint8Array.from(walk.payload);
+  // Validate the reconstructed stream so a corrupt final-sector length (which can yield an
+  // empty or too-short file) is reported instead of returned as a bogus PRG.
+  const prgCheck = parsePrg(prg);
+  if (!prgCheck.ok) {
+    return { ok: false, prg: null, error: prgCheck.error };
+  }
+  return { ok: true, prg, error: null };
 }
 
 /**

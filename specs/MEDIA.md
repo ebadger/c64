@@ -40,7 +40,9 @@ MediaResult {
   follow-up (ebadger/c64#2) and is **not** performed in this milestone: a structurally valid
   image whose BAM free map is internally inconsistent is currently accepted.
 - `extractPrg(disk, directoryIndex)` returns the exact file byte stream, including its
-  two-byte PRG load address.
+  two-byte PRG load address. It requires the directory entry to be a PRG file (CBM DOS file
+  type low nibble 2) and validates the reconstructed stream with `parsePrg`, returning
+  `invalid-prg` for a non-PRG entry or a stream that is too short/overflows.
 - `mountD64` passes an immutable validated byte image to the emulator/drive model. It rejects
   media that fails the geometry/directory/file-chain checks above, but not (yet) media whose
   only defect is an inconsistent BAM free map (see ebadger/c64#2).

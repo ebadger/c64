@@ -26,8 +26,9 @@ const SUPPORTED_TARGET = "nmos-6510";
 const RUN_MODES = new Set(["basic-sys", "direct"]);
 const TIMING_PROFILES = new Set(["pal-6569", "ntsc-6567r8"]);
 
-// Production source-size limit. Matches the web client's 256 KiB decoded-source cap
-// (specs/WEB-CLIENT.md) and bounds the assembler's worst-case work at the pipeline boundary.
+// Production source-size limit, measured on the normalized canonical source (after
+// line-ending normalization). Bounds the assembler's work at the pipeline boundary. This is a
+// distinct limit from the web client's raw decoded-source cap in specs/WEB-CLIENT.md.
 export const MAX_SOURCE_BYTES = 256 * 1024;
 
 export const DEFAULT_PROJECT = Object.freeze({
