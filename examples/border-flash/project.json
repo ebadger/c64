@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "name": "border-flash",
+  "target": "nmos-6510",
+  "loadAddress": 2049,
+  "runMode": "basic-sys",
+  "runAddress": 2049,
+  "timingProfile": "pal-6569",
+  "diskName": "C64 EXAMPLES",
+  "diskId": "64",
+  "outputName": "BORDER-FLASH"
+}

@@ -34,10 +34,18 @@ MediaResult {
 
 - `parsePrg(bytes)` validates and returns load/end metadata without executing it.
 - `buildD64(project, prg)` returns a new deterministic 174848-byte image.
-- `parseD64(bytes)` validates geometry, BAM, directory chains, and file chains.
+- `parseD64(bytes)` validates geometry, the directory chain, and every file chain (bounds and
+  cycle checks) plus the BAM directory-link track. Full BAM-consistency validation (DOS
+  version, per-track free-count/bitmap agreement, and allocation conflicts) is a tracked
+  follow-up (ebadger/c64#2) and is **not** performed in this milestone: a structurally valid
+  image whose BAM free map is internally inconsistent is currently accepted.
 - `extractPrg(disk, directoryIndex)` returns the exact file byte stream, including its
-  two-byte PRG load address.
-- `mountD64` passes an immutable validated byte image to the emulator/drive model.
+  two-byte PRG load address. It requires the directory entry to be a PRG file (CBM DOS file
+  type low nibble 2) and validates the reconstructed stream with `parsePrg`, returning
+  `invalid-prg` for a non-PRG entry or a stream that is too short/overflows.
+- `mountD64` passes an immutable validated byte image to the emulator/drive model. It rejects
+  media that fails the geometry/directory/file-chain checks above, but not (yet) media whose
+  only defect is an inconsistent BAM free map (see ebadger/c64#2).
 - Download filenames are sanitized ASCII/PETSCII-derived names with `.prg` or `.d64`.
 
 ## PRG rules
@@ -78,6 +86,10 @@ error-byte table:
 - Generated disk label, two-character ID, DOS type, filename mapping, allocation order, and
   padding are deterministic. Allocation proceeds by a documented fixed track/sector order
   that avoids track 18 until directory growth requires it.
+- The implemented file-data allocation walk visits tracks in ascending order
+  `1,2,…,17,19,…,35` (track 18 is reserved for the BAM and directory) and, within each track,
+  sectors `0…max` with no interleave. Interleave is a drive-performance optimization that does
+  not affect byte-exactness, so it is intentionally omitted for determinism.
 - The generated D64 contains the exact PRG byte stream produced by `CODEGEN.md`; rebuilding
   the same project produces identical D64 bytes.
 
@@ -107,8 +119,8 @@ emulator`.
 | `unsupported-geometry` | Image size/track layout is not supported |
 | `invalid-track-sector` | A link references outside the image |
 | `chain-cycle` | Directory or file chain loops |
-| `invalid-bam` | Free counts/bitmaps conflict with required allocation |
-| `disk-full` | PRG and directory cannot fit |
+| `invalid-bam` | BAM directory-link track is wrong. Full free-count/bitmap conflict detection is tracked in ebadger/c64#2 |
+| `disk-full` | PRG and directory cannot fit (defensive; unreachable for a single valid PRG on a 35-track disk, whose maximum size needs far fewer than 683 sectors) |
 | `invalid-name` | Name cannot be represented under the declared PETSCII policy |
 
 Partial downloads are never offered. A failure leaves the source and prior valid artifacts
@@ -124,8 +136,11 @@ visible but marks them stale.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| PRG parser/validator | Not started | Shares serializer vectors with codegen |
-| Deterministic 35-track D64 builder | Not started | Byte and external-tool validation required |
-| D64 parser/import | Not started | Read-only initial media |
-| 1541 drive behavior | Not started | Emulator design must select fidelity level |
-| Curated D64 routes | Optional / not started | Same-origin IDs only |
+| PRG parser/validator | Implemented | `parsePrg` shares serializer golden vectors with codegen |
+| Deterministic 35-track D64 builder | Implemented | Byte-exact BAM/directory/chain construction under tests |
+| D64 parser/import | Implemented (limited) | `parseD64`/`extractPrg` validate geometry, directory chain, and file chains; full BAM-consistency validation is deferred to ebadger/c64#2 |
+| 1541 drive behavior | Not started | Emulator design must select fidelity level; `mountD64` only validates media |
+| Curated D64 routes | Optional / not started | Same-origin IDs only; owned by `WEB-CLIENT.md` |
+
+External-tool D64 interoperability (loading generated images in real 1541 tooling or hardware)
+is not yet independently verified and is tracked as an open gap in `status/SYSTEM-STATUS.md`.

@@ -7,7 +7,9 @@ C64 emulator, share and remix source, and download standard PRG and D64 files. T
 a static GitHub Pages application with no runtime backend, accounts, database, or secrets.
 
 > **Current status:** this repository contains the specialized mission, architecture, and
-> operating foundation. The IDE, assembler, emulator, examples, tests, build, and Pages
+> operating foundation plus the implemented deterministic source-to-artifact pipeline (NMOS
+> 6510 assembler, PRG serializer, and standard 35-track D64 builder/parser) with Node
+> golden-vector tests. The emulator, WebAssembly core, browser IDE, gallery, and Pages
 > deployment are specified but not yet implemented. There is no runnable application or
 > live production site today.
 
@@ -64,6 +66,18 @@ specs/MEDIA.md              PRG/D64 generation and import
 specs/ROM-ASSETS.md         ROM licensing, privacy, and validation
 specs/WEB-CLIENT.md         Static IDE, sharing, autosave, presentation
 status/SYSTEM-STATUS.md      Current implementation and environment truth
+src/                        Deterministic pipeline (assembler, PRG, D64) — browser + Node ES modules
+tests/                      Node golden-vector and behavior tests for the pipeline
+examples/                   Canonical assembler example fixtures
+```
+
+## Build and test
+
+The source-to-artifact pipeline runs under Node.js 18+ with no dependency install:
+
+```sh
+node --test tests/                 # full pipeline test suite
+node examples/build-example.mjs    # verify example golden vectors
 ```
 
 ## Work on the repository
