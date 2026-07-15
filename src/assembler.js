@@ -576,7 +576,11 @@ function assembleBody(source, initialPc) {
   // the emission-pass sizes identical to the converged layout. Rebuilding an empty table each
   // pass would leave forward references permanently unresolved during sizing and silently
   // emit wrong operands and sizes.
-  const maxPasses = statements.length + 8;
+  // Forward-declared symbol values propagate at most one dependency link per pass, and each
+  // zero-page/absolute instruction can grow its width at most once (grow-only). A generous
+  // linear bound therefore lets every valid acyclic program converge while still terminating
+  // on genuinely circular definitions (which never stabilize) with a phase-error.
+  const maxPasses = statements.length * 3 + 64;
   const symbols = new Map();
   let previousVector = null;
   let previousSnapshot = null;
@@ -639,29 +643,40 @@ function assembleBody(source, initialPc) {
     return { ok: false, segments: [], symbols: [], diagnostics: sortDiagnostics(diagnostics) };
   }
 
-  // Final emission pass with full validation.
+  // Final emission pass with full validation. emitCtx.pc is the LIVE program counter: pushByte
+  // and setPc keep it current so `*` (the current-location operator) resolves to the exact
+  // address of each emitted element, including successive values inside a single .byte/.word.
   const segments = [];
   let currentSegment = null;
-  let pc = initialPc;
-  const emitCtx = { pc, symbols };
+  const emitCtx = { pc: initialPc, symbols };
 
   const pushByte = (b) => {
-    if (currentSegment && currentSegment.start + currentSegment.bytes.length === pc) {
+    if (currentSegment && currentSegment.start + currentSegment.bytes.length === emitCtx.pc) {
       currentSegment.bytes.push(b & 0xff);
     } else {
-      currentSegment = { start: pc, bytes: [b & 0xff] };
+      currentSegment = { start: emitCtx.pc, bytes: [b & 0xff] };
       segments.push(currentSegment);
     }
-    pc += 1;
+    emitCtx.pc += 1;
   };
   const setPc = (addr) => {
-    pc = addr & 0xffff;
+    emitCtx.pc = addr & 0xffff;
     currentSegment = null;
   };
 
   for (const stmt of statements) {
-    emitCtx.pc = pc;
-    if (stmt.kind === "empty" || stmt.kind === "assign") {
+    if (stmt.kind === "empty") {
+      continue;
+    }
+    if (stmt.kind === "assign") {
+      // Validate the right-hand side so an unsupported character, undefined symbol, or syntax
+      // error in an assignment is reported rather than silently assembling to a stale value.
+      const evaluated = evaluateExpression(stmt.expr, emitCtx, stmt.line);
+      if (evaluated.diagnostic) {
+        diagnostics.push(evaluated.diagnostic);
+      } else if (evaluated.undefined) {
+        diagnostics.push(error("undefined-symbol", `Undefined symbol '${evaluated.undefined.name}'.`, stmt.line, evaluated.undefined.col, evaluated.undefined.name.length));
+      }
       continue;
     }
     if (stmt.kind === "setpc") {
@@ -755,8 +770,15 @@ function emitInstruction(stmt, ctx, diagnostics, pushByte) {
   }
 
   if (BRANCH_MNEMONICS.has(mnem) && form === "plain") {
-    const next = ctx.pc + 2;
-    const delta = value - next;
+    // The 6502 program counter is 16-bit and the branch offset is added to the (wrapped)
+    // address of the following instruction, so compute the displacement modulo $10000 and
+    // normalize it into the signed 8-bit range. This lets branches that legitimately cross
+    // the $FFFF/$0000 boundary encode correctly instead of reporting a spurious range error.
+    const next = (ctx.pc + 2) & 0xffff;
+    let delta = (value - next) & 0xffff;
+    if (delta >= 0x8000) {
+      delta -= 0x10000;
+    }
     if (delta < -128 || delta > 127) {
       diagnostics.push(error("branch-range", `Branch target out of range (${delta} bytes).`, stmt.line, stmt.mnemCol, mnem.length));
       return;
@@ -888,6 +910,10 @@ function emitData(stmt, ctx, diagnostics, pushByte, setPc) {
       diagnostics.push(error("syntax", ".fill requires a count.", stmt.line, stmt.col, 5));
       return;
     }
+    if (stmt.argTokens.length > 2) {
+      diagnostics.push(error("syntax", ".fill takes at most a count and a fill value.", stmt.line, stmt.col, 5));
+      return;
+    }
     const count = evaluateArg(stmt.argTokens[0], ctx, stmt.line, diagnostics, true);
     let fillValue = 0;
     if (stmt.argTokens.length >= 2) {
@@ -907,6 +933,10 @@ function emitData(stmt, ctx, diagnostics, pushByte, setPc) {
   if (dir === ".align") {
     if (stmt.argTokens.length < 1) {
       diagnostics.push(error("syntax", ".align requires an alignment.", stmt.line, stmt.col, 6));
+      return;
+    }
+    if (stmt.argTokens.length > 1) {
+      diagnostics.push(error("syntax", ".align takes a single alignment value.", stmt.line, stmt.col, 6));
       return;
     }
     const n = evaluateArg(stmt.argTokens[0], ctx, stmt.line, diagnostics, true);

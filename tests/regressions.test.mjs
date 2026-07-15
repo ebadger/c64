@@ -67,3 +67,48 @@ test("F7: an astral character literal reports unsupported-character", () => {
 test("F7: a normal character literal still assembles", () => {
   assert.deepEqual(assembleCode(".byte 'A'"), [0x41]);
 });
+
+// --- Second review round (R1..R5) ---------------------------------------------------------
+
+// R1: a deep acyclic forward-assignment chain must converge, not hit the pass cap.
+test("R1: a deep forward-assignment chain converges instead of reporting phase-error", () => {
+  const chain = [
+    "a0 = a1", "a1 = a2", "a2 = a3", "a3 = a4", "a4 = a5",
+    "a5 = a6", "a6 = a7", "a7 = a8", "a8 = target", "lda a0", "target rts",
+  ].join("\n");
+  const r = assembleDirect(chain, 0x1000);
+  assert.ok(r.ok, JSON.stringify(r.diagnostics));
+  // a0 resolves to target ($1003, after the 3-byte LDA), so LDA is absolute.
+  assert.deepEqual([...r.prg], [0x00, 0x10, 0xad, 0x03, 0x10, 0x60]);
+});
+
+// R2: assignment right-hand-side errors must surface, not silently assemble.
+test("R2: an unsupported character in an assignment is reported", () => {
+  const r = assembleDirect(".byte BAD\nBAD = '\u{1F600}'", 0x1000);
+  assert.equal(r.ok, false);
+  assert.ok(r.diagnostics.some((d) => d.code === "unsupported-character"));
+});
+
+test("R2: an undefined symbol on an assignment right-hand side is reported", () => {
+  const r = assembleDirect("alias = missing\nrts", 0x1000);
+  assert.equal(r.ok, false);
+  assert.ok(r.diagnostics.some((d) => d.code === "undefined-symbol"));
+});
+
+// R3: `*` must advance across successive values within a single directive.
+test("R3: the current-location operator is live within a multi-value directive", () => {
+  assert.deepEqual(assembleCode(".word *, *", 0x1000), [0x00, 0x10, 0x02, 0x10]);
+  assert.deepEqual(assembleCode(".byte *, *, *", 0x0080), [0x80, 0x81, 0x82]);
+});
+
+// R4: a branch that crosses the $FFFF/$0000 boundary encodes via the 16-bit wrap.
+test("R4: a relative branch across the address-space wrap encodes correctly", () => {
+  // At $FFFE, BEQ $0000: post-instruction PC wraps to $0000, so the displacement is 0.
+  assert.deepEqual(assembleCode("beq $0000", 0xfffe), [0xf0, 0x00]);
+});
+
+// R5: directives reject arguments beyond their documented arity.
+test("R5: excess directive arguments are rejected, not ignored", () => {
+  assert.equal(assembleDirect(".fill 2,$aa,$bb", 0x1000).diagnostics[0].code, "syntax");
+  assert.equal(assembleDirect(".align 4,8\n.byte 1", 0x1000).diagnostics[0].code, "syntax");
+});
