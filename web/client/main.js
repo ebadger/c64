@@ -44,7 +44,7 @@ const audio = new AudioPlayer();
 const state = {
   project: makeProject(),
   lastBuild: null, // { ok, buildId, prg, d64, prgName, d64Name, runAddress, loadAddress }
-  activeRun: null, // { prg, runAddress, label } most recently started source or disk program
+  activeSession: null, // { kind:"basic",label } or { kind:"program",prg,runAddress,label }
   artifactsStale: false,
   pendingD64: null, // { bytes, label, metadata, selectedPrg }
   galleryById: new Map(),
@@ -98,7 +98,7 @@ async function init() {
   await decideInitialProject();
   await romLoad;
 
-  setText(els.statusLine, romManager.ready() ? "Ready. Bundled OpenROMs loaded." : "Ready. Choose custom ROM files to enable Run.");
+  setText(els.statusLine, romManager.ready() ? "Ready. Bundled Pascual ROMs loaded." : "Ready. Choose custom ROM files to enable machine controls.");
   appInitialized = true; // decideInitialProject has run; the editor will not be overwritten
 }
 
@@ -125,13 +125,15 @@ function showCapabilityError(missing) {
 function cacheElements() {
   const ids = [
     "statusLine:status-line", "errorList:error-list",
-    "projectName:project-name", "editor", "btnBuild:btn-build", "btnRun:btn-run",
+    "projectName:project-name", "editor", "btnBuild:btn-build", "btnRun:btn-run", "btnBootBasic:btn-boot-basic",
     "btnStop:btn-stop", "btnReset:btn-reset", "diagSummary:diagnostics-summary",
     "diagList:diagnostics-list", "screen", "screenSurface:screen-surface", "runStatus:run-status",
     "selTiming:sel-timing", "selSid:sel-sid", "selJoyport:sel-joyport", "chkGamepad:chk-gamepad",
     "btnAudio:btn-audio", "audioStatus:audio-status", "vol", "selRomSource:sel-rom-source",
     "romStatus:rom-status", "romLegal:rom-legal", "romProvenanceLink:rom-provenance-link",
-    "romLicenseLink:rom-license-link", "romLgplLink:rom-lgpl-link", "romGplLink:rom-gpl-link",
+    "romLicenseLink:rom-license-link", "romBasicLicenseLink:rom-basic-license-link",
+    "romLgplLink:rom-lgpl-link", "romGplLink:rom-gpl-link",
+    "romChargenNoticeLink:rom-chargen-notice-link",
     "romSourceLink:rom-source-link", "romCustom:rom-custom", "romRoles:rom-roles",
     "d64File:d64-file", "d64Status:d64-status", "d64Controls:d64-controls",
     "d64Program:d64-program", "d64Entry:d64-entry", "d64EntryStatus:d64-entry-status",
@@ -330,6 +332,7 @@ function wireMachineControls() {
   input.attach();
 
   els.btnRun.addEventListener("click", () => runProgram());
+  els.btnBootBasic.addEventListener("click", () => bootBasic());
   els.btnStop.addEventListener("click", () => stopProgram());
   els.btnReset.addEventListener("click", () => resetProgram());
   els.selSid.addEventListener("change", savePreferences);
@@ -360,6 +363,7 @@ async function ensureMachine() {
 function updateRunEnabled() {
   const canRun = !!(state.lastBuild && state.lastBuild.ok) && !state.artifactsStale && romManager.ready();
   setEnabled(els.btnRun, canRun && !(pacer && pacer.running));
+  setEnabled(els.btnBootBasic, romManager.ready() && !(pacer && pacer.running));
   updateD64RunEnabled();
 }
 
@@ -372,9 +376,39 @@ async function runProgram() {
 }
 
 async function runLoadedProgram(prg, runAddress, label, mediaGeneration = null) {
-  if (!romManager.ready()) {
-    errorBus.error("rom", "rom-set-incomplete", "Load a complete, valid ROM set to enable Run.");
+  const controller = await prepareMachine(mediaGeneration);
+  if (!controller) return;
+  const entered = controller.loadAndEnter(prg, { runAddress });
+  if (!entered.ok) {
+    errorBus.error(entered.error.category, entered.error.code, entered.error.message);
     return;
+  }
+  startMachineSession(
+    controller,
+    { kind: "program", prg: new Uint8Array(prg), runAddress, label },
+    `Running ${label}.`,
+  );
+}
+
+async function bootBasic() {
+  const controller = await prepareMachine();
+  if (!controller) return;
+  const booted = controller.bootBasic();
+  if (!booted.ok) {
+    errorBus.error(booted.error.category, booted.error.code, booted.error.message);
+    return;
+  }
+  startMachineSession(
+    controller,
+    { kind: "basic", label: "BASIC" },
+    state.pendingD64 ? "Running BASIC with the selected disk mounted in drive 8." : "Running BASIC.",
+  );
+}
+
+async function prepareMachine(mediaGeneration = null) {
+  if (!romManager.ready()) {
+    errorBus.error("rom", "rom-set-incomplete", "Load a complete, valid ROM set to enable machine controls.");
+    return null;
   }
   const selectedRomGeneration = romLoadGeneration;
   let controller;
@@ -382,11 +416,13 @@ async function runLoadedProgram(prg, runAddress, label, mediaGeneration = null) 
     controller = await ensureMachine();
   } catch (err) {
     errorBus.error("wasm", "load-failed", `The WebAssembly core could not be loaded: ${String(err && err.message ? err.message : err)}. Build the WASM artifact (see SETUP.md).`);
-    return;
+    return null;
   }
-  if (selectedRomGeneration !== romLoadGeneration || !romManager.ready()) return;
-  if (mediaGeneration !== null && mediaGeneration !== d64SelectionGeneration) return;
+  if (selectedRomGeneration !== romLoadGeneration || !romManager.ready()) return null;
+  if (mediaGeneration !== null && mediaGeneration !== d64SelectionGeneration) return null;
   if (pacer && pacer.running) stopProgram();
+  state.activeSession = null;
+  setEnabled(els.btnReset, false);
 
   const romSet = romManager.getRomSet();
   const cfg = controller.configure({
@@ -396,25 +432,23 @@ async function runLoadedProgram(prg, runAddress, label, mediaGeneration = null) 
   });
   if (!cfg.ok) {
     errorBus.error(cfg.error.category, cfg.error.code, cfg.error.message);
-    return;
+    return null;
   }
 
   if (state.pendingD64) {
     const mount = controller.mount(state.pendingD64.bytes);
     if (!mount.ok) {
       errorBus.error(mount.error.category, mount.error.code, mount.error.message);
-      return;
+      return null;
     }
     setText(els.d64Status, `Mounted ${mount.meta.diskName} (${mount.meta.fileCount} file${mount.meta.fileCount === 1 ? "" : "s"}).`);
   }
 
-  const entered = controller.loadAndEnter(prg, { runAddress });
-  if (!entered.ok) {
-    errorBus.error(entered.error.category, entered.error.code, entered.error.message);
-    return;
-  }
-  state.activeRun = { prg: new Uint8Array(prg), runAddress, label };
+  return controller;
+}
 
+function startMachineSession(controller, activeSession, status) {
+  state.activeSession = activeSession;
   input.setJoystickPort(Number(els.selJoyport.value));
   input.setGamepadEnabled(els.chkGamepad.checked);
 
@@ -428,7 +462,7 @@ async function runLoadedProgram(prg, runAddress, label, mediaGeneration = null) 
     },
   );
   pacer.start();
-  setText(els.runStatus, `Running ${label}.`);
+  setText(els.runStatus, status);
   els.runStatus.className = "run-status running";
   setEnabled(els.btnStop, true);
   setEnabled(els.btnReset, true);
@@ -448,27 +482,29 @@ function stopProgram() {
 
 function resetProgram() {
   if (!machine || !machine.ready) return;
-  if (!state.activeRun) {
-    errorBus.error("wasm", "no-program", "Nothing to reset to — run a source build or disk PRG first.");
+  if (!state.activeSession) {
+    errorBus.error("wasm", "no-session", "Nothing to reset to — Boot BASIC or run a program first.");
     return;
   }
   const wasRunning = pacer && pacer.running;
   if (pacer) pacer.stop();
-  const entered = machine.loadAndEnter(state.activeRun.prg, { runAddress: state.activeRun.runAddress });
-  if (!entered.ok) {
-    errorBus.error(entered.error.category, entered.error.code, entered.error.message);
+  const reset = state.activeSession.kind === "basic"
+    ? machine.bootBasic()
+    : machine.loadAndEnter(state.activeSession.prg, { runAddress: state.activeSession.runAddress });
+  if (!reset.ok) {
+    errorBus.error(reset.error.category, reset.error.code, reset.error.message);
     return;
   }
   if (wasRunning) {
     pacer.start();
   } else {
     renderer.clear(0);
-    setText(els.runStatus, `Reset ${state.activeRun.label}.`);
+    setText(els.runStatus, `Reset ${state.activeSession.label}.`);
   }
 }
 
 function onMachineCrash() {
-  setText(els.runStatus, "The program stopped on a fault. Reset and Run to restart.");
+  setText(els.runStatus, "The machine stopped on a fault. Reset to restart the active session.");
   els.runStatus.className = "run-status crashed";
   setEnabled(els.btnStop, false);
   if (input) input.releaseAll();
@@ -478,7 +514,7 @@ function onMachineCrash() {
 
 function onMachineStop(reason) {
   // A declared, non-fault halt (BRK or breakpoint): stop cleanly without an error banner.
-  const label = reason === "brk" ? "The program stopped (BRK). Reset and Run to restart." : "The program stopped. Reset and Run to restart.";
+  const label = reason === "brk" ? "The machine stopped (BRK). Reset to restart." : "The machine stopped. Reset to restart.";
   setText(els.runStatus, label);
   els.runStatus.className = "run-status";
   setEnabled(els.btnStop, false);
@@ -522,13 +558,13 @@ function renderRomRoles() {
   setHidden(els.romCustom, bundled);
 
   if (state.romLoading) {
-    setText(els.romStatus, "Loading and verifying bundled MEGA65 OpenROMs…");
+    setText(els.romStatus, "Loading and verifying bundled Pascual ROMs…");
     els.romStatus.className = "rom-status";
   } else if (bundled && status.ready) {
-    setText(els.romStatus, "Bundled MEGA65 OpenROMs verified. Run is enabled once a build succeeds.");
+    setText(els.romStatus, "Bundled Pascual BASIC/KERNAL and PXL chargen verified. Boot BASIC is ready.");
     els.romStatus.className = "rom-status ready";
   } else if (bundled) {
-    setText(els.romStatus, "Bundled OpenROMs are unavailable. Switch to custom ROMs and back to retry, or load a complete custom set.");
+    setText(els.romStatus, "Bundled Pascual ROMs are unavailable. Switch to custom ROMs and back to retry, or load a complete custom set.");
     els.romStatus.className = "rom-status error";
   } else {
     setText(els.romStatus, status.ready ? "Custom ROM set ready. Run is enabled once a build succeeds." : romStatusText(status));
@@ -589,8 +625,10 @@ async function selectRomSource(source) {
   } else {
     els.romProvenanceLink.href = loaded.set.provenanceUrl;
     els.romLicenseLink.href = loaded.set.licenseUrl;
+    els.romBasicLicenseLink.href = loaded.set.basicLicenseUrl;
     els.romLgplLink.href = loaded.set.lgplUrl;
     els.romGplLink.href = loaded.set.gplUrl;
+    els.romChargenNoticeLink.href = loaded.set.chargenNoticeUrl;
     els.romSourceLink.href = loaded.set.sourceArchiveUrl;
     setHidden(els.romLegal, false);
   }
@@ -604,8 +642,7 @@ function beginRomSourceSelection(source) {
   state.romLoading = source === "bundled";
   els.selRomSource.value = source;
   setHidden(els.romLegal, true);
-  if (pacer && pacer.running) stopProgram();
-  setEnabled(els.btnReset, false);
+  invalidateMachineSession();
   romManager.clear();
   renderRomRoles();
   updateRunEnabled();
@@ -627,8 +664,7 @@ async function onRomFile(role, file) {
     selectedRomGeneration === romLoadGeneration &&
     selectedRoleGeneration === romFileReadGenerations.get(role) &&
     state.romSource === "custom";
-  if (pacer && pacer.running) stopProgram();
-  setEnabled(els.btnReset, false);
+  invalidateMachineSession();
   let bytes;
   try {
     bytes = new Uint8Array(await file.arrayBuffer());
@@ -937,7 +973,7 @@ function renderKeyHelp() {
 }
 
 const STARTER_SOURCE = `; Welcome to the c64 browser IDE.
-; Edit, then press Build and Run. Bundled OpenROMs are loaded by default.
+; Edit, then press Build and Run. Bundled Pascual ROMs are loaded by default.
 ;
 ; In basic-sys mode a "10 SYS ..." stub is generated for you, so just start with
 ; code — it is placed immediately after the stub (do NOT set * = $0801 yourself).
@@ -974,8 +1010,18 @@ window.__c64 = {
   romSource: () => state.romSource,
   romReady: () => romManager.ready(),
   runEnabled: () => !els.btnRun.disabled,
+  bootBasicEnabled: () => !els.btnBootBasic.disabled,
+  activeMode: () => (state.activeSession ? state.activeSession.kind : null),
   lastBuild: () => (state.lastBuild ? { buildId: state.lastBuild.buildId, prgLen: state.lastBuild.prg.length, d64Len: state.lastBuild.d64.length } : null),
   frame: () => (machine && machine.ready ? machine.copyFramebuffer() : null),
+  screenText: () => {
+    if (!machine || !machine.ready) return "";
+    let text = "";
+    for (let offset = 0; offset < 1000; offset += 1) {
+      text += displayScreenCode(machine.debugReadRam(0x0400 + offset));
+    }
+    return text;
+  },
   cpu: () => (machine && machine.ready ? machine.cpuState() : null),
   peek: (addr) => (machine && machine.ready ? machine.debugReadRam(addr) : null),
   inputSnapshot: () => (input ? input.snapshot() : null),
@@ -985,6 +1031,22 @@ window.__c64 = {
   errors: () => errorBus.items(),
   initialized: () => appInitialized,
 };
+
+function invalidateMachineSession() {
+  if (pacer && pacer.running) stopProgram();
+  if (machine) machine.dispose();
+  state.activeSession = null;
+  setEnabled(els.btnReset, false);
+  setText(els.runStatus, "Stopped.");
+  els.runStatus.className = "run-status";
+}
+
+function displayScreenCode(value) {
+  const code = Number(value) & 0x7f;
+  if (code >= 1 && code <= 26) return String.fromCharCode(64 + code);
+  if (code >= 32 && code <= 63) return String.fromCharCode(code);
+  return " ";
+}
 
 init().catch((err) => {
   const status = document.getElementById("status-line");

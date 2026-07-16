@@ -2,8 +2,50 @@
 // exercising the full JavaScript -> embind -> C++ boundary that the browser will use.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { loadEmulator, makeSyntheticRoms, wasmArtifactExists } from "./helpers.mjs";
+
+const pascualDir = new URL("../../third_party/pascual-roms/", import.meta.url);
+
+function decodeScreen(machine) {
+  let text = "";
+  for (let offset = 0; offset < 1000; offset += 1) {
+    const code = machine.debugReadRam(0x0400 + offset) & 0x7f;
+    if (code >= 1 && code <= 26) text += String.fromCharCode(64 + code);
+    else if (code >= 32 && code <= 63) text += String.fromCharCode(code);
+    else text += " ";
+  }
+  return text;
+}
+
+test("bundled Pascual ROMs cold-start to the BASIC READY prompt through WASM", async (t) => {
+  if (!wasmArtifactExists()) {
+    t.skip("WASM artifact not built");
+    return;
+  }
+  const emu = await loadEmulator();
+  const machine = emu.createMachine({
+    timingProfile: "pal-6569",
+    basic: new Uint8Array(readFileSync(new URL("basic.rom", pascualDir))),
+    kernal: new Uint8Array(readFileSync(new URL("kernal.rom", pascualDir))),
+    chargen: new Uint8Array(readFileSync(new URL("chargen.rom", pascualDir))),
+  });
+  try {
+    assert.equal(machine.configureError, "none");
+    let screen = "";
+    for (let batch = 0; batch < 100 && !screen.includes("READY."); batch += 1) {
+      const run = machine.runCycles(200000);
+      assert.notEqual(run.stopReason, "fault");
+      screen = decodeScreen(machine);
+    }
+    assert.match(screen, /PASCUAL'S BASIC/);
+    assert.match(screen, /38911 BASIC BYTES FREE/);
+    assert.match(screen, /READY\./);
+  } finally {
+    machine.dispose();
+  }
+});
 
 test("configure, load PRG, run, and inspect via WASM", async (t) => {
   if (!wasmArtifactExists()) {

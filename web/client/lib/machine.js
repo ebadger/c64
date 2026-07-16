@@ -105,6 +105,20 @@ export class MachineController {
     return { ok: true, error: null, loadAddress: load.loadAddress, endAddress: load.endAddressExclusive };
   }
 
+  /** Begin execution from the configured ROM reset vector without loading a PRG or overriding PC. */
+  bootBasic() {
+    if (!this._machine) return { ok: false, error: notReady() };
+    this._crashed = false;
+    const code = this._machine.reset("power-on");
+    if (code !== "none") {
+      return {
+        ok: false,
+        error: { category: "wasm", code, message: `BASIC boot failed: ${code}.` },
+      };
+    }
+    return { ok: true, error: null };
+  }
+
   /**
    * Mount an immutable D64. Returns { ok, error, meta }.
    * @param {Uint8Array} bytes

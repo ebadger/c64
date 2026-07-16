@@ -28,7 +28,7 @@ rather than cycle-level 1541 drive).
 
 ```text
 Committed examples / ?src / ?code / localStorage
-Bundled OpenROMs / local custom ROM selection
+Bundled Pascual ROMs / local custom ROM selection
                        |
                        v
           Static browser client on GitHub Pages
@@ -91,15 +91,19 @@ There is no runtime API, account system, database, or secret.
 1. **Edit and run:** user edit -> normalized source project -> assembler -> PRG bytes ->
    selected manifest-verified bundled or complete custom RomSet -> emulator load ->
    deterministic cycles -> framebuffer/audio -> browser presentation.
-2. **Download:** assembly result -> PRG serializer and D64 builder -> browser `Blob` ->
+2. **Boot BASIC:** selected manifest-verified bundled or complete custom RomSet + optional
+   validated D64 -> configure/mount -> ROM reset vector -> deterministic cycles ->
+   framebuffer/audio -> browser presentation.
+3. **Download:** assembly result -> PRG serializer and D64 builder -> browser `Blob` ->
    user-controlled file download.
-3. **Share/remix:** source -> base64url UTF-8 `?code` URL -> recipient decode -> editable
+4. **Share/remix:** source -> base64url UTF-8 `?code` URL -> recipient decode -> editable
    project -> deterministic rebuild. Canonical `?src` examples resolve from committed files.
-4. **Import media:** local D64 selection or curated `?d64` -> validation -> visible directory
+5. **Import media:** local D64 selection or curated `?d64` -> validation -> visible directory
    and selected PRG extraction -> explicit/detected entry -> emulated drive media + direct
-   machine load -> deterministic execution and subsequent IEC/disk behavior. Eject removes
-   drive-8 media without persisting bytes; imported bytes are not uploaded.
-5. **Publish canonical example:** contributor changes committed source and `gallery.json` ->
+   machine load, or reset-vector BASIC boot with the disk mounted -> deterministic execution
+   and subsequent IEC/disk behavior. Eject removes drive-8 media without persisting bytes;
+   imported bytes are not uploaded.
+6. **Publish canonical example:** contributor changes committed source and `gallery.json` ->
    tests rebuild expected PRG/D64 -> GitHub pull request -> human review and merge.
 
 ## Implementation status
@@ -112,7 +116,7 @@ There is no runtime API, account system, database, or secret.
 | VIC-II, SID/CIA/input | Implemented — cycle-integrated devices (line-based VIC renderer, approximate SID filter); honestly-labelled fidelity in the layer specs |
 | Mounted D64 execution | Implemented — read-only browse/run/eject plus a high-level KERNAL LOAD/IEC trap (drive 8); not a cycle-level 1541 GCR drive |
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
-| ROM asset handling | Implemented — pinned generic MEGA65 OpenROMs default with exact integrity/provenance/source gate; explicit complete custom-set override remains memory-only with unknown-digest confirmation |
-| Web client, examples, and gallery | Implemented — static `web/client/` IDE (build worker, machine, presentation, input, disk controls, sharing, downloads) and a validated `gallery.json`; the milestone-1 example visibly cycles its border while running |
+| ROM asset handling | Implemented — pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen default with exact integrity/provenance/source gate; explicit complete custom-set override remains memory-only with unknown-digest confirmation |
+| Web client, examples, and gallery | Implemented — static `web/client/` IDE (build worker, reset-vector BASIC boot, deterministic direct-entry Run, machine presentation/input, disk controls, sharing, downloads) and a validated `gallery.json`; the milestone-1 example visibly cycles its border while running |
 | Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and CI workflows |
 | Production dist build + GitHub Pages deployment | Implemented and live — deterministic `dist/` build (`scripts/build/build-dist.mjs`), dist reference/integrity tests, external D64 interoperability (VICE `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and `.github/workflows/release.yml` deploying the gated artifact on merged `main` |

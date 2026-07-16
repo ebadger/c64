@@ -24,7 +24,7 @@ export const ROM_SIZES = Object.freeze({ basic: 8192, kernal: 8192, chargen: 409
 export const WASM_LOADER_PATH = "build/wasm/c64core.mjs";
 export const EMULATOR_WRAPPER_PATH = "web/emulator/c64.mjs";
 export const GALLERY_PATH = "web/client/gallery.json";
-export const BUNDLED_ROM_MANIFEST_PATH = "third_party/open-roms/manifest.json";
+export const BUNDLED_ROM_MANIFEST_PATH = "third_party/pascual-roms/manifest.json";
 
 // Stable UI error categories (see specs/WEB-CLIENT.md "Error handling").
 export const ERROR_CATEGORIES = Object.freeze([

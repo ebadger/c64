@@ -52,6 +52,7 @@
           </label>
           <button id="btn-build" type="button">Build</button>
           <button id="btn-run" type="button" disabled>Run</button>
+          <button id="btn-boot-basic" type="button" disabled>Boot BASIC</button>
           <button id="btn-stop" type="button" disabled>Stop</button>
           <button id="btn-reset" type="button" disabled>Reset</button>
         </div>
@@ -130,24 +131,25 @@
       <section class="panel panel-rom" aria-labelledby="h-rom">
         <h2 id="h-rom">ROMs</h2>
         <p class="muted">
-          The bundled generic MEGA65 OpenROMs set is used by default. It is redistributable under
-          LGPL-3.0-or-later and supports this IDE's assembly-first Run path; upstream BASIC
-          compatibility is still incomplete.
+          Pascual's BASIC and KERNAL are bundled by default with the MEGA65 PXL chargen. Use
+          Boot BASIC for the ROM cold-start workflow, or Run for deterministic direct PRG entry.
         </p>
         <label class="field rom-source">
           <span>ROM source</span>
           <select id="sel-rom-source">
-            <option value="bundled">Bundled MEGA65 OpenROMs (default)</option>
+            <option value="bundled">Bundled Pascual's BASIC/KERNAL (default)</option>
             <option value="custom">Custom local ROM files</option>
           </select>
         </label>
-        <p id="rom-status" class="rom-status" aria-live="polite">Loading bundled OpenROMs…</p>
+        <p id="rom-status" class="rom-status" aria-live="polite">Loading bundled Pascual ROMs…</p>
         <p id="rom-legal" class="muted" hidden>
           Redistribution materials:
           <a id="rom-provenance-link">provenance</a> ·
-          <a id="rom-license-link">package notice</a> ·
+          <a id="rom-license-link">project MIT license</a> ·
+          <a id="rom-basic-license-link">Microsoft BASIC MIT license</a> ·
           <a id="rom-lgpl-link">LGPL text</a> ·
           <a id="rom-gpl-link">GPL text</a> ·
+          <a id="rom-chargen-notice-link">chargen notices</a> ·
           <a id="rom-source-link" download>corresponding source archive</a>
         </p>
         <div id="rom-custom" hidden>

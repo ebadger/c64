@@ -14,17 +14,18 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 > execution via a high-level KERNAL LOAD/IEC trap, and framebuffer/audio/input APIs — compiled
 > once to a production WebAssembly artifact and proven by native and byte-identical headless
 > WASM parity tests; the **static browser IDE** (`web/client/`) that integrates the production
-> assembler in a worker and the production WASM machine into an editor, build, run/stop/reset,
-> presentation, input, D64 directory/run/eject controls, bundled OpenROMs/custom-ROM handling,
+> assembler in a worker and the production WASM machine into an editor, build, Boot BASIC,
+> direct-entry run/stop/reset, presentation, input, D64 directory/run/eject controls,
+> bundled Pascual/custom-ROM handling,
 > sharing, gallery, and downloads; and the **release
 > pipeline** — a deterministic `dist/` build, external D64 interoperability verification (VICE
 > `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and a GitHub Pages deploy workflow.
 > The Pages site is live at [`https://ebadger.github.io/c64/`](https://ebadger.github.io/c64/);
 > merged `main` updates deploy only after the complete release gate passes.
 > Device/media fidelity is honestly labelled (line-based VIC renderer, approximate SID filter,
-> high-level rather than cycle-level 1541 drive); in-app Run resets and enters the SYS target
-> rather than running the ROM's BASIC startup (the downloaded PRG still autostarts via BASIC `RUN`
-> on a stock machine).
+> high-level rather than cycle-level 1541 drive); Boot BASIC executes the bundled ROM cold-start,
+> while in-app source/disk Run remains a deterministic direct-entry path at the selected SYS/entry
+> target.
 
 ## User workflow
 
@@ -32,8 +33,9 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
    without installing a toolchain.
 2. Edit NMOS 6510/6502 assembly in the browser.
 3. Build deterministic PRG and D64 artifacts with the same assembler used by headless tests.
-4. Run the PRG in the shared C++17 emulator core compiled to WebAssembly.
-5. Import a D64, choose a PRG from its directory, supply an entry address when it has no
+4. Boot into Pascual's BASIC at the ROM reset vector, or run the built PRG directly in the
+   shared C++17 emulator core compiled to WebAssembly.
+5. Import a D64 for BASIC/KERNAL drive-8 access, or choose a PRG from its directory and supply an entry address when it has no
    detectable BASIC `SYS` target, and run or eject it without reloading the page.
 6. Share editable source through `?src` or base64url UTF-8 `?code`.
 7. Download the standard PRG or D64 for external C64 tools or transfer to physical hardware.
@@ -63,8 +65,9 @@ Start with [`specs/SYSTEM.md`](./specs/SYSTEM.md) for the full layer map and dat
 ## ROM and hardware boundary
 
 Proprietary Commodore BASIC, KERNAL, and character ROM dumps are not committed or distributed.
-The application ships a pinned redistributable MEGA65 OpenROMs set with licenses and corresponding
-source, and accepts a complete user-supplied ROM set locally for the current page session.
+The application ships pinned redistributable Pascual BASIC/KERNAL ROMs plus the MEGA65 PXL
+chargen, with complete per-component licenses/notices and corresponding source, and accepts a
+complete user-supplied ROM set locally for the current page session.
 
 This project ends at software emulation and standard PRG/D64 interoperability. It does not
 include custom transfer devices, firmware, PCBs, HDL, KiCad, GAL/address-decode logic, or
@@ -108,13 +111,13 @@ The IDE is static and serverless. Serve the repository root and open the client:
 node scripts/dev/serve.mjs            # http://127.0.0.1:8080/web/client/
 ```
 
-Build the production WebAssembly artifact first (see [`SETUP.md`](./SETUP.md)) so **Run** works;
-without it you can still edit, build, and download PRG/D64. Run uses the pinned, redistributable
-MEGA65 OpenROMs generic set by default. The ROM panel can replace it with a complete local
+Build the production WebAssembly artifact first (see [`SETUP.md`](./SETUP.md)) so **Boot BASIC**
+and **Run** work; without it you can still edit, build, and download PRG/D64. The emulator uses
+the pinned, redistributable Pascual set by default. The ROM panel can replace it with a complete local
 BASIC/KERNAL/character set for the current page session; custom bytes are never uploaded, stored,
-or logged. The Media panel validates an imported D64 immediately, lists its directory, runs a
-selected PRG at its detected or explicit entry address, and ejects drive 8 without resetting the
-running machine.
+or logged. The Media panel validates an imported D64 immediately, makes it available to Boot BASIC,
+lists its directory, runs a selected PRG at its detected or explicit entry address, and ejects
+drive 8 without resetting the running machine.
 
 ## Build and test
 

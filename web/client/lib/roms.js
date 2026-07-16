@@ -42,8 +42,8 @@ export class RomManager {
 
   /**
    * Replace the active set atomically with a manifest-verified bundled set.
-   * @param {{ id:string, title:string, revision:string, licenseId:string,
-   *           roles:Record<string,{bytes:Uint8Array,sha256:string}> }} set
+   * @param {{ id:string, title:string, revision:string, licenseIds:string[],
+   *           roles:Record<string,{bytes:Uint8Array,sha256:string,licenseId:string}> }} set
    */
   setBundledSet(set) {
     if (
@@ -51,7 +51,8 @@ export class RomManager {
       typeof set.id !== "string" ||
       typeof set.title !== "string" ||
       typeof set.revision !== "string" ||
-      typeof set.licenseId !== "string"
+      !Array.isArray(set.licenseIds) ||
+      set.licenseIds.some((id) => typeof id !== "string")
     ) {
       return { ok: false, error: bundledSetError("The bundled ROM set metadata is invalid.") };
     }
@@ -59,7 +60,12 @@ export class RomManager {
     const ownedBytes = new Map();
     for (const role of ROM_ROLES) {
       const entry = set && set.roles && set.roles[role];
-      if (!entry || !(entry.bytes instanceof Uint8Array) || typeof entry.sha256 !== "string") {
+      if (
+        !entry ||
+        !(entry.bytes instanceof Uint8Array) ||
+        typeof entry.sha256 !== "string" ||
+        typeof entry.licenseId !== "string"
+      ) {
         return { ok: false, error: bundledSetError(`The bundled ROM set is missing a valid ${role} entry.`) };
       }
       const result = validateRomRole(role, entry.bytes, { expectedDigest: entry.sha256 });
@@ -73,7 +79,7 @@ export class RomManager {
         requiresConfirmation: false,
         confirmed: true,
         source: "bundled-replacement",
-        licenseId: set.licenseId,
+        licenseId: entry.licenseId,
       };
       ownedBytes.set(role, new Uint8Array(entry.bytes));
     }
@@ -85,7 +91,7 @@ export class RomManager {
       id: set.id,
       title: set.title,
       revision: set.revision,
-      licenseId: set.licenseId,
+      licenseIds: [...set.licenseIds],
     };
     return { ok: true, set: { ...this._setMetadata } };
   }

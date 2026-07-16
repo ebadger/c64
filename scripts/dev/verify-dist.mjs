@@ -5,7 +5,7 @@
 //   - required entry files are present (index.html, main.js, the WASM loader + binary, manifest),
 //   - every file listed in asset-manifest.json exists with the recorded byte length and sha256,
 //   - the manifest lists exactly the files on disk (no unlisted/missing files),
-//   - the only ROM images are the exact allowlisted OpenROMs files with corresponding source,
+//   - the only ROM images are the exact allowlisted bundled files with corresponding source,
 //   - no source maps or unapproved binary blobs leaked in,
 //   - the CSP meta and eval-free constraints hold in index.html.
 //
@@ -17,7 +17,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative, resolve } from "node:path";
-import { verifyOpenRomAssets } from "../build/build-dist.mjs";
+import { verifyBundledRomAssets } from "../build/build-dist.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -47,29 +47,29 @@ for (const req of ["index.html", "main.js", "asset-manifest.json", "wasm/c64core
 
 const manifest = JSON.parse(readFileSync(join(distDir, "asset-manifest.json"), "utf8"));
 if (manifest.wasmIncluded !== true) fail("manifest.wasmIncluded is not true — not a releasable build");
-if (manifest.openRomsIncluded !== true) fail("manifest.openRomsIncluded is not true — approved OpenROMs are missing");
+if (manifest.bundledRomsIncluded !== true) fail("manifest.bundledRomsIncluded is not true — approved ROMs are missing");
 
-let sourceOpenRoms;
-let distOpenRoms;
+let sourceBundledRoms;
+let distBundledRoms;
 try {
-  sourceOpenRoms = verifyOpenRomAssets(repoRoot);
-  distOpenRoms = verifyOpenRomAssets(distDir, "roms");
+  sourceBundledRoms = verifyBundledRomAssets(repoRoot);
+  distBundledRoms = verifyBundledRomAssets(distDir, "roms");
 } catch (err) {
   fail(String(err && err.message ? err.message : err));
 }
-if (JSON.stringify(distOpenRoms.manifest) !== JSON.stringify(sourceOpenRoms.manifest)) {
-  fail("dist OpenROMs manifest differs from the reviewed source manifest");
+if (JSON.stringify(distBundledRoms.manifest) !== JSON.stringify(sourceBundledRoms.manifest)) {
+  fail("dist bundled-ROM manifest differs from the reviewed source manifest");
 }
 const approvedRomPaths = new Set(
-  Object.values(sourceOpenRoms.manifest.roles).map((entry) => `roms/${entry.path}`),
+  Object.values(sourceBundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`),
 );
-const expectedRomFiles = sourceOpenRoms.files.map((path) => `roms/${path}`).sort();
+const expectedRomFiles = sourceBundledRoms.files.map((path) => `roms/${path}`).sort();
 const actualRomFiles = listFiles(join(distDir, "roms"), distDir).sort();
 if (JSON.stringify(actualRomFiles) !== JSON.stringify(expectedRomFiles)) {
   fail(`roms subtree is not the exact approved file set\n  actual: ${actualRomFiles.join(", ")}\n  expected: ${expectedRomFiles.join(", ")}`);
 }
 for (const path of expectedRomFiles) {
-  const source = readFileSync(join(repoRoot, "third_party", "open-roms", path.slice("roms/".length)));
+  const source = readFileSync(join(repoRoot, "third_party", "pascual-roms", path.slice("roms/".length)));
   const deployed = readFileSync(join(distDir, path));
   if (sha256(source) !== sha256(deployed)) fail(`${path}: deployed file differs from reviewed source`);
 }
@@ -100,7 +100,7 @@ if (/\beval\s*\(/.test(loader) || /new Function\s*\(/.test(loader)) {
   fail("the WASM loader contains eval()/new Function() — rebuild with -sDYNAMIC_EXECUTION=0 for CSP compliance");
 }
 
-console.log(`verify-dist: OK — ${manifest.fileCount} files, integrity verified, OpenROMs + source present, WASM present, CSP intact (${distDir}).`);
+console.log(`verify-dist: OK — ${manifest.fileCount} files, integrity verified, bundled ROMs + source present, WASM present, CSP intact (${distDir}).`);
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");

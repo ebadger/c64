@@ -171,6 +171,11 @@ exactly one tick per consumed cycle.
   both direct and BASIC SYS projects set the CPU program counter to the recorded `runAddress`.
   The BASIC stub remains in the downloadable PRG for stock-machine `RUN`; the browser does not
   execute that stub in-process.
+- Browser **Boot BASIC** configures the machine with the active ROM set, optionally mounts the
+  selected immutable D64 on drive 8, performs a power-on reset, and begins bounded execution at
+  the KERNAL reset vector. It does not load a PRG or override the program counter. Power-on and
+  warm resets preserve the currently mounted D64; power-on still rebuilds machine RAM/devices
+  and execution counters as specified above.
 - Browser disk-program Run uses the same primitive operations: configure/power-on, mount the
   selected immutable D64, load the exact PRG extracted by the shared media parser, and set the
   explicit or structurally detected entry point. Direct extraction does not expand the drive
@@ -221,7 +226,7 @@ ROMs, or report success-shaped defaults.
 | Cycle-integrated execution | Implemented | Per-cycle device advancement, BA/AEC read stalls, aggregated device IRQ/NMI, NMOS CLI/SEI/PLP interrupt-enable delay |
 | NMOS 6510 core | Implemented | Complete 151-opcode documented set; cycle-exact; decimal, interrupts, RMW, JMP-indirect bug; native + WASM golden/parity tests |
 | ROM set validation | Implemented | Sizes, per-role SHA-256, deterministic set id; memory-only; synthetic test fixtures |
-| Machine lifecycle | Implemented | Configure/validate, power-on/warm reset, PRG load (no run-address inference), direct-mode PC, bounded `runCycles`, breakpoints, debug inspect/write |
+| Machine lifecycle | Implemented | Configure/validate, reset-vector BASIC boot, power-on/warm reset with mounted-media continuity, PRG load (no run-address inference), direct-mode PC, bounded `runCycles`, breakpoints, debug inspect/write |
 | Native and embind APIs | Implemented | `setInput`/`copyFramebuffer`/`drainAudio`/`mountD64`/`unmountD64` with owned-copy semantics; value types only; no exceptions cross embind |
 | Headless deterministic runner | Implemented | Node loads the production WASM artifact; native/WASM scenario parity is byte-identical (integer device state); SID float audio validated separately |
 | VIC-II / SID / CIA devices | Implemented | See VIC-II.md and IO.md for the exact modelled behaviour and honestly-labelled unsupported fidelity |

@@ -2,7 +2,7 @@
 // drives the real user journey with PRODUCTION bytes across the pinned Playwright browser matrix
 // (Chromium, Firefox, WebKit) at BOTH the localhost root ("/") and a GitHub Pages project base
 // ("/c64/"), proving base-path independence. Covers: page load + capability init, gallery presence,
-// edit/build via the worker, bundled OpenROMs default, run + frame
+// edit/build via the worker, bundled Pascual BASIC boot, direct Run + frame
 // progression + observable RAM write, keyboard release on blur, PRG download byte-equality, and a
 // malformed ?code error.
 //
@@ -96,9 +96,10 @@ async function runJourney(browser, base, url, expectedPrgLen) {
     );
     const build = await page.evaluate(() => window.__c64.lastBuild());
     assert.ok(build.buildId && build.prgLen > 0 && build.d64Len === 174848, `${base}: build produced PRG + full D64`);
-    assert.equal(await page.evaluate(() => window.__c64.romSource()), "bundled", `${base}: bundled OpenROMs selected`);
-    assert.equal(await page.evaluate(() => window.__c64.romReady()), true, `${base}: bundled OpenROMs verified`);
+    assert.equal(await page.evaluate(() => window.__c64.romSource()), "bundled", `${base}: bundled Pascual ROMs selected`);
+    assert.equal(await page.evaluate(() => window.__c64.romReady()), true, `${base}: bundled Pascual ROMs verified`);
     assert.equal(await page.evaluate(() => window.__c64.runEnabled()), true, `${base}: Run enabled by default`);
+    assert.equal(await page.evaluate(() => window.__c64.bootBasicEnabled()), true, `${base}: Boot BASIC enabled by default`);
 
     // Bundled and custom ROM bytes never touch browser storage.
     const storedHasRom = await page.evaluate(() => {
@@ -109,7 +110,22 @@ async function runJourney(browser, base, url, expectedPrgLen) {
     });
     assert.equal(storedHasRom, false, `${base}: no ROM blob in storage`);
 
-    // Run + frame progression + observable RAM write (production WASM bytes).
+    // Cold-start the bundled ROM reset vector to the real BASIC prompt.
+    await page.click("#btn-boot-basic");
+    await page.waitForFunction(
+      () => window.__c64.running() && window.__c64.activeMode() === "basic"
+        && window.__c64.screenText().includes("PASCUAL'S BASIC")
+        && window.__c64.screenText().includes("READY."),
+      null,
+      { timeout: 15000 },
+    );
+    const basicSeq1 = await page.evaluate(() => window.__c64.frame().sequence);
+    await page.waitForTimeout(250);
+    const basicSeq2 = await page.evaluate(() => window.__c64.frame().sequence);
+    assert.ok(Number(basicSeq2) > Number(basicSeq1), `${base}: BASIC frame sequence advances`);
+    await page.click("#btn-stop");
+
+    // Direct-entry Run remains deterministic and writes observable RAM.
     await page.click("#btn-run");
     await page.waitForFunction(() => window.__c64.running() === true, null, { timeout: 8000 });
     const seq1 = await page.evaluate(() => window.__c64.frame().sequence);

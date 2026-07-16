@@ -12,8 +12,8 @@ import {
 import { RomManager } from "../../web/client/lib/roms.js";
 import { loadBundledRomSet, validateBundledRomManifest } from "../../web/client/lib/bundledRoms.js";
 
-const openRomsDir = new URL("../../third_party/open-roms/", import.meta.url);
-const bundledManifest = JSON.parse(readFileSync(new URL("manifest.json", openRomsDir), "utf8"));
+const bundledRomsDir = new URL("../../third_party/pascual-roms/", import.meta.url);
+const bundledManifest = JSON.parse(readFileSync(new URL("manifest.json", bundledRomsDir), "utf8"));
 
 function rom(role, fill = 0) {
   const sizes = { basic: 8192, kernal: 8192, chargen: 4096 };
@@ -129,7 +129,7 @@ test("RomManager integrates validation, confirmation, and set readiness (memory-
   assert.equal(mgr.setRoleBytes("basic", new Uint8Array(10)).ok, false);
 });
 
-test("loads the pinned vendored OpenROMs set only after every role passes integrity", async () => {
+test("loads the pinned vendored Pascual set only after every package asset passes integrity", async () => {
   const manifestUrl = new URL("https://example.test/c64/roms/manifest.json");
   const fetched = [];
   const result = await loadBundledRomSet(manifestUrl, async (url) => {
@@ -138,7 +138,7 @@ test("loads the pinned vendored OpenROMs set only after every role passes integr
       return jsonResponse(bundledManifest);
     }
     const name = new URL(String(url)).pathname.split("/").pop();
-    const bytes = readFileSync(new URL(name, openRomsDir));
+    const bytes = readFileSync(new URL(name, bundledRomsDir));
     return bytesResponse(bytes);
   });
 
@@ -148,10 +148,14 @@ test("loads the pinned vendored OpenROMs set only after every role passes integr
     new URL(bundledManifest.roles.basic.path, manifestUrl).href,
     new URL(bundledManifest.roles.kernal.path, manifestUrl).href,
     new URL(bundledManifest.roles.chargen.path, manifestUrl).href,
+    new URL(bundledManifest.sourceArchive.path, manifestUrl).href,
+    ...bundledManifest.redistributionFiles.map((entry) => new URL(entry.path, manifestUrl).href),
   ]);
   assert.equal(result.set.licenseUrl, new URL("LICENSE.txt", manifestUrl).href);
+  assert.equal(result.set.basicLicenseUrl, new URL("LICENSE-microsoft.txt", manifestUrl).href);
   assert.equal(result.set.lgplUrl, new URL("COPYING.LESSER", manifestUrl).href);
   assert.equal(result.set.gplUrl, new URL("COPYING", manifestUrl).href);
+  assert.equal(result.set.chargenNoticeUrl, new URL("NOTICE.md", manifestUrl).href);
   assert.equal(result.set.provenanceUrl, new URL("PROVENANCE.md", manifestUrl).href);
   assert.equal(result.set.sourceArchiveUrl, new URL(bundledManifest.sourceArchive.path, manifestUrl).href);
 
@@ -193,7 +197,7 @@ test("a bundled role digest mismatch fails atomically and preserves the active s
   const loaded = await loadBundledRomSet(manifestUrl, async (url) => {
     if (String(url) === manifestUrl.href) return jsonResponse(bundledManifest);
     const name = new URL(String(url)).pathname.split("/").pop();
-    const bytes = new Uint8Array(readFileSync(new URL(name, openRomsDir)));
+    const bytes = new Uint8Array(readFileSync(new URL(name, bundledRomsDir)));
     if (name === bundledManifest.roles.kernal.path) bytes[0] ^= 0xff;
     return bytesResponse(bytes);
   });
@@ -204,19 +208,38 @@ test("a bundled role digest mismatch fails atomically and preserves the active s
   assert.equal(manager.getRomSet().id, priorId);
 });
 
+test("a bundled source or legal-file mismatch fails the runtime package closed", async () => {
+  for (const changedPath of [
+    bundledManifest.sourceArchive.path,
+    bundledManifest.licenses.basic.path,
+  ]) {
+    const manifestUrl = new URL("https://example.test/roms/manifest.json");
+    const loaded = await loadBundledRomSet(manifestUrl, async (url) => {
+      if (String(url) === manifestUrl.href) return jsonResponse(bundledManifest);
+      const name = new URL(String(url)).pathname.split("/").pop();
+      const bytes = new Uint8Array(readFileSync(new URL(name, bundledRomsDir)));
+      if (name === changedPath) bytes[0] ^= 0xff;
+      return bytesResponse(bytes);
+    });
+    assert.equal(loaded.ok, false, changedPath);
+    assert.equal(loaded.error.code, "rom-integrity", changedPath);
+  }
+});
+
 test("RomManager never mixes a bundled role with an incremental custom set", () => {
   const manager = new RomManager();
   const bundledSet = {
     id: bundledManifest.id,
     title: bundledManifest.title,
     revision: bundledManifest.revision,
-    licenseId: bundledManifest.licenseId,
+    licenseIds: ["MIT", "LGPL-3.0-or-later"],
     roles: Object.fromEntries(
       ROM_ROLES.map((role) => [
         role,
         {
-          bytes: new Uint8Array(readFileSync(new URL(bundledManifest.roles[role].path, openRomsDir))),
+          bytes: new Uint8Array(readFileSync(new URL(bundledManifest.roles[role].path, bundledRomsDir))),
           sha256: bundledManifest.roles[role].sha256,
+          licenseId: role === "chargen" ? "LGPL-3.0-or-later" : "MIT",
         },
       ]),
     ),
@@ -244,7 +267,7 @@ test("RomManager rejects an invalid bundled candidate without replacing a ready 
     id: "incomplete",
     title: "Incomplete",
     revision: "0".repeat(40),
-    licenseId: "LGPL-3.0-or-later",
+    licenseIds: ["MIT", "LGPL-3.0-or-later"],
     roles: {},
   });
   assert.equal(result.ok, false);

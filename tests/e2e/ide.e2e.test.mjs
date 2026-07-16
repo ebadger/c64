@@ -1,6 +1,6 @@
 // End-to-end browser test for the c64 web IDE. Drives the real static app against the ACTUAL
 // production WASM artifact via the dev server and a headless Chromium. Covers the build worker,
-// bundled OpenROMs default, custom-ROM privacy/gating, machine run + frame progression,
+// bundled Pascual ROM default + BASIC boot, custom-ROM privacy/gating, direct Run progression,
 // keyboard release (stuck-key prevention),
 // URL share/remix round-trip (Unicode), gallery load + reproducible buildId, artifact downloads,
 // and D64 directory/launch/eject behavior. Skips cleanly when the WASM artifact or Playwright is
@@ -95,14 +95,48 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     const build = await page.evaluate(() => window.__c64.lastBuild());
     assert.ok(build.buildId && build.prgLen > 0 && build.d64Len === 174848, "build produced a PRG and full D64");
 
-    // --- Bundled OpenROMs default -------------------------------------------------------------
+    // --- Bundled Pascual ROM default + real reset-vector BASIC boot ---------------------------
     assert.equal(await page.evaluate(() => window.__c64.romSource()), "bundled");
     assert.equal(await page.evaluate(() => window.__c64.romReady()), true);
     assert.equal(await page.evaluate(() => window.__c64.runEnabled()), true);
+    assert.equal(await page.evaluate(() => window.__c64.bootBasicEnabled()), true);
     assert.equal(await page.locator("#sel-rom-source").inputValue(), "bundled");
     assert.equal(await page.locator("#rom-custom").isHidden(), true);
     assert.match(await page.locator("#rom-license-link").getAttribute("href"), /\/roms\/LICENSE\.txt$/);
-    assert.match(await page.locator("#rom-source-link").getAttribute("href"), /\/roms\/open-roms-.*\.tar\.gz$/);
+    assert.match(await page.locator("#rom-source-link").getAttribute("href"), /\/roms\/pascuals-basic-.*\.tar\.gz$/);
+    assert.match(await page.locator("#rom-basic-license-link").getAttribute("href"), /\/roms\/LICENSE-microsoft\.txt$/);
+
+    await page.click("#btn-boot-basic");
+    await page.waitForFunction(
+      () => {
+        const text = window.__c64.screenText();
+        return text.includes("PASCUAL'S BASIC") && text.includes("READY.");
+      },
+      null,
+      { timeout: 15000 },
+    );
+    assert.equal(await page.evaluate(() => window.__c64.activeMode()), "basic");
+    const basicSeq1 = await page.evaluate(() => window.__c64.frame().sequence);
+    await page.waitForTimeout(250);
+    const basicSeq2 = await page.evaluate(() => window.__c64.frame().sequence);
+    assert.ok(Number(basicSeq2) > Number(basicSeq1), "BASIC boot advances production frames");
+
+    await page.focus("#screen-surface");
+    for (const key of ["p", "r", "i", "n", "t", " ", "4", "Enter"]) {
+      await page.keyboard.down(key);
+      await page.waitForTimeout(60);
+      await page.keyboard.up(key);
+      await page.waitForTimeout(60);
+    }
+    await page.waitForFunction(
+      () => {
+        const text = window.__c64.screenText();
+        return text.includes("PRINT 4") && (text.match(/READY\./g) || []).length >= 2;
+      },
+      null,
+      { timeout: 10000 },
+    );
+    await page.click("#btn-stop");
 
     // ROM bytes and source-selection state never touch storage.
     const storedHasRom = await page.evaluate(() => {
@@ -249,7 +283,7 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     writeFileSync(d64Path, Buffer.from(disk.d64));
     await page.setInputFiles("#d64-file", d64Path);
     await page.waitForFunction(() => document.getElementById("d64-controls").hidden === false);
-    assert.match(await page.locator("#d64-status").textContent(), /Mounted TESTDISK/);
+    assert.match(await page.locator("#d64-status").textContent(), /Selected TESTDISK/);
     assert.match(await page.locator("#d64-program option").textContent(), /"PROG" PRG/);
     assert.equal(
       await page.locator("#d64-entry").inputValue(),
@@ -257,6 +291,22 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
       "the first-line BASIC SYS target is detected",
     );
     assert.equal(await page.locator("#btn-run-d64").isEnabled(), true);
+
+    await page.click("#btn-boot-basic");
+    await page.waitForFunction(
+      () => window.__c64.running() && window.__c64.activeMode() === "basic"
+        && window.__c64.diskMounted() && window.__c64.screenText().includes("READY."),
+      null,
+      { timeout: 15000 },
+    );
+    await page.click("#btn-reset");
+    await page.waitForFunction(
+      () => window.__c64.running() && window.__c64.activeMode() === "basic"
+        && window.__c64.diskMounted() && window.__c64.screenText().includes("READY."),
+      null,
+      { timeout: 15000 },
+    );
+    await page.click("#btn-stop");
 
     await page.click("#btn-run-d64");
     await page.waitForFunction(
