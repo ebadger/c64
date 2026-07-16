@@ -10,9 +10,6 @@
   "scripts": {
     "test": "node --test tests/",
     "test:pipeline": "node --test tests/",
-    "test:wasm": "node --test tests/wasm-smoke.test.mjs",
-    "example": "node examples/build-example.mjs",
-    "build:wasm": "emcmake cmake -S core -B core/build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build core/build-wasm"
     "test:web": "node --test tests/web/",
     "test:wasm": "node --test tests/wasm/",
     "test:e2e": "node --test tests/e2e/",
