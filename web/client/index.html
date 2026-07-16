@@ -166,7 +166,24 @@
           <span>Mount a local .d64 (read-only)</span>
           <input id="d64-file" type="file" accept=".d64" />
         </label>
+        <p class="muted">Select a disk to inspect its directory. A file runs only when you choose it below.</p>
         <p id="d64-status" class="muted" aria-live="polite">No disk mounted.</p>
+        <div id="d64-controls" class="media-controls" hidden>
+          <label class="field">
+            <span>Disk program</span>
+            <select id="d64-program"></select>
+          </label>
+          <label class="field">
+            <span>Entry address</span>
+            <input id="d64-entry" type="text" inputmode="text" autocomplete="off" spellcheck="false"
+                   placeholder="$C000 or 49152" aria-describedby="d64-entry-status" />
+          </label>
+          <p id="d64-entry-status" class="muted" aria-live="polite"></p>
+          <div class="media-actions">
+            <button id="btn-run-d64" type="button" disabled>Run selected PRG</button>
+            <button id="btn-eject-d64" class="secondary" type="button">Eject</button>
+          </div>
+        </div>
       </section>
 
       <!-- Artifacts + share -->

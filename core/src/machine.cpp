@@ -231,6 +231,17 @@ MediaResult Machine::mountD64(const std::vector<u8>& bytes, u8 driveNumber) {
   return parseResult;
 }
 
+Error Machine::unmountD64(u8 driveNumber) {
+  Error e = requireReady();
+  if (!e.ok()) return e;
+  if (driveNumber != 8) {
+    return Error::make(ErrorCode::UnsupportedMedia,
+                       "Only drive 8 is supported by the high-level IEC drive model.");
+  }
+  disk_ = Disk{};
+  return Error::none();
+}
+
 // --- High-level LOAD trap ---------------------------------------------------------------------
 
 void Machine::rtsFromTrap(CpuState& st) {

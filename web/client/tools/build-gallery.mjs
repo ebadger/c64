@@ -24,7 +24,7 @@ const MANIFEST = [
     id: "border-flash",
     title: "Border flash",
     description:
-      "The canonical milestone-1 example: symbol assignment, zero-page vs absolute selection, indexed load, a branch, a forward-referenced subroutine, and .byte/.text/.word data. Runnable and remixable.",
+      "A continuously animated border-colour example that exercises symbol assignment, zero-page vs absolute selection, indexed load, branches, a forward-referenced subroutine, and .byte/.text/.word data.",
     sourcePath: "examples/border-flash/source.asm",
     timingProfile: "pal-6569",
   },

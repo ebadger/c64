@@ -24,6 +24,14 @@ import { downloadBytes, downloadSource } from "./lib/downloads.js";
 import { computeShare, copyToClipboard } from "./lib/share.js";
 import { ROM_ROLES } from "./lib/romValidate.js";
 import { KEY_HELP } from "./lib/keymap.js";
+import {
+  directoryEntryLabel,
+  formatEntryAddress,
+  isPrgEntry,
+  parseEntryAddress,
+  petsciiToDisplay,
+} from "./lib/diskControls.js";
+import { detectBasicSysRunAddress, extractPrg, parseD64 } from "../../src/index.js";
 
 const repoBase = new URL("../../", import.meta.url); // repository root static base
 const clientBase = new URL("./", import.meta.url); // web/client/
@@ -36,8 +44,9 @@ const audio = new AudioPlayer();
 const state = {
   project: makeProject(),
   lastBuild: null, // { ok, buildId, prg, d64, prgName, d64Name, runAddress, loadAddress }
+  activeRun: null, // { prg, runAddress, label } most recently started source or disk program
   artifactsStale: false,
-  pendingD64: null, // { bytes, label } to mount on next Run
+  pendingD64: null, // { bytes, label, metadata, selectedPrg }
   galleryById: new Map(),
   romSource: "bundled",
   romLoading: false,
@@ -54,6 +63,7 @@ let pendingEdit = false; // an edit happened since the last build() request -> r
 let lastPersistedCanonical = null; // canonical JSON of the last project we saved or loaded
 let appInitialized = false; // true once init() (incl. decideInitialProject) has fully completed
 let romLoadGeneration = 0;
+let d64SelectionGeneration = 0;
 const romFileReadGenerations = new Map(ROM_ROLES.map((role) => [role, 0]));
 
 // ---------------------------------------------------------------------------------------------
@@ -123,7 +133,9 @@ function cacheElements() {
     "romStatus:rom-status", "romLegal:rom-legal", "romProvenanceLink:rom-provenance-link",
     "romLicenseLink:rom-license-link", "romLgplLink:rom-lgpl-link", "romGplLink:rom-gpl-link",
     "romSourceLink:rom-source-link", "romCustom:rom-custom", "romRoles:rom-roles",
-    "d64File:d64-file", "d64Status:d64-status",
+    "d64File:d64-file", "d64Status:d64-status", "d64Controls:d64-controls",
+    "d64Program:d64-program", "d64Entry:d64-entry", "d64EntryStatus:d64-entry-status",
+    "btnRunD64:btn-run-d64", "btnEjectD64:btn-eject-d64",
     "artifactStatus:artifact-status", "buildId:build-id", "btnDlPrg:btn-dl-prg",
     "btnDlD64:btn-dl-d64", "btnDlSrc:btn-dl-src", "btnShare:btn-share", "sharePanel:share-panel",
     "shareWarning:share-warning", "shareUrl:share-url", "btnShareCopy:btn-share-copy",
@@ -348,6 +360,7 @@ async function ensureMachine() {
 function updateRunEnabled() {
   const canRun = !!(state.lastBuild && state.lastBuild.ok) && !state.artifactsStale && romManager.ready();
   setEnabled(els.btnRun, canRun && !(pacer && pacer.running));
+  updateD64RunEnabled();
 }
 
 async function runProgram() {
@@ -355,6 +368,10 @@ async function runProgram() {
     errorBus.error("build", "no-build", "Build a program before running.");
     return;
   }
+  await runLoadedProgram(state.lastBuild.prg, state.lastBuild.runAddress, "built program");
+}
+
+async function runLoadedProgram(prg, runAddress, label, mediaGeneration = null) {
   if (!romManager.ready()) {
     errorBus.error("rom", "rom-set-incomplete", "Load a complete, valid ROM set to enable Run.");
     return;
@@ -368,6 +385,8 @@ async function runProgram() {
     return;
   }
   if (selectedRomGeneration !== romLoadGeneration || !romManager.ready()) return;
+  if (mediaGeneration !== null && mediaGeneration !== d64SelectionGeneration) return;
+  if (pacer && pacer.running) stopProgram();
 
   const romSet = romManager.getRomSet();
   const cfg = controller.configure({
@@ -382,18 +401,19 @@ async function runProgram() {
 
   if (state.pendingD64) {
     const mount = controller.mount(state.pendingD64.bytes);
-    if (!mount.ok) errorBus.error(mount.error.category, mount.error.code, mount.error.message);
-    else setText(els.d64Status, `Mounted ${mount.meta.diskName} (${mount.meta.fileCount} file${mount.meta.fileCount === 1 ? "" : "s"}).`);
+    if (!mount.ok) {
+      errorBus.error(mount.error.category, mount.error.code, mount.error.message);
+      return;
+    }
+    setText(els.d64Status, `Mounted ${mount.meta.diskName} (${mount.meta.fileCount} file${mount.meta.fileCount === 1 ? "" : "s"}).`);
   }
 
-  const entered = controller.loadAndEnter(state.lastBuild.prg, {
-    runMode: state.project.runMode,
-    runAddress: state.lastBuild.runAddress,
-  });
+  const entered = controller.loadAndEnter(prg, { runAddress });
   if (!entered.ok) {
     errorBus.error(entered.error.category, entered.error.code, entered.error.message);
     return;
   }
+  state.activeRun = { prg: new Uint8Array(prg), runAddress, label };
 
   input.setJoystickPort(Number(els.selJoyport.value));
   input.setGamepadEnabled(els.chkGamepad.checked);
@@ -408,7 +428,7 @@ async function runProgram() {
     },
   );
   pacer.start();
-  setText(els.runStatus, "Running.");
+  setText(els.runStatus, `Running ${label}.`);
   els.runStatus.className = "run-status running";
   setEnabled(els.btnStop, true);
   setEnabled(els.btnReset, true);
@@ -428,17 +448,13 @@ function stopProgram() {
 
 function resetProgram() {
   if (!machine || !machine.ready) return;
-  if (!(state.lastBuild && state.lastBuild.ok)) {
-    errorBus.error("build", "no-build", "Nothing to reset to — build a program first.");
+  if (!state.activeRun) {
+    errorBus.error("wasm", "no-program", "Nothing to reset to — run a source build or disk PRG first.");
     return;
   }
   const wasRunning = pacer && pacer.running;
   if (pacer) pacer.stop();
-  machine.reset("power-on");
-  const entered = machine.loadAndEnter(state.lastBuild.prg, {
-    runMode: state.project.runMode,
-    runAddress: state.lastBuild.runAddress,
-  });
+  const entered = machine.loadAndEnter(state.activeRun.prg, { runAddress: state.activeRun.runAddress });
   if (!entered.ok) {
     errorBus.error(entered.error.category, entered.error.code, entered.error.message);
     return;
@@ -447,7 +463,7 @@ function resetProgram() {
     pacer.start();
   } else {
     renderer.clear(0);
-    setText(els.runStatus, "Reset. Press Run.");
+    setText(els.runStatus, `Reset ${state.activeRun.label}.`);
   }
 }
 
@@ -633,25 +649,160 @@ async function onRomFile(role, file) {
 
 function wireMedia() {
   els.d64File.addEventListener("change", (e) => onD64File(e.target.files && e.target.files[0]));
+  els.d64Program.addEventListener("change", selectD64Program);
+  els.d64Entry.addEventListener("input", updateD64EntryStatus);
+  els.btnRunD64.addEventListener("click", () => runD64Program());
+  els.btnEjectD64.addEventListener("click", ejectD64);
 }
 
 async function onD64File(file) {
   if (!file) return;
+  const generation = ++d64SelectionGeneration;
   let bytes;
   try {
     bytes = new Uint8Array(await file.arrayBuffer());
   } catch {
+    if (generation !== d64SelectionGeneration) return;
     errorBus.error("media", "read", "Could not read the D64 file.");
     return;
   }
-  state.pendingD64 = { bytes, label: file.name };
-  if (machine && machine.ready) {
-    const mount = machine.mount(bytes);
-    if (!mount.ok) errorBus.error(mount.error.category, mount.error.code, mount.error.message);
-    else setText(els.d64Status, `Mounted ${mount.meta.diskName} (${mount.meta.fileCount} file${mount.meta.fileCount === 1 ? "" : "s"}).`);
-  } else {
-    setText(els.d64Status, `Selected ${file.name}. It will be mounted (read-only) when you Run.`);
+  if (generation !== d64SelectionGeneration) return;
+  if (!selectD64(bytes, file.name)) els.d64File.value = "";
+}
+
+function selectD64(bytes, label) {
+  const media = new Uint8Array(bytes);
+  const parsed = parseD64(media);
+  if (!parsed.ok) {
+    errorBus.error("media", parsed.error.code, parsed.error.message);
+    return false;
   }
+
+  if (machine && machine.ready) {
+    const mount = machine.mount(media);
+    if (!mount.ok) {
+      errorBus.error(mount.error.category, mount.error.code, mount.error.message);
+      return false;
+    }
+  }
+  state.pendingD64 = { bytes: media, label, metadata: parsed.metadata, selectedPrg: null };
+  for (const warning of parsed.warnings) errorBus.notice("media", warning.code, warning.message);
+  renderD64Directory();
+  return true;
+}
+
+function renderD64Directory() {
+  const disk = state.pendingD64;
+  if (!disk) return;
+  const options = disk.metadata.entries.map((entry) => {
+    const option = makeEl("option", {
+      text: directoryEntryLabel(entry),
+      attrs: { value: entry.index },
+    });
+    option.disabled = !isPrgEntry(entry);
+    return option;
+  });
+  replaceChildren(els.d64Program, ...options);
+  const firstPrg = disk.metadata.entries.find(isPrgEntry);
+  els.d64Program.value = firstPrg ? String(firstPrg.index) : "";
+  setHidden(els.d64Controls, false);
+  setEnabled(els.d64Program, !!firstPrg);
+  setEnabled(els.d64Entry, !!firstPrg);
+  setText(
+    els.d64Status,
+    `${machine && machine.diskMounted ? "Mounted" : "Selected"} ${petsciiToDisplay(disk.metadata.diskName)} from ${disk.label} (${disk.metadata.entries.length} file${disk.metadata.entries.length === 1 ? "" : "s"}).`,
+  );
+  selectD64Program();
+}
+
+function selectD64Program() {
+  const disk = state.pendingD64;
+  const index = Number(els.d64Program.value);
+  const entry = disk && disk.metadata.entries.find((candidate) => candidate.index === index);
+  if (!disk || !isPrgEntry(entry)) {
+    if (disk) disk.selectedPrg = null;
+    els.d64Entry.value = "";
+    setText(els.d64EntryStatus, "This disk has no directly runnable PRG entries.");
+    updateD64RunEnabled();
+    return;
+  }
+
+  const extracted = extractPrg(disk.bytes, index);
+  if (!extracted.ok) {
+    disk.selectedPrg = null;
+    errorBus.error("media", extracted.error.code, extracted.error.message);
+    updateD64RunEnabled();
+    return;
+  }
+  const detectedRunAddress = detectBasicSysRunAddress(extracted.prg);
+  disk.selectedPrg = { entry, prg: extracted.prg, detectedRunAddress };
+  els.d64Entry.value = detectedRunAddress === null ? "" : formatEntryAddress(detectedRunAddress);
+  updateD64EntryStatus();
+}
+
+function updateD64EntryStatus() {
+  const selected = state.pendingD64 && state.pendingD64.selectedPrg;
+  const address = parseEntryAddress(els.d64Entry.value);
+  if (!selected) {
+    setText(els.d64EntryStatus, "Select a PRG file.");
+  } else if (address === null) {
+    setText(
+      els.d64EntryStatus,
+      selected.detectedRunAddress === null
+        ? "No first-line BASIC SYS target was detected. Enter a hexadecimal ($C000) or decimal (49152) entry address."
+        : "Enter a valid 16-bit entry address.",
+    );
+  } else if (address === selected.detectedRunAddress) {
+    setText(els.d64EntryStatus, `Detected first-line BASIC SYS target ${formatEntryAddress(address)}. You can edit it.`);
+  } else {
+    setText(els.d64EntryStatus, `Using entry ${formatEntryAddress(address)}.`);
+  }
+  els.d64Entry.setAttribute("aria-invalid", String(els.d64Entry.value.trim() !== "" && address === null));
+  updateD64RunEnabled();
+}
+
+function updateD64RunEnabled() {
+  if (!els.btnRunD64) return;
+  const canRun = !!(state.pendingD64 && state.pendingD64.selectedPrg)
+    && parseEntryAddress(els.d64Entry.value) !== null
+    && romManager.ready()
+    && !(pacer && pacer.running);
+  setEnabled(els.btnRunD64, canRun);
+}
+
+async function runD64Program() {
+  const disk = state.pendingD64;
+  const selected = disk && disk.selectedPrg;
+  const runAddress = parseEntryAddress(els.d64Entry.value);
+  if (!selected) {
+    errorBus.error("media", "no-prg", "Select a PRG file from the disk directory.");
+    return;
+  }
+  if (runAddress === null) {
+    errorBus.error("media", "invalid-entry", "Enter a valid 16-bit PRG entry address.");
+    return;
+  }
+  const label = `disk PRG "${petsciiToDisplay(selected.entry.name)}"`;
+  await runLoadedProgram(selected.prg, runAddress, label, d64SelectionGeneration);
+}
+
+function ejectD64() {
+  d64SelectionGeneration += 1;
+  if (machine && machine.diskMounted) {
+    const result = machine.unmount();
+    if (!result.ok) {
+      errorBus.error(result.error.category, result.error.code, result.error.message);
+      return;
+    }
+  }
+  state.pendingD64 = null;
+  els.d64File.value = "";
+  els.d64Entry.value = "";
+  replaceChildren(els.d64Program);
+  setHidden(els.d64Controls, true);
+  setText(els.d64EntryStatus, "");
+  setText(els.d64Status, "No disk mounted.");
+  updateD64RunEnabled();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -730,13 +881,14 @@ async function openGalleryEntry(entry) {
 }
 
 async function mountCuratedD64(path) {
+  const generation = ++d64SelectionGeneration;
   const res = await fetchCuratedD64(path, repoBase);
+  if (generation !== d64SelectionGeneration) return;
   if (!res.ok) {
     errorBus.error(res.error.category, res.error.code, res.error.message);
     return;
   }
-  state.pendingD64 = { bytes: res.bytes, label: path };
-  setText(els.d64Status, "Curated disk selected. It will be mounted (read-only) when you Run.");
+  if (selectD64(res.bytes, path)) els.d64File.value = "";
 }
 
 async function decideInitialProject() {
@@ -828,6 +980,7 @@ window.__c64 = {
   peek: (addr) => (machine && machine.ready ? machine.debugReadRam(addr) : null),
   inputSnapshot: () => (input ? input.snapshot() : null),
   running: () => !!(pacer && pacer.running),
+  diskMounted: () => !!(machine && machine.diskMounted),
   audioAvailable: () => audioAvailable,
   errors: () => errorBus.items(),
   initialized: () => appInitialized,

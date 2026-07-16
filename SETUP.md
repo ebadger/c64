@@ -41,37 +41,6 @@ suite also includes headless smoke tests for the web client's pure modules (`tes
 the base64url share codec, the gallery entry/build-id guard, the worker build core, storage
 autosave, capability detection, and the emulator-bridge unavailable contract.
 
-## Serve and smoke-test the static web client
-
-The browser IDE in `web/` is a static, dependency-light client that runs the `src/` pipeline in
-a Web Worker. There is no build step: serve the **repository root** over HTTP (so that
-`web/…` and `src/…` and `examples/…` are all same-origin) and open `web/`.
-
-From the repository root, use any static file server, for example:
-
-```sh
-python3 -m http.server 8080          # then open http://localhost:8080/web/
-# or: npx --yes http-server . -p 8080 -c-1
-```
-
-Opening a `file://` URL will not work: ES-module workers and the restrictive Content Security
-Policy require an HTTP origin.
-
-Manual browser smoke test (evergreen Chrome/Firefox/Edge/Safari):
-
-1. Open `http://localhost:8080/web/`. The status line reads "Ready".
-2. Press **Build**. Diagnostics show "No diagnostics" and the Build panel shows a 64-hex
-   build id plus load/run addresses.
-3. Press **Download PRG** and **Download D64**; the downloaded bytes are exactly the assembler
-   output (the `.prg` is 2-byte load address + image).
-4. In the **Examples** row choose "Border flash" and press **Load**, then **Build**; it
-   assembles cleanly. Loading `http://localhost:8080/web/?src=border-flash` does the same from
-   the URL, and `?code=<base64url>` restores shared source.
-5. Press **Share…**; the panel shows the public-bearer-data warning before you copy the link.
-6. The **Emulator** panel shows an explicit "EMULATOR UNAVAILABLE" state and Run/Reset stay
-   disabled — expected until the WASM core and a ROM set land. The client never fabricates a
-   running emulator.
-
 ## Validate the operating foundation
 
 ```sh

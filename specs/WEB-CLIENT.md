@@ -90,7 +90,7 @@ intentionally has its own `buildId`; the two golden records do not have to match
 
 - Initial UI areas: source editor, diagnostics, Run/Stop/Reset, machine profile, video,
   audio enable, keyboard/joystick help, artifact downloads, share, gallery, ROM status, and
-  D64 import.
+  D64 import/directory/run/eject.
 - Build runs through the dual-use assembler, preferably in a worker. The same-origin,
   manifest-verified MEGA65 OpenROMs generic set loads by default, so Run is enabled once the
   latest build succeeds. An explicit ROM-source control can switch to a complete custom local
@@ -104,6 +104,18 @@ intentionally has its own `buildId`; the two golden records do not have to match
   keeps Run deterministic and ROM-agnostic and is the honestly-labelled in-app boundary: because
   the bundled OpenROMs BASIC remains incomplete upstream and the release gate also retains
   synthetic fixtures, an in-process BASIC `RUN` path is outside the supported contract.
+- D64 selection validates media immediately and renders every directory entry, with the first
+  PRG preselected. It never auto-runs a file. **Run selected PRG** extracts the selected PRG,
+  uses a structurally detected first-line tokenized BASIC `SYS` target when present, otherwise
+  requires an explicit hexadecimal (`$C000`/`0xC000`) or decimal (`49152`) uint16 entry address,
+  then follows the same configure/mount/load/set-PC path as source Run. Reset reloads whichever
+  source-build or disk PRG was most recently started.
+- **Eject** clears the file input, directory, entry address, and in-memory selected bytes, and
+  unmounts drive 8 from an already configured machine without stopping or resetting execution.
+  Invalid replacement media reports a `media` error and preserves the prior valid disk.
+- The canonical **Border flash** gallery program continuously cycles declared VIC-II border
+  colours with a deterministic CPU-cycle delay long enough for browser presentation to expose
+  multiple distinct frames; it must not complete all visible writes before the first frame.
 - The WASM core runs in bounded cycle batches. The browser uses `requestAnimationFrame` and
   audio-buffer demand to pace presentation; it never changes the selected machine clock or
   skips emulated cycles to match display refresh.
@@ -182,8 +194,9 @@ holds focus, and every blur/visibility-loss path calls release-all so no key can
 
 `gallery/query/autosave/user edit -> SourceProject -> assembler worker -> PRG/D64 + diagnostics
 -> downloads and WASM machine -> frame/audio -> UI`; and `bundled same-origin ROM manifest or
-local ROM picker -> integrity validation -> atomic in-memory RomSet`, plus `local D64 picker ->
-in-memory media`. Canonical content changes only through GitHub PRs.
+local ROM picker -> integrity validation -> atomic in-memory RomSet`, plus `local/curated D64
+-> validation -> directory selection -> PRG extraction + explicit/detected entry -> mounted
+read-only media and WASM machine`. Canonical content changes only through GitHub PRs.
 
 ## Error handling
 
@@ -247,4 +260,5 @@ commands live in `SETUP.md`.
 | URL share/remix and autosave | Implemented | `?code`/`?src`/`?d64`, bearer-data warning, namespaced autosave/preferences |
 | Gallery and canonical PR flow | Implemented | `web/client/gallery.json` with a validated, reproducible border-flash entry |
 | Default and custom ROM selection | Implemented | Bundled, pinned OpenROMs generic set loads and verifies by default; explicit memory-only complete custom-set override |
+| D64 import controls | Implemented | Immediate directory validation, selected-PRG run with explicit/detected entry, reset continuity, and live drive-8 eject |
 | GitHub Pages deployment | Implemented and live | Deterministic `dist/` build (`scripts/build/build-dist.mjs`) + release workflow (`.github/workflows/release.yml`) deploy the gated artifact to Pages on merged `main` |

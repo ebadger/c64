@@ -44,6 +44,7 @@ Required operations:
 - `reset(kind)` where `kind` is `power-on` or `warm`
 - `loadPrg(bytes) -> LoadResult`
 - `mountD64(bytes, driveNumber = 8) -> MediaResult`
+- `unmountD64(driveNumber = 8) -> Error`
 - `runCycles(maxCycles) -> RunResult`
 - `setInput(snapshot)` for keyboard, joystick, and restore state (owned copy; not retained)
 - `copyFramebuffer(target) -> FrameInfo` (copies the indexed framebuffer; clears the dirty flag)
@@ -166,9 +167,18 @@ exactly one tick per consumed cycle.
   (`brk`, `fault`, `breakpoint`).
 - PRG loading validates the two-byte little-endian load address and rejects images that
   would exceed `$FFFF`; it does not infer a run address from file content.
-- Browser Run uses the entry contract from `CODEGEN.md`: direct mode sets the CPU program
-  counter after loading; BASIC SYS mode starts through a reset BASIC environment and its
-  generated stub.
+- Browser Run uses the entry contract from `CODEGEN.md`: after a power-on reset and PRG load,
+  both direct and BASIC SYS projects set the CPU program counter to the recorded `runAddress`.
+  The BASIC stub remains in the downloadable PRG for stock-machine `RUN`; the browser does not
+  execute that stub in-process.
+- Browser disk-program Run uses the same primitive operations: configure/power-on, mount the
+  selected immutable D64, load the exact PRG extracted by the shared media parser, and set the
+  explicit or structurally detected entry point. Direct extraction does not expand the drive
+  fidelity boundary; the mounted disk remains available to that program only through the
+  documented high-level KERNAL LOAD trap.
+- `unmountD64(8)` is idempotent and removes the immutable drive-8 image without resetting CPU,
+  RAM, devices, or execution counters. It is invalid before configuration and rejects every
+  drive number other than 8 as `unsupported-media`.
 - Machine faults are stable error codes with context, not C++ exceptions crossing embind.
 - Audio and video buffer exhaustion may drop presentation data only at the bridge boundary;
   it must not alter emulated device state.
@@ -212,9 +222,8 @@ ROMs, or report success-shaped defaults.
 | NMOS 6510 core | Implemented | Complete 151-opcode documented set; cycle-exact; decimal, interrupts, RMW, JMP-indirect bug; native + WASM golden/parity tests |
 | ROM set validation | Implemented | Sizes, per-role SHA-256, deterministic set id; memory-only; synthetic test fixtures |
 | Machine lifecycle | Implemented | Configure/validate, power-on/warm reset, PRG load (no run-address inference), direct-mode PC, bounded `runCycles`, breakpoints, debug inspect/write |
-| Native and embind APIs | Implemented | `setInput`/`copyFramebuffer`/`drainAudio`/`mountD64` with owned-copy semantics; value types only; no exceptions cross embind |
+| Native and embind APIs | Implemented | `setInput`/`copyFramebuffer`/`drainAudio`/`mountD64`/`unmountD64` with owned-copy semantics; value types only; no exceptions cross embind |
 | Headless deterministic runner | Implemented | Node loads the production WASM artifact; native/WASM scenario parity is byte-identical (integer device state); SID float audio validated separately |
 | VIC-II / SID / CIA devices | Implemented | See VIC-II.md and IO.md for the exact modelled behaviour and honestly-labelled unsupported fidelity |
-| Mounted D64 / framebuffer / audio / input | Implemented | Read-only D64 via a high-level KERNAL LOAD/IEC trap (see MEDIA.md); indexed framebuffer; mono float audio; keyboard/joystick/RESTORE input |
+| Mounted D64 / framebuffer / audio / input | Implemented | Read-only mount/eject plus a high-level KERNAL LOAD/IEC trap (see MEDIA.md); indexed framebuffer; mono float audio; keyboard/joystick/RESTORE input |
 | Save-state format | Deferred | Requires a separate versioned contract |
-

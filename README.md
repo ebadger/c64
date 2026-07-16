@@ -15,7 +15,8 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 > once to a production WebAssembly artifact and proven by native and byte-identical headless
 > WASM parity tests; the **static browser IDE** (`web/client/`) that integrates the production
 > assembler in a worker and the production WASM machine into an editor, build, run/stop/reset,
-> presentation, input, bundled OpenROMs/custom-ROM handling, sharing, gallery, and downloads; and the **release
+> presentation, input, D64 directory/run/eject controls, bundled OpenROMs/custom-ROM handling,
+> sharing, gallery, and downloads; and the **release
 > pipeline** — a deterministic `dist/` build, external D64 interoperability verification (VICE
 > `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and a GitHub Pages deploy workflow.
 > The Pages site is live at [`https://ebadger.github.io/c64/`](https://ebadger.github.io/c64/);
@@ -32,8 +33,10 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 2. Edit NMOS 6510/6502 assembly in the browser.
 3. Build deterministic PRG and D64 artifacts with the same assembler used by headless tests.
 4. Run the PRG in the shared C++17 emulator core compiled to WebAssembly.
-5. Share editable source through `?src` or base64url UTF-8 `?code`.
-6. Download the standard PRG or D64 for external C64 tools or transfer to physical hardware.
+5. Import a D64, choose a PRG from its directory, supply an entry address when it has no
+   detectable BASIC `SYS` target, and run or eject it without reloading the page.
+6. Share editable source through `?src` or base64url UTF-8 `?code`.
+7. Download the standard PRG or D64 for external C64 tools or transfer to physical hardware.
 
 Canonical examples will be curated through GitHub pull requests and `gallery.json`. URL
 shares are public bearer data: anyone with the URL can read and copy the source, and long
@@ -109,7 +112,9 @@ Build the production WebAssembly artifact first (see [`SETUP.md`](./SETUP.md)) s
 without it you can still edit, build, and download PRG/D64. Run uses the pinned, redistributable
 MEGA65 OpenROMs generic set by default. The ROM panel can replace it with a complete local
 BASIC/KERNAL/character set for the current page session; custom bytes are never uploaded, stored,
-or logged.
+or logged. The Media panel validates an imported D64 immediately, lists its directory, runs a
+selected PRG at its detected or explicit entry address, and ejects drive 8 without resetting the
+running machine.
 
 ## Build and test
 

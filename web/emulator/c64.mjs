@@ -226,6 +226,15 @@ export class Machine {
     return this._h.mountD64(toUint8(bytes));
   }
 
+  /** Eject drive-8 media without resetting the machine. Returns an error code id. */
+  unmountD64() {
+    return this._h.unmountD64();
+  }
+
+  diskMounted() {
+    return this._h.diskMounted();
+  }
+
   /** Release the underlying WASM handle. */
   dispose() {
     if (this._h) {

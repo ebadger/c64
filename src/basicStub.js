@@ -48,6 +48,40 @@ export function basicSysStubLength(runAddress) {
 }
 
 /**
+ * Detect a direct machine-code entry from a structurally valid first BASIC line whose first
+ * statement is `SYS <decimal uint16>`. Imported PRGs do not otherwise encode a run address.
+ * @param {Uint8Array} prg complete PRG bytes including the two-byte load address
+ * @returns {number|null}
+ */
+export function detectBasicSysRunAddress(prg) {
+  if (!(prg instanceof Uint8Array) || prg.length < 11) return null;
+  const loadAddress = prg[0] | (prg[1] << 8);
+  if (loadAddress !== BASIC_LOAD_ADDRESS) return null;
+
+  const data = prg.subarray(2);
+  const nextLine = data[0] | (data[1] << 8);
+  let cursor = 4; // skip next-line pointer and line number
+  while (data[cursor] === 0x20) cursor += 1;
+  if (data[cursor] !== SYS_TOKEN) return null;
+  cursor += 1;
+  while (data[cursor] === 0x20) cursor += 1;
+
+  const digitsStart = cursor;
+  let target = 0;
+  while (data[cursor] >= 0x30 && data[cursor] <= 0x39) {
+    target = target * 10 + (data[cursor] - 0x30);
+    if (target > 0xffff) return null;
+    cursor += 1;
+  }
+  if (cursor === digitsStart) return null;
+  while (data[cursor] === 0x20) cursor += 1;
+  if (data[cursor] !== 0x00 || cursor + 2 >= data.length) return null;
+
+  const expectedNextLine = BASIC_LOAD_ADDRESS + cursor + 1;
+  return nextLine === expectedNextLine ? target : null;
+}
+
+/**
  * The default machine-code origin in basic-sys mode is the byte immediately after the stub.
  * Because the stub length depends on the decimal digit count of the SYS target, and the SYS
  * target equals this origin when the source does not relocate, the origin is a fixed point of

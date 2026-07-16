@@ -5,9 +5,9 @@
       "schema": 1,
       "id": "border-flash",
       "title": "Border flash",
-      "description": "A small border-colour cycler that exercises symbol assignment, zero-page vs absolute selection, immediate operands, absolute,X indexing, a relative branch, a forward-referenced subroutine call, and the .byte/.text/.word directives in basic-sys mode.",
+      "description": "A continuously animated border-colour example that exercises symbol assignment, zero-page vs absolute selection, immediate operands, absolute,X indexing, branches, a forward-referenced subroutine call, and the .byte/.text/.word directives in basic-sys mode.",
       "sourcePath": "examples/border-flash/source.asm",
-      "expectedBuildId": "b4653eeb89af8102e802a83be074b9ca9e225f14234763f0a18268f279368e38",
+      "expectedBuildId": "0376b091dcb0175ddb07b45585137f01ecdcc7f0bdd1f79abe7c721eac0f07e7",
       "timingProfile": "pal-6569"
     }
   ]
