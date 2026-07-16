@@ -12,10 +12,12 @@ can edit NMOS 6510 assembly, deterministically build the same source into a PRG 
 run the PRG through a WebAssembly C64 emulator, share the source through a URL or curated
 example, and download standard artifacts for external tools or physical hardware.
 
-This repository currently contains the specialized product and architecture foundation plus
-the implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64). The
-emulator, WebAssembly core, web client, examples gallery, and deployment workflow are planned
-and are not yet implemented.
+This repository currently contains the specialized product and architecture foundation, the
+implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64), and the
+deterministic C++17 machine core: a complete documented NMOS 6510 CPU, C64 bus/banking and ROM
+validation, compiled once to a production WebAssembly artifact and exercised by native and
+headless WASM parity tests. The VIC-II, SID/CIA/input devices, mounted disk media, web client,
+examples gallery, and deployment workflow are planned and are not yet implemented.
 
 ## Architecture at a glance
 
@@ -97,9 +99,10 @@ There is no runtime API, account system, database, or secret.
 |------|--------|
 | Product mission and architecture | Specified in this specialization PR |
 | Template lineage and operating controls | Inherited and instantiated at template commit `66a14469787860a1b08918f4089f9070680bb3e9` |
-| Emulator, VIC-II, SID/CIA/input | Not started |
+| Machine core (CPU, bus/banking, ROM validation, lifecycle) | Implemented — deterministic C++17 core with native + WASM parity tests |
+| VIC-II, SID/CIA/input | Not started (explicit unavailable device boundary in the core) |
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
-| ROM asset handling | Not started |
+| ROM asset handling | Implemented in the core (validation, digests, memory-only); no redistributable set selected; web picker not started |
 | Web client, examples, and gallery | Not started (one canonical assembler example fixture exists under `examples/`) |
-| Native/WASM tests and build pipeline | Node pipeline tests implemented; native/WASM build and tests not started |
+| Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and a CI workflow |
 | GitHub Pages deployment | Planned; no workflow or deployed site exists yet |

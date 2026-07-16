@@ -10,13 +10,18 @@
   "scripts": {
     "test": "node --test tests/",
     "test:pipeline": "node --test tests/",
+    "test:wasm": "node --test tests/wasm/",
+    "build:native": "sh scripts/build/build-native.sh",
+    "build:wasm": "sh scripts/build/build-wasm.sh",
     "example": "node examples/build-example.mjs"
   },
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./emulator": "./web/emulator/c64.mjs"
   },
   "files": [
-    "src/"
+    "src/",
+    "web/emulator/"
   ],
   "license": "SEE LICENSE IN CONTRIBUTING.md"
 }

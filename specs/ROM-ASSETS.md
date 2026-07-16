@@ -32,7 +32,12 @@ RomSet {
 ```
 
 Expected sizes are BASIC 8192 bytes, KERNAL 8192 bytes, and character ROM 4096 bytes.
-`RomSet.id` is SHA-256 over ordered role names, byte lengths, and bytes.
+`RomSet.id` is SHA-256 over ordered role names, byte lengths, and bytes. The canonical preimage
+is the ASCII tag `c64-romset\0` followed, for each role in the fixed order basic, kernal,
+chargen, by the role id, a `\0` separator, the little-endian 32-bit byte length, another `\0`,
+and the raw bytes. Per-role descriptor digests are plain SHA-256 over that role's bytes. The
+core computes these with its own dependency-free SHA-256 so native and WebAssembly builds
+produce identical digests (verified by byte-identical native/WASM parity tests).
 
 Bundled replacement metadata includes source repository/version, license text, build
 provenance, and immutable digest. The legal right to redistribute must be reviewed before
@@ -83,7 +88,8 @@ but user ROM bytes never flow back to the application network or source-sharing 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| ROM manifest and validation | Not started | Size and SHA-256 checks required |
+| ROM manifest and validation | Implemented (core) | Size + SHA-256 checks, deterministic set id, per-role digests; `rom-set-incomplete`/`rom-size` errors; memory-only |
+| Synthetic test fixtures | Implemented | Legally-clean generated ROMs (with valid vectors) drive native/WASM tests; no Commodore bytes |
 | Redistributable default set | Unselected | Legal/license review required before bundling |
-| User file picker | Not started | Memory-only initial behavior |
+| User file picker | Not started | Owned by the web client; memory-only initial behavior |
 | Persistent user-ROM cache | Deferred | Requires explicit privacy/storage design |

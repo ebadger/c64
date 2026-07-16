@@ -55,6 +55,15 @@ The JavaScript bridge owns typed-array allocation/copy policy and translates str
 errors. It must not expose writable views whose lifetime can outlive a WebAssembly memory
 growth.
 
+The embind projection (`core/wasm/embind.cpp`) and the committed ES-module wrapper
+(`web/emulator/c64.mjs`) implement this: byte inputs are copied into the module
+(`convertJSArrayToNumberVector`) and every result is a plain JS value, string error code, or
+object copy — no writable WebAssembly memory view is ever handed to JavaScript, so a memory
+growth cannot invalidate a JS-held handle. Native and WebAssembly builds compile the identical
+C++ sources; a shared deterministic scenario suite (`core/src/scenarios.cpp`) is run by both the
+native `scenario_dump` tool and the WASM build, and headless parity tests assert their canonical
+JSON is byte-identical.
+
 ## CPU and bus rules
 
 - Implement NMOS 6510 behavior, including decimal mode, interrupt sequencing, page-crossing
@@ -82,6 +91,50 @@ growth.
 
 Exact rational clock constants, not rounded display values, are the implementation source of
 truth. Supporting another VIC revision requires another profile ID and golden vectors.
+
+The core stores each profile's phi2 clock as a reduced rational (hertz):
+
+| Profile | phi2 clock (exact) | Nominal | Derivation |
+|---------|--------------------|---------|------------|
+| `pal-6569` | `8867236 / 9` Hz | 985248 Hz | PAL crystal 17734472 Hz ÷ 18 |
+| `ntsc-6567r8` | `11250000 / 11` Hz | 1022727 Hz | 4×NTSC subcarrier (157500000/11 Hz) ÷ 14 |
+
+Both fractions are reduced (gcd = 1) and `cyclesPerFrame == cyclesPerLine × rasterLines`.
+
+## Memory map and banking (implemented)
+
+The bus resolves each address from the processor-port bits (LORAM, HIRAM, CHAREN) with the
+cartridge GAME/EXROM lines held high (no cartridge in scope). The reset processor-port state is
+`$00 = $2F` (DDR) and `$01 = $37`. The port read value is `(latch & ddr) | (inputPins & ~ddr)`;
+banking derives from that read value so an input-configured bit reads its pull-up.
+
+| Window | Rule |
+|--------|------|
+| `$A000-$BFFF` | BASIC ROM when `LORAM & HIRAM`, else RAM |
+| `$E000-$FFFF` | KERNAL ROM when `HIRAM`, else RAM |
+| `$D000-$DFFF` | RAM when `!HIRAM & !LORAM`; else character ROM when `!CHAREN`; else the I/O page |
+| I/O `$D000-$D3FF` / `$D400-$D7FF` | VIC-II / SID device windows (clocked-device boundary) |
+| I/O `$D800-$DBFF` | Colour RAM (low nibble stored; high nibble reads open bus) |
+| I/O `$DC00-$DCFF` / `$DD00-$DDFF` | CIA1 / CIA2 device windows |
+| I/O `$DE00-$DFFF` | Expansion I/O (open bus) |
+
+Writes to ROM windows fall through to the RAM beneath them. VIC-II, SID, and the two CIAs are
+reached through an explicit `ClockedDevice` interface; milestone 2 wires deterministic
+Unimplemented placeholders (open-bus reads, ignored writes) and the machine reports each device
+as unavailable. This is the boundary milestone 3 replaces — the core never claims those devices
+are modelled.
+
+## CPU accuracy (implemented)
+
+The complete documented NMOS 6502/6510 instruction set (151 opcodes) and all addressing modes
+are implemented. 65C02-only instructions and undocumented opcodes are not implemented; executing
+one stops the run with a `fault`. Cycle accounting is exact at instruction granularity — the
+documented per-opcode cycle counts plus dynamic page-cross (indexed reads) and branch
+(taken / page-cross) penalties. Read-modify-write instructions perform the hardware
+read + dummy-write + write sequence, the JMP `(ind)` page-boundary bug is modelled, decimal
+ADC/SBC follow documented NMOS flag behaviour, and BRK/IRQ/NMI/reset sequencing and stack order
+match hardware. Sub-instruction bus phasing (per-cycle device visibility) is deferred to when a
+clocked device requires it (milestone 3); no device is modelled yet, so it is unobservable now.
 
 ## Behaviour / Rules
 
@@ -127,8 +180,13 @@ ROMs, or report success-shaped defaults.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| C++17 machine shell and bus | Not started | Architecture only |
-| NMOS 6510 core | Not started | Requires opcode and cycle golden vectors |
-| Native and embind APIs | Not started | Must remain behaviorally identical |
-| Headless deterministic runner | Not started | Must load the production WASM artifact |
+| Timing profiles (PAL 6569, NTSC 6567R8) | Implemented | Exact reduced-rational phi2 clocks and cycle/line/frame counts |
+| C++17 machine shell and bus | Implemented | RAM, ROM windows, colour RAM, processor port/DDR banking, clocked-device boundary |
+| NMOS 6510 core | Implemented | Complete 151-opcode documented set; cycle-exact; decimal, interrupts, RMW, JMP-indirect bug; native + WASM golden/parity tests |
+| ROM set validation | Implemented | Sizes, per-role SHA-256, deterministic set id; memory-only; synthetic test fixtures |
+| Machine lifecycle | Implemented | Configure/validate, power-on/warm reset, PRG load (no run-address inference), direct-mode PC, bounded `runCycles`, breakpoints, debug inspect/write |
+| Native and embind APIs | Implemented | Behaviourally identical; value types only; no exceptions cross embind |
+| Headless deterministic runner | Implemented | Node loads the production WASM artifact; native/WASM scenario parity is byte-identical |
+| VIC-II / SID / CIA devices | Not started | Explicit Unimplemented boundary; reported unavailable |
+| Mounted D64 / framebuffer / audio / input | Not started | Operations return the `unavailable` error |
 | Save-state format | Deferred | Requires a separate versioned contract |

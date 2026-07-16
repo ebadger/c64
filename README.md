@@ -7,10 +7,13 @@ C64 emulator, share and remix source, and download standard PRG and D64 files. T
 a static GitHub Pages application with no runtime backend, accounts, database, or secrets.
 
 > **Current status:** this repository contains the specialized mission, architecture, and
-> operating foundation plus the implemented deterministic source-to-artifact pipeline (NMOS
-> 6510 assembler, PRG serializer, and standard 35-track D64 builder/parser) with Node
-> golden-vector tests. The emulator, WebAssembly core, browser IDE, gallery, and Pages
-> deployment are specified but not yet implemented. There is no runnable application or
+> operating foundation; the implemented deterministic source-to-artifact pipeline (NMOS 6510
+> assembler, PRG serializer, and standard 35-track D64 builder/parser); and the deterministic
+> C++17 machine core — a complete documented NMOS 6510 CPU, C64 bus/banking, and ROM
+> validation compiled once to a production WebAssembly artifact and proven by native and
+> byte-identical headless WASM parity tests. The VIC-II, SID/CIA/input, disk media, browser
+> IDE, gallery, and Pages deployment are specified but not yet implemented, and the core
+> reports those devices and operations as unavailable. There is no runnable application or
 > live production site today.
 
 ## Planned user workflow
@@ -28,8 +31,8 @@ source produces long URLs.
 
 ## Architecture
 
-- **Emulator:** deterministic C++17 NMOS 6510, bus/banking, VIC-II, SID, CIA, input, and
-  disk/media modules.
+- **Emulator:** deterministic C++17 NMOS 6510 CPU and bus/banking are implemented; VIC-II,
+  SID, CIA, input, and disk/media modules are specified but not yet implemented.
 - **Execution:** one Emscripten/embind WebAssembly artifact for browser use and headless WASM
   tests; the same C++ sources also compile natively for diagnostics.
 - **Code generation:** one dependency-light ES module assembler for browser and Node.js,
@@ -67,7 +70,10 @@ specs/ROM-ASSETS.md         ROM licensing, privacy, and validation
 specs/WEB-CLIENT.md         Static IDE, sharing, autosave, presentation
 status/SYSTEM-STATUS.md      Current implementation and environment truth
 src/                        Deterministic pipeline (assembler, PRG, D64) — browser + Node ES modules
+core/                       Deterministic C++17 machine core (CPU, bus, ROM, lifecycle), CMake, native tests, embind
+web/emulator/               ES-module wrapper for the production WebAssembly core
 tests/                      Node golden-vector and behavior tests for the pipeline
+tests/wasm/                 Headless native/WASM parity and smoke tests
 examples/                   Canonical assembler example fixtures
 ```
 
@@ -76,8 +82,18 @@ examples/                   Canonical assembler example fixtures
 The source-to-artifact pipeline runs under Node.js 18+ with no dependency install:
 
 ```sh
-node --test tests/                 # full pipeline test suite
+node --test tests/                 # full pipeline + headless WASM tests (WASM tests skip if unbuilt)
 node examples/build-example.mjs    # verify example golden vectors
+```
+
+The deterministic C++17 machine core builds natively and to a production WebAssembly artifact.
+See [`SETUP.md`](./SETUP.md) for the exact toolchain commands (Visual Studio on Windows, and the
+pinned Emscripten 3.1.74 install):
+
+```sh
+sh scripts/build/build-native.sh   # native CMake build + CTest
+sh scripts/build/build-wasm.sh     # production build/wasm/c64core.mjs + c64core.wasm
+node --test tests/wasm/            # byte-identical native/WASM parity + smoke
 ```
 
 ## Work on the repository
