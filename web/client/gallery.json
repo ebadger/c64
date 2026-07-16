@@ -1,0 +1,11 @@
+[
+  {
+    "schema": 1,
+    "id": "border-flash",
+    "title": "Border flash",
+    "description": "The canonical milestone-1 example: symbol assignment, zero-page vs absolute selection, indexed load, a branch, a forward-referenced subroutine, and .byte/.text/.word data. Runnable and remixable.",
+    "sourcePath": "examples/border-flash/source.asm",
+    "expectedBuildId": "fc94e4557b72ed798d56c37499c42069153cef33c6c6323e47519aa2406344f1",
+    "timingProfile": "pal-6569"
+  }
+]

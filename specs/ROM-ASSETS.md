@@ -91,5 +91,5 @@ but user ROM bytes never flow back to the application network or source-sharing 
 | ROM manifest and validation | Implemented (core) | Size + SHA-256 checks, deterministic set id, per-role digests; `rom-set-incomplete`/`rom-size` errors; memory-only |
 | Synthetic test fixtures | Implemented | Legally-clean generated ROMs (with valid vectors) drive native/WASM tests; no Commodore bytes |
 | Redistributable default set | Unselected | Legal/license review required before bundling |
-| User file picker | Not started | Owned by the web client; memory-only initial behavior |
+| User file picker | Implemented | `web/client/` role pickers: size + digest validation, unknown-digest confirmation, memory-only |
 | Persistent user-ROM cache | Deferred | Requires explicit privacy/storage design |

@@ -165,7 +165,7 @@ visible but marks them stale.
 | Deterministic 35-track D64 builder | Implemented | Byte-exact BAM/directory/chain construction under tests |
 | D64 parser/import | Implemented (limited) | `parseD64`/`extractPrg` (JS) and the C++ core `parseD64`/`extractFile` validate geometry, directory chain, and file chains; full BAM-consistency validation is deferred to ebadger/c64#2 |
 | 1541 drive behavior | Implemented (high-level trap) | Read-only KERNAL LOAD/IEC file-service trap for drive 8 (see the fidelity section above); no cycle-level GCR drive |
-| Curated D64 routes | Optional / not started | Same-origin IDs only; owned by `WEB-CLIENT.md` |
+| Curated D64 routes | Implemented | Same-origin gallery IDs only (`?d64` resolves through a valid gallery entry); owned by `WEB-CLIENT.md` |
 
 External-tool D64 interoperability (loading generated images in real 1541 tooling or hardware)
 is not yet independently verified and is tracked as an open gap in `status/SYSTEM-STATUS.md`.

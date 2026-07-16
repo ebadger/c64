@@ -55,6 +55,10 @@ if(EMSCRIPTEN)
     "-sENVIRONMENT=web,node"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sSTACK_SIZE=1048576"
+    # No runtime JS code generation (embind invokers become table-driven), so the loader needs
+    # only 'wasm-unsafe-eval' and runs under the web client's restrictive CSP with no
+    # 'unsafe-eval'. See specs/WEB-CLIENT.md (CSP) and specs/EMULATOR.md.
+    "-sDYNAMIC_EXECUTION=0"
   )
 else()
   # Native tools and tests.

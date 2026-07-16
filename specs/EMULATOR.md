@@ -62,7 +62,9 @@ object copy — no writable WebAssembly memory view is ever handed to JavaScript
 growth cannot invalidate a JS-held handle. Native and WebAssembly builds compile the identical
 C++ sources; a shared deterministic scenario suite (`core/src/scenarios.cpp`) is run by both the
 native `scenario_dump` tool and the WASM build, and headless parity tests assert their canonical
-JSON is byte-identical.
+JSON is byte-identical. The WASM artifact is linked with `-sDYNAMIC_EXECUTION=0` so embind builds
+its invokers without runtime `new Function`/`eval`; the loader then needs only `wasm-unsafe-eval`
+and runs under the web client's restrictive CSP with no `unsafe-eval` (see `specs/WEB-CLIENT.md`).
 
 ## CPU and bus rules
 
