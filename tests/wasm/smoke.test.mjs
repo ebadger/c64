@@ -48,6 +48,30 @@ test("configure, load PRG, run, and inspect via WASM", async (t) => {
     assert.equal(status.sid, false);
     assert.equal(machine.copyFramebuffer(), "unavailable");
     assert.equal(machine.mountD64(new Uint8Array(0)), "unavailable");
+
+    // reset accepts the two kinds and rejects an unknown one without destroying state.
+    machine.debugWriteRam(0x40, 0x77);
+    assert.equal(machine.reset("warm"), "none");
+    assert.equal(machine.debugReadRam(0x40), 0x77); // warm preserved RAM
+    assert.equal(machine.reset("bogus"), "invalid-state"); // no silent power-on
+    assert.equal(machine.debugReadRam(0x40), 0x77); // still preserved
+    assert.equal(machine.reset("power-on"), "none");
+  } finally {
+    machine.dispose();
+  }
+});
+
+test("createMachine(config) configures atomically (WASM)", async (t) => {
+  if (!wasmArtifactExists()) {
+    t.skip("WASM artifact not built");
+    return;
+  }
+  const emu = await loadEmulator();
+  const machine = emu.createMachine({ timingProfile: "pal-6569", ...makeSyntheticRoms() });
+  try {
+    assert.equal(machine.configureError, "none");
+    assert.equal(machine.ready(), true);
+    assert.equal(machine.cpuState().pc, 0xc000);
   } finally {
     machine.dispose();
   }

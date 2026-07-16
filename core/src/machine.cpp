@@ -17,6 +17,10 @@ Error Machine::configure(const MachineConfig& config) {
     return Error::make(ErrorCode::RomSetIncomplete,
                        "Machine configuration requires a complete ROM set.");
   }
+  if (!romSetIdentityMatches(config.roms)) {
+    return Error::make(ErrorCode::RomMismatch,
+                       "ROM set identity/digests are inconsistent with its bytes.");
+  }
 
   config_ = config;
   roms_ = config.roms;

@@ -35,6 +35,16 @@ TEST(machine_configure_incomplete_roms) {
   CHECK_EQ(static_cast<int>(e.code), static_cast<int>(ErrorCode::RomSetIncomplete));
 }
 
+TEST(machine_configure_rom_identity_mismatch) {
+  Machine m;
+  MachineConfig cfg;
+  cfg.roms = syntheticRomSet(0xC000, 0xC100, 0xC200);
+  cfg.roms.basic[0] ^= 0xFF;  // tamper bytes without recomputing the stored id/digests
+  Error e = m.configure(cfg);
+  CHECK_EQ(static_cast<int>(e.code), static_cast<int>(ErrorCode::RomMismatch));
+  CHECK(!m.ready());
+}
+
 TEST(machine_configure_ok) {
   Machine m;
   boot(m);

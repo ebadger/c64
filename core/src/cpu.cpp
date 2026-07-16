@@ -194,7 +194,9 @@ void Cpu::branch(bool take, i8 offset, u32& cycles) {
   pc_ = target;
 }
 
-void Cpu::serviceInterrupt(u16 vector, bool fromBrk) {
+void Cpu::serviceInterrupt(u16 vectorAddress, bool fromBrk) {
+  // Hardware order: push PCH, PCL, and status first, then read the interrupt vector last. The
+  // vector read is therefore the final bus access, which matters for open-bus behaviour.
   push(static_cast<u8>((pc_ >> 8) & 0xFF));
   push(static_cast<u8>(pc_ & 0xFF));
   u8 pushed = static_cast<u8>(p_ | FlagU);
@@ -205,7 +207,7 @@ void Cpu::serviceInterrupt(u16 vector, bool fromBrk) {
   }
   push(pushed);
   setFlag(FlagI, true);
-  pc_ = vector;
+  pc_ = read16(vectorAddress);
 }
 
 void Cpu::powerOn() {
@@ -245,11 +247,11 @@ StepResult Cpu::step() {
   // Service interrupts before fetching. NMI edge takes priority over a level IRQ.
   if (nmiPending_) {
     nmiPending_ = false;
-    serviceInterrupt(read16(0xFFFA), false);
+    serviceInterrupt(0xFFFA, false);
     return StepResult{7, StepStop::None, 0, pc_};
   }
   if (irqLine_ && !(p_ & FlagI)) {
-    serviceInterrupt(read16(0xFFFE), false);
+    serviceInterrupt(0xFFFE, false);
     return StepResult{7, StepStop::None, 0, pc_};
   }
 
@@ -483,7 +485,7 @@ StepResult Cpu::step() {
     case NOP: break;
     case BRK: {
       pc_ = static_cast<u16>(pc_ + 1);  // BRK is 2 bytes; skip the signature byte
-      serviceInterrupt(read16(0xFFFE), true);
+      serviceInterrupt(0xFFFE, true);
       stop = StepStop::Brk;
       break;
     }

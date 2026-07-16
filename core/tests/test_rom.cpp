@@ -54,6 +54,23 @@ TEST(rom_id_deterministic_and_sensitive) {
   CHECK(a.set.id != c.set.id);  // sensitive to bytes
 }
 
+TEST(rom_identity_verifier) {
+  RomSet set = syntheticRomSet(0xC000, 0xC100, 0xC200);
+  CHECK(romSetIdentityMatches(set));
+
+  RomSet tamperedBytes = set;
+  tamperedBytes.kernal[10] ^= 0xFF;  // bytes changed but id/descriptors stale
+  CHECK(!romSetIdentityMatches(tamperedBytes));
+
+  RomSet forgedId = set;
+  forgedId.id = "0000000000000000000000000000000000000000000000000000000000000000";
+  CHECK(!romSetIdentityMatches(forgedId));
+
+  RomSet forgedDigest = set;
+  forgedDigest.descriptors[0].sha256 = "deadbeef";
+  CHECK(!romSetIdentityMatches(forgedDigest));
+}
+
 TEST(rom_synthetic_vectors) {
   RomSet set = syntheticRomSet(0xFCE2, 0xFF48, 0xFE43);
   CHECK(set.complete());

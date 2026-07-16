@@ -54,9 +54,17 @@ export class Emulator {
     return arr;
   }
 
-  /** Create a machine handle. Call machine.dispose() when done to free WASM memory. */
-  createMachine() {
-    return new Machine(this._m);
+  /**
+   * Create a machine handle. When `config` is supplied the machine is configured (and powered
+   * on) atomically per the specs/EMULATOR.md `create(config)` contract; read
+   * `machine.configureError` ("none" on success). Call machine.dispose() when done.
+   */
+  createMachine(config) {
+    const machine = new Machine(this._m);
+    if (config !== undefined) {
+      machine.configureError = machine.configure(config);
+    }
+    return machine;
   }
 }
 
@@ -96,7 +104,9 @@ export class Machine {
   }
 
   reset(kind = "power-on") {
-    return this._h.reset(kind === "warm" ? "warm" : "power-on");
+    // Pass the kind through unchanged; the core rejects unknown kinds with "invalid-state"
+    // rather than performing a destructive default reset.
+    return this._h.reset(String(kind));
   }
 
   loadPrg(bytes) {

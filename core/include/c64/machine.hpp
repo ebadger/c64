@@ -76,8 +76,10 @@ class Machine {
   // direct-mode entry: set the CPU program counter. Invalid before configure().
   Error setProgramCounter(u16 pc);
 
-  // Execute up to maxCycles CPU cycles, reporting the exact amount consumed and the stop
-  // reason. Stops early on BRK ("brk"), an undocumented opcode ("fault"), or a breakpoint.
+  // Execute whole instructions until at least maxCycles CPU cycles have elapsed, reporting the
+  // exact number consumed. Because instructions are not interruptible, the reported total may
+  // overshoot maxCycles by up to the final instruction's cycle count. Stops early on BRK
+  // ("brk"), an undocumented opcode ("fault"), or a breakpoint. See specs/EMULATOR.md.
   RunResult runCycles(u64 maxCycles);
 
   // Interrupt lines (exposed for tests and future device wiring).

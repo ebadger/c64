@@ -68,8 +68,14 @@ class MachineHandle {
   std::string romSetId() const { return m_.ready() ? m_.roms().id : std::string(); }
 
   std::string reset(const std::string& kind) {
-    const ResetKind rk = (kind == "warm") ? ResetKind::Warm : ResetKind::PowerOn;
-    return errorCodeId(m_.reset(rk).code);
+    if (kind == "warm") {
+      return errorCodeId(m_.reset(ResetKind::Warm).code);
+    }
+    if (kind == "power-on") {
+      return errorCodeId(m_.reset(ResetKind::PowerOn).code);
+    }
+    // Unknown kind: do not silently perform a destructive reset.
+    return errorCodeId(ErrorCode::InvalidState);
   }
 
   val loadPrg(const val& bytes) {

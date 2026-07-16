@@ -136,10 +136,24 @@ ADC/SBC follow documented NMOS flag behaviour, and BRK/IRQ/NMI/reset sequencing 
 match hardware. Sub-instruction bus phasing (per-cycle device visibility) is deferred to when a
 clocked device requires it (milestone 3); no device is modelled yet, so it is unobservable now.
 
+Reset restores registers to deterministic specified values as required above: warm reset sets
+`SP = $FD` and `P = I|U` and jumps through the reset vector while preserving RAM and the A/X/Y
+registers; power-on additionally zeroes A/X/Y and rebuilds RAM from the fixture seed. This
+deterministic initialization is intentional and is not the hardware `SP -= 3` decrement.
+
+**Known accuracy limitation (tracked for milestone 3):** the one-instruction interrupt-enable
+delay after `CLI`/`SEI`/`PLP` (NMOS polls the interrupt line before the flag update takes
+effect) is not yet modelled. It is unobservable in this milestone because no clocked device
+generates an interrupt; the only interrupt sources are the explicit test `setIrqLine`/
+`triggerNmi` hooks.
+
 ## Behaviour / Rules
 
-- `runCycles(n)` executes no more than `n` CPU cycles and reports the exact amount consumed.
-  It may stop early only for a declared stop reason.
+- `runCycles(n)` executes whole instructions until at least `n` CPU cycles have elapsed and
+  reports the exact amount consumed. Instructions are not interruptible, so the reported total
+  may overshoot `n` by up to the final instruction's cycle count; it never reports more or fewer
+  cycles than were actually executed. It may stop early only for a declared stop reason
+  (`brk`, `fault`, `breakpoint`).
 - PRG loading validates the two-byte little-endian load address and rejects images that
   would exceed `$FFFF`; it does not infer a run address from file content.
 - Browser Run uses the entry contract from `CODEGEN.md`: direct mode sets the CPU program

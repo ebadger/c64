@@ -52,6 +52,20 @@ Error validateRole(RomRole role, const std::vector<u8>& bytes) {
   return Error::none();
 }
 
+// Canonical set-id preimage: the header tag "c64-romset\0" followed by each role's
+// contribution in fixed order (basic, kernal, chargen). See specs/ROM-ASSETS.md.
+std::string computeSetId(const std::vector<u8>& basic, const std::vector<u8>& kernal,
+                         const std::vector<u8>& chargen) {
+  Sha256 idHash;
+  idHash.update(reinterpret_cast<const u8*>("c64-romset"), 10);
+  const u8 nul = 0;
+  idHash.update(&nul, 1);
+  hashRole(idHash, RomRole::Basic, basic);
+  hashRole(idHash, RomRole::Kernal, kernal);
+  hashRole(idHash, RomRole::Chargen, chargen);
+  return idHash.hexDigest();
+}
+
 }  // namespace
 
 const char* romRoleId(RomRole role) { return kRoleIds[static_cast<u8>(role)]; }
@@ -85,14 +99,7 @@ RomSetResult validateRomSet(const RomImage& basic, const RomImage& kernal,
 
   // Canonical set-id preimage: the header tag "c64-romset\0" followed by each role's
   // contribution in fixed order (basic, kernal, chargen). See specs/ROM-ASSETS.md.
-  Sha256 idHash;
-  idHash.update(reinterpret_cast<const u8*>("c64-romset"), 10);
-  const u8 nul = 0;
-  idHash.update(&nul, 1);
-  hashRole(idHash, RomRole::Basic, set.basic);
-  hashRole(idHash, RomRole::Kernal, set.kernal);
-  hashRole(idHash, RomRole::Chargen, set.chargen);
-  set.id = idHash.hexDigest();
+  set.id = computeSetId(set.basic, set.kernal, set.chargen);
 
   for (int i = 0; i < 3; ++i) {
     RomDescriptor& d = set.descriptors[i];
@@ -106,6 +113,24 @@ RomSetResult validateRomSet(const RomImage& basic, const RomImage& kernal,
   result.ok = true;
   result.set = std::move(set);
   return result;
+}
+
+bool romSetIdentityMatches(const RomSet& set) {
+  if (!set.complete()) {
+    return false;
+  }
+  if (set.id != computeSetId(set.basic, set.kernal, set.chargen)) {
+    return false;
+  }
+  const std::vector<u8>* bytes[3] = {&set.basic, &set.kernal, &set.chargen};
+  const RomRole roles[3] = {RomRole::Basic, RomRole::Kernal, RomRole::Chargen};
+  for (int i = 0; i < 3; ++i) {
+    const RomDescriptor& d = set.descriptors[i];
+    if (d.role != roles[i] || d.size != bytes[i]->size() || d.sha256 != sha256Hex(*bytes[i])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 RomSet syntheticRomSet(u16 resetVector, u16 irqVector, u16 nmiVector) {

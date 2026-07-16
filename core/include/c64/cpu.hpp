@@ -91,7 +91,7 @@ class Cpu {
   }
   void setZN(u8 v);
   void branch(bool take, i8 offset, u32& cycles);
-  void serviceInterrupt(u16 vector, bool fromBrk);
+  void serviceInterrupt(u16 vectorAddress, bool fromBrk);
 
   // ALU
   void adc(u8 value);

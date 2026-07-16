@@ -74,6 +74,12 @@ struct RomSetResult {
 RomSetResult validateRomSet(const RomImage& basic, const RomImage& kernal,
                             const RomImage& chargen);
 
+// Verify that a RomSet's stored id and per-role descriptor digests actually match its bytes.
+// Guards the machine against a hand-constructed set with a forged identity (the normal path
+// through validateRomSet always produces a consistent set). Returns false on any mismatch or
+// if the set is incomplete.
+bool romSetIdentityMatches(const RomSet& set);
+
 // Build a fully synthetic, legally-clean ROM set for tests and headless bring-up. The bytes
 // are generated from a seed (never copyrighted dumps): each role is filled with a
 // role-specific deterministic pattern, and the KERNAL image carries valid NMI/RESET/IRQ
