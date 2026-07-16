@@ -3,13 +3,13 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-15 — Copilot milestone-2a emulator-core session_
+_Last verified: 2026-07-16 — Copilot merge-conflict resolution session_
 
 ## Environments
 
 | Environment | Current location | URL | State |
 |-------------|------------------|-----|-------|
-| Development | Repository checkout | None | Source-to-artifact pipeline (Node) plus the emulator-core subset: native CMake/CTest build and a pinned Emscripten/embind WASM build with a headless smoke test. No web app yet |
+| Development | Repository checkout | None | Deterministic pipeline + emulator-core subset (native CMake/CTest and pinned Emscripten/embind WASM with headless smoke test) + static `web/` IDE shell; Build/Download/Share work, while Run remains explicitly unavailable until the web runtime bundles and wires the core artifact |
 | Production | Planned GitHub Pages | `https://ebadger.github.io/c64/` | Not deployed; no workflow or site assets exist |
 
 ## Run locally
@@ -28,8 +28,17 @@ WebAssembly (pinned Emscripten 3.1.64 / embind). Exact, reproducible commands �
 [`SETUP.md`](../SETUP.md). The WASM smoke test in `node --test tests/` skips gracefully until the
 artifact is built, so the pipeline gate stays green without the C++/Emscripten toolchain.
 
-The web client, examples gallery, ROM handling, SID/CIA devices, and static server described in
-the specs are not implemented yet.
+The static browser IDE lives in `web/` and needs no build step. Serve the repository root over
+HTTP and open `web/` (see `SETUP.md` for the exact commands and the manual browser smoke test):
+
+```sh
+python3 -m http.server 8080        # then open http://localhost:8080/web/
+```
+
+Build (assemble → PRG/D64), diagnostics, downloads, `?code`/`?src` share/remix, autosave, and
+the `border-flash` gallery entry work today. Run is intentionally unavailable in the shipped
+`web/` shell until the bundled artifact path is wired end to end and the ROM-dependent path is
+finalized.
 
 ## Verify the files that exist
 
@@ -51,8 +60,9 @@ Expected result: template lineage is current, the learnings digest is under budg
 syntax checks pass, all compliance policy tests pass, the pipeline test suite passes, and the
 committed example rebuilds to its recorded golden `buildId`/PRG/D64. The suite also rebuilds the
 core fixture from the assembler and, when the WASM artifact is present, runs the headless smoke
-test against it. These checks validate the pipeline and the emulator-core subset; they do not
-validate a web client, which does not exist yet.
+test against it. These checks validate the pipeline, the emulator-core subset contract, and the
+web client's headless smoke tests. The `web/` IDE itself is verified manually in a browser
+(see `SETUP.md`).
 
 ## Build and deployment status
 
@@ -89,7 +99,10 @@ configuration and never repository or CI data.
   I/O routing, and a minimal border/background VIC-II. Not yet implemented: VIC text/bitmap/
   sprite modes, bad lines, raster interrupts and mid-frame splits; SID audio synthesis and CIA
   timers/TOD/keyboard scanning (register shadows only); D64 mounting, input, save states, and
-  sub-instruction cycle budgeting. The web client and GitHub Pages deployment are not started.
+  sub-instruction cycle budgeting.
+- The static `web/` client ships Build/Download/Share/gallery/autosave, but Run remains in an
+  explicit unavailable state until the bundled emulator artifact is wired for direct-mode in the
+  browser and the ROM-dependent run path is finalized.
 - No redistributable replacement ROM set has been selected or legally reviewed. The current
   runnable target needs no ROMs; a ROM strategy decision is pending with ebadger.
 - Template/operating-file reconciliation with upstream `ebadger/AIProjectTemplate` (through commit
@@ -97,6 +110,15 @@ configuration and never repository or CI data.
   it in and intentionally do not advance `.template-source`.
 - Generated D64 images are covered by byte-exact Node tests but have not been independently
   verified against external 1541 tooling or physical hardware.
+- The `web/` client is covered by headless smoke tests for its pure modules; end-to-end browser
+  behavior (worker build, downloads, canvas) is verified manually per `SETUP.md`, not in CI.
+- Anti-framing is not yet enforced: the meta CSP `frame-ancestors` is ignored by browsers, so
+  the GitHub Pages deployment must send `frame-ancestors 'none'` (or `X-Frame-Options`) as an
+  HTTP header. Low risk today (static, no accounts/privileged actions); tracked for the
+  deployment milestone.
+- Upstream template drift is pending reconciliation (`node scripts/dev/review-template-updates.mjs
+  check` reports changes beyond the seed commit). This milestone-2b PR does not reconcile it and
+  does not advance `.template-source`; full template reconciliation is tracked in ebadger/c64#4.
 - D64 import (`parseD64`/`mountD64`) validates geometry, the directory chain, and file chains,
   but does not yet validate full BAM consistency (DOS version, free-count/bitmap agreement,
   allocation conflicts); an image whose only defect is an inconsistent BAM is currently

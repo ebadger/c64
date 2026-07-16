@@ -13,11 +13,11 @@ run the PRG through a WebAssembly C64 emulator, share the source through a URL o
 example, and download standard artifacts for external tools or physical hardware.
 
 This repository currently contains the specialized product and architecture foundation, the
-implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64), and a first
-deterministic emulator-core subset compiled to WebAssembly: an NMOS 6510 CPU, a memory bus with
-I/O routing, and a minimal VIC-II that renders border/background colour into an indexed
-framebuffer. The web client, examples gallery, ROM handling, SID/CIA devices, and deployment
-workflow are planned and are not yet implemented.
+implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64), a first
+deterministic emulator-core subset compiled to WebAssembly (NMOS 6510 CPU, memory bus with I/O
+routing, minimal VIC-II border/background rendering), and a static browser IDE shell that drives
+the shared pipeline. Browser Run remains in an explicit unavailable state until the live web
+runtime is wired to a bundled WASM artifact and a ROM strategy decision.
 
 ## Architecture at a glance
 
@@ -104,6 +104,6 @@ There is no runtime API, account system, database, or secret.
 | SID/CIA/input | Not started — deterministic register shadows only; no timers, audio, or keyboard scan |
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
 | ROM asset handling | Not started |
-| Web client, examples, and gallery | Not started (one canonical assembler example fixture exists under `examples/`) |
+| Web client, examples, and gallery | Implemented (shell) — static `web/` IDE builds via a worker over the `src/` pipeline, downloads PRG/D64, shares/remixes, and loads the `border-flash` gallery entry; Run stays unavailable pending the emulator |
 | Native/WASM tests and build pipeline | Implemented — CMake native + CTest golden vectors, pinned Emscripten/embind WASM build, headless WASM smoke test on the production artifact |
 | GitHub Pages deployment | Planned; no workflow or deployed site exists yet |
