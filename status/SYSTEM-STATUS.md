@@ -73,8 +73,9 @@ node examples/build-example.mjs
 Expected result: template lineage is current, the learnings digest is under budget, shell
 syntax checks pass, all compliance policy tests pass, the pipeline test suite passes, and the
 committed example rebuilds to its recorded golden `buildId`/PRG/D64. These checks validate the
-milestone-1 pipeline; they do not validate the machine core (see the core build/test commands
-above and in `SETUP.md`) or a web client (which does not exist).
+milestone-1 pipeline; they do not on their own validate the machine core or the web client (both
+of which are implemented — see the core build/test and web-client/browser-E2E commands above and
+in `SETUP.md`).
 
 ## Build and deployment status
 

@@ -27,8 +27,8 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 
 ## User workflow
 
-1. Serve the app locally (GitHub Pages hosting is a later milestone) and open it without
-   installing a toolchain.
+1. Serve the app locally, or use the GitHub Pages deployment once published, and open it
+   without installing a toolchain.
 2. Edit NMOS 6510/6502 assembly in the browser.
 3. Build deterministic PRG and D64 artifacts with the same assembler used by headless tests.
 4. Run the PRG in the shared C++17 emulator core compiled to WebAssembly.
@@ -42,8 +42,8 @@ source produces long URLs.
 ## Architecture
 
 - **Emulator:** deterministic C++17 NMOS 6510 CPU, bus/banking, and cycle-integrated VIC-II,
-  SID, and CIA devices with read-only mounted D64 execution are implemented; the browser IDE
-  and gallery are specified but not yet implemented.
+  SID, and CIA devices with read-only mounted D64 execution; the browser IDE and gallery are
+  implemented on top (see the Client entry below).
 - **Execution:** one Emscripten/embind WebAssembly artifact for browser use and headless WASM
   tests; the same C++ sources also compile natively for diagnostics.
 - **Code generation:** one dependency-light ES module assembler for browser and Node.js,
