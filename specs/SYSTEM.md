@@ -18,6 +18,15 @@ deterministic emulator-core subset compiled to WebAssembly (NMOS 6510 CPU, memor
 routing, minimal VIC-II border/background rendering), and a static browser IDE shell that drives
 the shared pipeline. Browser Run remains in an explicit unavailable state until the live web
 runtime is wired to a bundled WASM artifact and a ROM strategy decision.
+implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64), and the
+deterministic C++17 machine core: a complete documented NMOS 6510 CPU, C64 bus/banking and ROM
+validation, plus cycle-integrated VIC-II, SID, and CIA devices and read-only mounted D64
+execution — compiled once to a production WebAssembly artifact and exercised by native and
+headless WASM parity tests. The static browser IDE (`web/client/`) integrates the production
+assembler worker and production WASM machine with a validated examples gallery; the GitHub Pages
+deployment workflow is a later milestone and is not yet implemented. Device and media fidelity is
+honestly labelled in the layer specs (line-based VIC renderer, approximate SID filter, high-level
+rather than cycle-level 1541 drive).
 
 ## Architecture at a glance
 
@@ -106,4 +115,11 @@ There is no runtime API, account system, database, or secret.
 | ROM asset handling | Not started |
 | Web client, examples, and gallery | Implemented (shell) — static `web/` IDE builds via a worker over the `src/` pipeline, downloads PRG/D64, shares/remixes, and loads the `border-flash` gallery entry; Run stays unavailable pending the emulator |
 | Native/WASM tests and build pipeline | Implemented — CMake native + CTest golden vectors, pinned Emscripten/embind WASM build, headless WASM smoke test on the production artifact |
+| Machine core (CPU, bus/banking, ROM validation, lifecycle) | Implemented — deterministic C++17 core with native + WASM parity tests |
+| VIC-II, SID/CIA/input | Implemented — cycle-integrated devices (line-based VIC renderer, approximate SID filter); honestly-labelled fidelity in the layer specs |
+| Mounted D64 execution | Implemented — read-only, via a high-level KERNAL LOAD/IEC trap (drive 8); not a cycle-level 1541 GCR drive |
+| Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
+| ROM asset handling | Implemented in the core (validation, digests, memory-only); `web/client/` role picker with unknown-digest confirmation; no redistributable set selected |
+| Web client, examples, and gallery | Implemented — static `web/client/` IDE (build worker, machine, presentation, input, sharing, downloads) and a validated `gallery.json`; the milestone-1 example is a runnable gallery entry |
+| Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and a CI workflow |
 | GitHub Pages deployment | Planned; no workflow or deployed site exists yet |

@@ -97,13 +97,38 @@ error-byte table:
 
 - File selection and curated `?d64` fetches provide bytes to `parseD64`; malformed media is
   never mounted.
-- Initial emulation may begin with a read-only 1541-compatible drive/media contract.
-  Writable disk support requires copy-on-write state and a separate persistence/export
-  contract before it can ship.
+- Emulation is **read-only** in this milestone. Writable disk support requires copy-on-write
+  state and a separate persistence/export contract before it can ship.
 - Imported bytes remain in memory. They are not placed in source share URLs, localStorage,
   analytics, logs, or network requests.
 - Optional curated `?d64=<id>` values resolve only through committed gallery metadata and
   same-origin static assets; arbitrary remote URLs are not fetched.
+
+### Emulated-drive fidelity: high-level KERNAL LOAD / IEC trap (READ THIS)
+
+**The mounted disk is served by a deterministic high-level file-service trap, NOT a cycle-level
+1541 CPU/VIA/GCR emulation.** This is a deliberate, prominently-labelled compatibility boundary:
+
+- The core intercepts a call to the KERNAL LOAD vector (`$FFD5`) when media is mounted. It reads
+  the standard KERNAL zero-page LOAD parameters (device `$BA`, secondary address `$B9`, filename
+  pointer `$BB/$BC` and length `$B7`), locates the file on the immutable D64 (CBM name matching
+  with `*`/`?` wildcards; `$` loads a generated directory listing), copies the file into RAM at
+  the load address (the PRG header when SA≠0, else the X/Y address), sets the KERNAL return
+  registers (carry clear, `X/Y` = end address; carry set with `A=4`/`A=5` on error), and returns.
+- **Supported:** standard `LOAD"NAME",8` / `LOAD"NAME",8,1` and `LOAD"$",8` directory loads
+  through drive 8, the common path for the broad-compatibility MVP. Only **drive 8** is supported
+  (`unsupported-media` otherwise).
+- **NOT supported (returns explicit errors or is simply not intercepted):** custom drive code
+  (`M-E`/`M-W`/`M-R`), fastloaders, bit-level GCR access, non-standard serial protocols, and
+  anything that bypasses the KERNAL LOAD vector. Programs that hand-roll the serial routine or
+  upload drive code are outside this boundary and are not emulated.
+- No 1541 drive ROM is required, fetched, or bundled by this path; there is therefore no
+  copyrighted 1541 ROM in the repository, tests, or artifacts. A future real GCR drive model (if
+  it is ever added) would need a redistributable drive ROM under `ROM-ASSETS.md` and is out of
+  scope here.
+- Byte identity is preserved: `extractFile` returns the exact PRG byte stream (2-byte load
+  address + data) from the sector chain. Issue #2's deferred full BAM-consistency scope is
+  unchanged.
 
 ## Data flow
 
@@ -138,9 +163,9 @@ visible but marks them stale.
 |------|--------|-------|
 | PRG parser/validator | Implemented | `parsePrg` shares serializer golden vectors with codegen |
 | Deterministic 35-track D64 builder | Implemented | Byte-exact BAM/directory/chain construction under tests |
-| D64 parser/import | Implemented (limited) | `parseD64`/`extractPrg` validate geometry, directory chain, and file chains; full BAM-consistency validation is deferred to ebadger/c64#2 |
-| 1541 drive behavior | Not started | Emulator design must select fidelity level; `mountD64` only validates media |
-| Curated D64 routes | Optional / not started | Same-origin IDs only; owned by `WEB-CLIENT.md` |
+| D64 parser/import | Implemented (limited) | `parseD64`/`extractPrg` (JS) and the C++ core `parseD64`/`extractFile` validate geometry, directory chain, and file chains; full BAM-consistency validation is deferred to ebadger/c64#2 |
+| 1541 drive behavior | Implemented (high-level trap) | Read-only KERNAL LOAD/IEC file-service trap for drive 8 (see the fidelity section above); no cycle-level GCR drive |
+| Curated D64 routes | Implemented | Same-origin gallery IDs only (`?d64` resolves through a valid gallery entry); owned by `WEB-CLIENT.md` |
 
 External-tool D64 interoperability (loading generated images in real 1541 tooling or hardware)
 is not yet independently verified and is tracked as an open gap in `status/SYSTEM-STATUS.md`.

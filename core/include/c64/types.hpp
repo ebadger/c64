@@ -1,6 +1,10 @@
 // Shared value types for the deterministic C64 core. Fixed-width integers are used at every
 // hardware boundary so native and WebAssembly builds observe identical wrap-around and
 // truncation behaviour. No type here owns browser timing, DOM state, or host randomness.
+// Fixed-width hardware value types shared across the deterministic C64 core.
+//
+// Every hardware boundary uses explicit fixed-width integers so native and WebAssembly builds
+// agree bit-for-bit. Nothing in the core reads wall-clock time, host randomness, or locale.
 #ifndef C64_TYPES_HPP
 #define C64_TYPES_HPP
 
@@ -59,3 +63,10 @@ struct FrameInfo {
 } // namespace c64
 
 #endif // C64_TYPES_HPP
+using i16 = std::int16_t;
+using i32 = std::int32_t;
+using i64 = std::int64_t;
+
+}  // namespace c64
+
+#endif  // C64_TYPES_HPP

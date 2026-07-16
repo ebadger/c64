@@ -2,8 +2,10 @@
 
 The main session does the work. Optional custom agents are narrow specialist lenses, not
 executives, biographies, or a hierarchy. ebadger owns product direction and merge
-authority, including the item-level disposition of every blocker and every review finding
-above the one-minute implementation threshold.
+authority, including the item-level disposition of every independently validated release
+blocker, material scope change, and review finding above the 30-minute implementation
+threshold. The primary validates reviewer findings and disposes of everything else under
+the materiality standard in `docs/CODE-REVIEW-PANEL.md`.
 
 ## Optional lenses
 
@@ -25,9 +27,13 @@ fixed model assumptions.
 4. **Capped durable memory.** `docs/LEARNINGS.md` receives incident-triggered rules, not
    calendar reports.
 5. **Model-diverse review.** Behavior-changing PRs use two explicit, runtime-available,
-   read-only reviewer models selected relative to the primary. Every blocker and every
-   finding estimated above one minute pauses agent disposition until ebadger receives its
-   evidence, effort estimate, and agent recommendation and decides its priority.
+   read-only reviewer models selected relative to the primary. Reviewer findings are
+   advisory until the primary validates a reproducible case, a supported/reachable contract
+   violation, and material impact. Only an independently validated release blocker, a
+   material scope change, or a finding estimated above 30 minutes pauses agent disposition
+   until ebadger receives its evidence, effort estimate, and agent recommendation and
+   decides its priority; re-review is delta-focused and accepted decisions are not
+   re-litigated absent materially changed evidence, impact, or scope.
 6. **Risk-based deterministic tests.** Configured critical-path evals are path-scoped and
    non-bypassable; routine tests may have a deliberate escape hatch.
 7. **Deliberate template reconciliation.** Check canonical changes before modifying

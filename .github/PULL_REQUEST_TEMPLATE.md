@@ -12,28 +12,35 @@
       unrelated files are included.
 - [ ] Behavior-changing diff received the required model-diverse review, or this PR is
       correctly exempt under `docs/CODE-REVIEW-PANEL.md`.
-- [ ] Every blocker and every review finding estimated above one minute has an explicit
-      item-level `ebadger` decision recorded below; none is awaiting a decision.
+- [ ] Reviewer findings were validated against the materiality standard; every
+      independently validated release blocker, material scope change, and finding above 30
+      minutes has an explicit item-level `ebadger` decision recorded below, and none is
+      awaiting a decision.
+- [ ] The review reached the convergence condition in `docs/CODE-REVIEW-PANEL.md` (no new
+      release-blocking defect in the last delta; all findings disposed as fix, override, or
+      follow-up).
 - [ ] If inherited operating files changed, canonical template changes were reviewed and
       every upstream change was dispositioned.
 
 ## Model-diverse review
 
 <!-- Delete for an exempt prose-only PR. -->
-- Reviewed range: `<base-sha>...<head-sha>`
+- Reviewed range: `<base-sha>...<head-sha>` (initial); re-review deltas: `<sha..sha, or none>`
 - Primary: `<model-id>`
 - Reviewer 1: `<model-id>` — `<verdict>` — `<N findings>`
 - Reviewer 2: `<model-id>` — `<verdict>` — `<N findings>`
-- Agent-triaged findings (non-blocking, <=1 minute): `<N fixed>`, `<N overridden>`
-  - Override: `<finding>` — `<checkable reason>`
+- Materiality triage: `<N confirmed defects>`, `<N advisory/not-validated>`, `<N follow-ups>`
+  - Override: `<finding>` — reviewer class `<blocking/non-blocking>` → `<checkable reason>`
 - `ebadger`-decision findings: `<none, or N escalated / N fixed / N accepted / N re-scoped>`
   - Finding: `<summary>`
-    - Classification: `<blocking / non-blocking>`; estimate:
-      `<implementation + active validation time>`
+    - Reviewer classification (preserved): `<blocking / non-blocking>`
+    - Primary validation: `<validated release blocker / material scope change / >30min; + evidence>`
+    - Effort estimate: `<implementation + active validation time>`
     - Agent recommendation: `<fix / do not fix / re-scope + rationale>`
     - `ebadger` decision:
       `<implement / do not implement / re-scope; blocker status if needed>`
     - Disposition: `<fix commit / accepted-risk reason / follow-up>`
+- Convergence: `<confirmed — no new release-blocking defect in last delta; none awaiting decision>`
 
 ## Template reconciliation
 

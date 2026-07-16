@@ -85,7 +85,21 @@ emulator/web presentation`.
   [`WEB-CLIENT.md`](./WEB-CLIENT.md) normalized input.
 - Downstream: VIC bank selection, media/IEC behavior, browser audio, deterministic I/O tests.
 
-## Implementation Status
+## Implementation status
+
+Fidelity notes (honestly labelled unsupported fidelity):
+- **SID:** the digital oscillators, waveforms (triangle/saw/pulse/noise, combined via AND),
+  ring modulation, sync, gate/test, and the ADSR envelope (reSID-derived rate/exponential
+  tables) are modelled directly. The analog **filter and the 6581-vs-8580 tonal differences are
+  a deterministic approximation, not analog-perfect** — no analog-perfect reproduction is
+  claimed. Audio is point-sampled at emit time (no oversampling), so it is deterministic but not
+  alias-free. SID output is **float**; native/WASM byte-identical parity is asserted only over
+  integer device state, and SID audio is validated by native unit tests plus a WASM smoke test.
+- **CIA:** the serial shift register (SDR) has limited support; it is stored and readable but the
+  full RS-232/serial-shift timing is not modelled (the disk path uses the high-level IEC trap in
+  MEDIA.md, which does not need it). The CNT pin is idle, so timer INMODE=CNT does not count.
+- **TOD** advances from the profile's 50/60 Hz frame source (via CRA bit7 divider), never host
+  wall-clock.
 
 > v0 subset: the bus maps SID (`$D400-$D41F`), CIA 1 (`$DC00-$DC0F`), and CIA 2 (`$DD00-$DD0F`)
 > as deterministic register shadows so executing code can read and write them without faulting,
@@ -102,3 +116,12 @@ emulator/web presentation`.
 | SID register shadow | Implemented (stub) | Deterministic read/write; no synthesis |
 | SID voices, envelopes, filters, resampling | Not started | Model fidelity must be labelled honestly; no analog-perfect claim |
 | IEC-facing signal contract | Not started | Drive model selected in media implementation |
+| CIA 1/2 registers and timers | Implemented | Ports/DDR, timers A/B (one-shot/continuous, chaining, PB6/PB7 output), ICR mask/latch/read-to-clear, force-load |
+| TOD and alarm | Implemented | BCD 10ths/sec/min/hr + AM/PM, alarm compare, hr-read latch, 50/60 Hz frame source |
+| Keyboard and joystick matrix | Implemented | Active-low 8x8 matrix (both scan directions) + two joysticks; browser mapping stays in the bridge |
+| CIA2 VIC bank and NMI | Implemented | Port A VIC-bank bits; CIA2 IRQ output wired to NMI; RESTORE modelled as an NMI edge |
+| SID voices and envelopes | Implemented | 3 voices, freq/PW, tri/saw/pulse/noise, gate/test, ADSR, ring mod, sync; open-bus reads differ 6581 vs 8580 |
+| SID filters and resampling | Implemented (approximate) | Register-complete filter + mixer/volume; deterministic integer resampling to the output rate; not analog-perfect |
+| Serial shift register (SDR) | Limited | Stored/readable; full serial timing not modelled |
+| IEC-facing signal contract | Implemented (high-level) | CIA2 IEC lines default released; the disk LOAD path is the high-level trap in MEDIA.md |
+
