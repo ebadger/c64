@@ -19,6 +19,7 @@ export class Storage {
     this._onExternalProject = handlers.onExternalProject || (() => {});
     this._onExternalPreferences = handlers.onExternalPreferences || (() => {});
     this._onQuotaError = handlers.onQuotaError || (() => {});
+    this._onSaved = handlers.onSaved || (() => {});
     this._autosaveEnabled = true;
     this._timer = 0;
     this._disposers = [];
@@ -63,6 +64,7 @@ export class Storage {
     if (text === null) return; // never persist an invalid project
     try {
       localStorage.setItem(AUTOSAVE_KEY, text);
+      this._onSaved(project);
     } catch (err) {
       this._autosaveEnabled = false;
       this._onQuotaError({ category: "storage", code: "quota", message: "Autosave is disabled: browser storage is full or unavailable." });

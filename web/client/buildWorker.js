@@ -23,8 +23,8 @@ self.onmessage = (event) => {
       return;
     }
     const { assembly, bundle } = result;
-    const prg = bundle.prg.buffer.slice(bundle.prg.byteOffset, bundle.prg.byteOffset + bundle.prg.byteLength);
-    const d64 = bundle.d64.buffer.slice(bundle.d64.byteOffset, bundle.d64.byteOffset + bundle.d64.byteLength);
+    const prgBuf = bundle.prg.buffer.slice(bundle.prg.byteOffset, bundle.prg.byteOffset + bundle.prg.byteLength);
+    const d64Buf = bundle.d64.buffer.slice(bundle.d64.byteOffset, bundle.d64.byteOffset + bundle.d64.byteLength);
     self.postMessage(
       {
         seq,
@@ -35,10 +35,12 @@ self.onmessage = (event) => {
         diagnostics: assembly.diagnostics,
         prgName: bundle.prgName,
         d64Name: bundle.d64Name,
-        prg,
-        d64,
+        // Send typed arrays (backed by the transferred buffers) so the receiver never has to
+        // coerce a raw ArrayBuffer.
+        prg: new Uint8Array(prgBuf),
+        d64: new Uint8Array(d64Buf),
       },
-      [prg, d64],
+      [prgBuf, d64Buf],
     );
   } catch (err) {
     // Unexpected exception rejects the build as internal; it is never a success-shaped result.

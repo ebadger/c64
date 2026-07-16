@@ -21,6 +21,7 @@ export class Pacer {
     this._input = input;
     this._profile = PROFILES[opts.timingProfile] || PROFILES["pal-6569"];
     this._onCrash = opts.onCrash || (() => {});
+    this._onStop = opts.onStop || (() => {});
     this._onStats = opts.onStats || (() => {});
     this._running = false;
     this._raf = 0;
@@ -67,9 +68,10 @@ export class Pacer {
     this._cycleDebt = Math.min(this._cycleDebt + (dt / 1000) * this._profile.cpuHz, this._maxDebt);
     let budget = Math.min(this._cycleDebt, this._maxCyclesPerTick);
 
-    // 3) Run whole emulated frames' worth of cycles until the budget is spent or a fault stops us.
+    // 3) Run whole emulated frames' worth of cycles until the budget is spent or the machine
+    // stops for a declared reason (fault, brk, or breakpoint).
     let executed = 0;
-    let crashed = false;
+    let stopReason = null;
     while (budget > 0) {
       const batch = Math.min(budget, this._profile.cyclesPerFrame);
       const result = this._machine.runBatch(Math.ceil(batch));
@@ -80,8 +82,9 @@ export class Pacer {
       // Drain any audio produced this batch and push it to the scheduler.
       const audio = this._machine.drainAudio(this._audioMax);
       if (audio && audio.framesWritten > 0) this._audio.push(audio.samples, audio.sampleRate);
-      if (result.stopReason === "fault") {
-        crashed = true;
+      // Any non-budget stop reason halts the loop (budget = ran the requested cycles).
+      if (result.stopReason && result.stopReason !== "budget") {
+        stopReason = result.stopReason;
         break;
       }
     }
@@ -93,9 +96,10 @@ export class Pacer {
 
     this._onStats({ frameSequence: frame ? frame.sequence : 0, executed });
 
-    if (crashed) {
+    if (stopReason) {
       this.stop();
-      this._onCrash();
+      if (stopReason === "fault") this._onCrash();
+      else this._onStop(stopReason); // brk / breakpoint: a normal halt, not an error
       return;
     }
     this._raf = requestAnimationFrame(this._tick);

@@ -84,3 +84,10 @@ test("an oversized ?code is refused with a download recommendation", () => {
   assert.equal(r.sourceOrigin, "default");
   assert.ok(r.errors.some((e) => e.code === "too-large"));
 });
+
+test("hadSourceParam distinguishes a malformed source link from no source param", () => {
+  assert.equal(resolveUrlState("", gallery()).hadSourceParam, false);
+  assert.equal(resolveUrlState("?d64=disk-demo", gallery()).hadSourceParam, false);
+  assert.equal(resolveUrlState("?code=@@@@", gallery()).hadSourceParam, true);
+  assert.equal(resolveUrlState("?src=nope", gallery()).hadSourceParam, true);
+});

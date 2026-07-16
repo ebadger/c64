@@ -40,6 +40,7 @@ function toParams(input) {
  *   bearerWarning: boolean,
  *   errors: object[],
  *   notices: string[],
+ *   hadSourceParam: boolean,
  * }}
  */
 export function resolveUrlState(query, galleryById = new Map()) {
@@ -122,7 +123,7 @@ export function resolveUrlState(query, galleryById = new Map()) {
     }
   }
 
-  return { sourceOrigin, source, galleryEntry, d64, bearerWarning, errors, notices };
+  return { sourceOrigin, source, galleryEntry, d64, bearerWarning, errors, notices, hadSourceParam: codes.length > 0 || srcs.length > 0 };
 }
 
 /**

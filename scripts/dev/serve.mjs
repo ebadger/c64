@@ -9,7 +9,7 @@
 // It exports startServer() so E2E can launch it in-process on an ephemeral port.
 
 import http from "node:http";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, normalize, resolve, sep, extname } from "node:path";
 
@@ -82,8 +82,25 @@ function handler(root) {
       res.end("Not Found");
       return;
     }
+    // Canonicalize to defeat symlink/junction escapes: statSync/createReadStream follow links, so
+    // re-check containment on the real (resolved) paths, not just the lexical ones.
+    let realAbs;
+    let realRoot;
+    try {
+      realAbs = realpathSync(abs);
+      realRoot = realpathSync(root);
+    } catch {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not Found");
+      return;
+    }
+    if (realAbs !== realRoot && !realAbs.startsWith(realRoot + sep)) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("Forbidden");
+      return;
+    }
     res.writeHead(200, {
-      "Content-Type": contentType(abs),
+      "Content-Type": contentType(realAbs),
       "Content-Security-Policy": CSP,
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "no-cache",
@@ -92,7 +109,7 @@ function handler(root) {
       res.end();
       return;
     }
-    createReadStream(abs).pipe(res);
+    createReadStream(realAbs).pipe(res);
   };
 }
 

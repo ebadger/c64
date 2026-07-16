@@ -7,7 +7,7 @@ import { byId, setText, setHidden, setEnabled, makeEl, replaceChildren } from ".
 import { detectCapabilities } from "./lib/capabilities.js";
 import { ErrorBus } from "./lib/errors.js";
 import { WASM_LOADER_PATH } from "./lib/config.js";
-import { makeProject, projectFromGalleryEntry, validateProject } from "./lib/projectModel.js";
+import { makeProject, projectFromGalleryEntry, validateProject, canonicalProjectJson } from "./lib/projectModel.js";
 import { renderDiagnostics } from "./lib/diagnosticsView.js";
 import { resolveUrlState } from "./lib/urlContract.js";
 import { BuildClient, createBuildWorker } from "./lib/buildClient.js";
@@ -47,6 +47,8 @@ let renderer = null;
 let input = null;
 let pacer = null;
 let machineLoadPromise = null;
+let pendingEdit = false; // an edit happened since the last build() request -> results are stale
+let lastPersistedCanonical = null; // canonical JSON of the last project we saved or loaded
 
 // ---------------------------------------------------------------------------------------------
 // Startup
@@ -112,12 +114,21 @@ function cacheElements() {
 
 const storage = new Storage({
   onExternalProject: (project) => {
-    // A newer autosave from another tab: adopt it if the user has not diverged locally.
-    loadProjectIntoUI(project, "src");
+    // A newer autosave from another tab. Only adopt it when THIS tab has no diverging unsaved
+    // edits, so a concurrent save cannot destroy local work.
+    const currentCanonical = canonicalProjectJson(syncProjectFromUI());
+    if (lastPersistedCanonical !== null && currentCanonical !== lastPersistedCanonical) {
+      errorBus.notice("storage", "external-diverged", "Another tab saved a different version. Kept your local edits — reload to adopt the other version.");
+      return;
+    }
+    loadProjectIntoUI(project, "autosave");
     errorBus.notice("storage", "external", "Loaded a newer autosave from another tab.");
   },
   onExternalPreferences: (prefs) => applyPreferences(prefs),
   onQuotaError: (e) => errorBus.error(e.category, e.code, e.message),
+  onSaved: (project) => {
+    lastPersistedCanonical = canonicalProjectJson(project);
+  },
 });
 
 function wireStorage() {
@@ -168,7 +179,9 @@ function loadProjectIntoUI(project, _origin) {
   els.editor.value = p.source;
   els.selTiming.value = p.timingProfile;
   state.project = p;
-  requestBuild(0);
+  // A freshly loaded project is the current baseline: it is not a local divergence.
+  lastPersistedCanonical = canonicalProjectJson(p);
+  onEdit(0);
 }
 
 let buildTimer = 0;
@@ -178,15 +191,24 @@ function requestBuild(delayMs = 300) {
     const project = syncProjectFromUI();
     storage.scheduleSave(project);
     savePreferences();
+    pendingEdit = false; // this build request captures the current source
     buildClient.build(project);
   }, delayMs);
 }
 
+// An edit invalidates artifacts synchronously (before the debounce) so Run/Download cannot use a
+// stale build, and marks results in flight as stale until the next build request completes.
+function onEdit(delayMs = 300) {
+  pendingEdit = true;
+  onBuildStale();
+  requestBuild(delayMs);
+}
+
 function wireEditor() {
-  els.editor.addEventListener("input", () => requestBuild());
-  els.projectName.addEventListener("input", () => requestBuild());
-  els.selTiming.addEventListener("change", () => requestBuild(0));
-  els.btnBuild.addEventListener("click", () => requestBuild(0));
+  els.editor.addEventListener("input", () => onEdit());
+  els.projectName.addEventListener("input", () => onEdit());
+  els.selTiming.addEventListener("change", () => onEdit(0));
+  els.btnBuild.addEventListener("click", () => onEdit(0));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -212,6 +234,19 @@ function onBuildResult(data) {
   const diag = renderDiagnostics(data.diagnostics || []);
   setText(els.diagSummary, diag.summary);
   replaceChildren(els.diagList, ...diag.lines.map((line) => makeEl("li", { text: line })));
+
+  // If the source changed after this build was requested, the result is already stale: show its
+  // diagnostics but keep artifacts disabled. The pending rebuild will deliver a fresh result.
+  if (pendingEdit) {
+    state.lastBuild = null;
+    state.artifactsStale = true;
+    setText(els.buildId, "—");
+    setText(els.artifactStatus, "Rebuilding…");
+    setEnabled(els.btnDlPrg, false);
+    setEnabled(els.btnDlD64, false);
+    updateRunEnabled();
+    return;
+  }
 
   if (data.ok) {
     state.artifactsStale = false;
@@ -339,6 +374,7 @@ async function runProgram() {
     {
       timingProfile: els.selTiming.value,
       onCrash: onMachineCrash,
+      onStop: onMachineStop,
       onStats: () => {},
     },
   );
@@ -392,6 +428,17 @@ function onMachineCrash() {
   setEnabled(els.btnStop, false);
   if (input) input.releaseAll();
   errorBus.error("wasm", "fault", "The emulated program hit an illegal instruction (fault). Execution stopped.");
+  updateRunEnabled();
+}
+
+function onMachineStop(reason) {
+  // A declared, non-fault halt (BRK or breakpoint): stop cleanly without an error banner.
+  const label = reason === "brk" ? "The program stopped (BRK). Reset and Run to restart." : "The program stopped. Reset and Run to restart.";
+  setText(els.runStatus, label);
+  els.runStatus.className = "run-status";
+  setEnabled(els.btnStop, false);
+  if (input) input.releaseAll();
+  if (machine) machine.releaseInput();
   updateRunEnabled();
 }
 
@@ -588,6 +635,10 @@ async function decideInitialProject() {
     loadProjectIntoUI(makeProject({ source: resolved.source, name: "shared remix" }), "code");
   } else if (resolved.sourceOrigin === "src" && resolved.galleryEntry) {
     await openGalleryEntry(resolved.galleryEntry);
+  } else if (resolved.hadSourceParam) {
+    // A source param was present but malformed/unknown: show the error (already published) and a
+    // blank editor. Never silently substitute the local autosave for a bad shared link.
+    loadProjectIntoUI(makeProject({ source: "", name: "untitled" }), "url-error");
   } else {
     const restored = storage.loadProject();
     if (restored) loadProjectIntoUI(restored, "autosave");
