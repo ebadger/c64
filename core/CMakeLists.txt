@@ -26,6 +26,10 @@ add_library(c64core STATIC
   src/rom.cpp
   src/bus.cpp
   src/cpu.cpp
+  src/cia.cpp
+  src/vic.cpp
+  src/sid.cpp
+  src/media.cpp
   src/machine.cpp
   src/scenarios.cpp
 )
@@ -68,14 +72,19 @@ else()
     tests/test_cpu.cpp
     tests/test_decimal.cpp
     tests/test_opcodes.cpp
+    tests/test_cia.cpp
+    tests/test_vic.cpp
+    tests/test_sid.cpp
+    tests/test_media.cpp
     tests/test_machine.cpp
+    tests/test_integration.cpp
     tests/test_scenarios.cpp
   )
   target_include_directories(c64_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
   target_link_libraries(c64_tests PRIVATE c64core)
 
   # Register each source suite as its own CTest entry via a name filter.
-  foreach(suite sha256 timing rom bus cpu decimal opcodes machine scenarios)
+  foreach(suite sha256 timing rom bus cpu decimal opcodes cia vic sid media machine integration scenarios)
     add_test(NAME ${suite} COMMAND c64_tests ${suite})
   endforeach()
 endif()

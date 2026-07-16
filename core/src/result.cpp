@@ -24,6 +24,18 @@ const char* errorCodeId(ErrorCode code) {
       return "unavailable";
     case ErrorCode::InternalFault:
       return "internal-fault";
+    case ErrorCode::UnsupportedGeometry:
+      return "unsupported-geometry";
+    case ErrorCode::InvalidTrackSector:
+      return "invalid-track-sector";
+    case ErrorCode::ChainCycle:
+      return "chain-cycle";
+    case ErrorCode::InvalidBam:
+      return "invalid-bam";
+    case ErrorCode::InvalidInput:
+      return "invalid-input";
+    case ErrorCode::UnsupportedMedia:
+      return "unsupported-media";
   }
   return "internal-fault";
 }

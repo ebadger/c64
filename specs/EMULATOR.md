@@ -45,9 +45,9 @@ Required operations:
 - `loadPrg(bytes) -> LoadResult`
 - `mountD64(bytes, driveNumber = 8) -> MediaResult`
 - `runCycles(maxCycles) -> RunResult`
-- `setInput(snapshot)` for keyboard, joystick, and restore state
-- `copyFramebuffer(target) -> FrameInfo`
-- `drainAudio(targetFrames) -> AudioInfo`
+- `setInput(snapshot)` for keyboard, joystick, and restore state (owned copy; not retained)
+- `copyFramebuffer(target) -> FrameInfo` (copies the indexed framebuffer; clears the dirty flag)
+- `drainAudio(target, maxFrames) -> AudioInfo` (drains mono float samples)
 - `saveState() -> byte[]` and `loadState(bytes)` only after a versioned format is specified
 - debug reads/writes that are explicitly marked as side-effecting or side-effect-free
 
@@ -119,10 +119,13 @@ banking derives from that read value so an input-configured bit reads its pull-u
 | I/O `$DE00-$DFFF` | Expansion I/O (open bus) |
 
 Writes to ROM windows fall through to the RAM beneath them. VIC-II, SID, and the two CIAs are
-reached through an explicit `ClockedDevice` interface; milestone 2 wires deterministic
-Unimplemented placeholders (open-bus reads, ignored writes) and the machine reports each device
-as unavailable. This is the boundary milestone 3 replaces — the core never claims those devices
-are modelled.
+concrete cycle-clocked devices owned by the bus. Every consumed CPU cycle advances the devices
+exactly once, in-line at bus-access granularity, so the device clock never runs ahead of the CPU
+(`runCycles` never advances devices past the cycles it reports). The VIC-II can steal bus cycles
+(BA/AEC) on a bad line or for sprite DMA: the CPU is stalled on its next read until the VIC
+releases the bus, and those stall cycles are counted. The bus aggregates the device interrupt
+outputs onto the CPU each cycle — VIC-II and CIA1 drive IRQ, CIA2 (and the RESTORE key) drive
+NMI — alongside the external test IRQ/NMI hooks.
 
 ## CPU accuracy (implemented)
 
@@ -133,19 +136,24 @@ documented per-opcode cycle counts plus dynamic page-cross (indexed reads) and b
 (taken / page-cross) penalties. Read-modify-write instructions perform the hardware
 read + dummy-write + write sequence, the JMP `(ind)` page-boundary bug is modelled, decimal
 ADC/SBC follow documented NMOS flag behaviour, and BRK/IRQ/NMI/reset sequencing and stack order
-match hardware. Sub-instruction bus phasing (per-cycle device visibility) is deferred to when a
-clocked device requires it (milestone 3); no device is modelled yet, so it is unobservable now.
+match hardware. Instructions execute atomically (as hardware instructions are), and their bus
+cycles tick the devices in order; internal (non-bus) cycles are ticked at the instruction
+boundary. Interrupts are sampled at instruction boundaries.
+
+The **NMOS one-instruction interrupt-enable delay** after `CLI`/`SEI`/`PLP` is implemented: the
+interrupt poll for the single instruction following one of these uses the pre-change I flag, so a
+pending IRQ enabled by `CLI` is only taken after the next instruction executes.
 
 Reset restores registers to deterministic specified values as required above: warm reset sets
 `SP = $FD` and `P = I|U` and jumps through the reset vector while preserving RAM and the A/X/Y
 registers; power-on additionally zeroes A/X/Y and rebuilds RAM from the fixture seed. This
 deterministic initialization is intentional and is not the hardware `SP -= 3` decrement.
 
-**Known accuracy limitation (tracked for milestone 3):** the one-instruction interrupt-enable
-delay after `CLI`/`SEI`/`PLP` (NMOS polls the interrupt line before the flag update takes
-effect) is not yet modelled. It is unobservable in this milestone because no clocked device
-generates an interrupt; the only interrupt sources are the explicit test `setIrqLine`/
-`triggerNmi` hooks.
+**`runCycles(n)` reporting:** instructions are atomic and are run until at least `n` cycles have
+elapsed, so the reported `cyclesExecuted` may exceed `n` by up to the final instruction's length
+(including any BA stall cycles it incurred). This is unchanged from milestone 2 and is the only
+sense in which the reported total can exceed the request; device advancement itself is always
+exactly one tick per consumed cycle.
 
 ## Behaviour / Rules
 
@@ -175,9 +183,11 @@ devices -> deterministic state -> framebuffer/audio/trace buffers -> web client 
 |------|-----------|
 | `invalid-config` | Unknown timing/SID profile or incomplete ROM set |
 | `invalid-prg` | Missing load address, overflow, or malformed byte source |
-| `invalid-d64` | Media layer rejected the disk |
+| `invalid-d64` | Media layer rejected the disk (see MEDIA.md for the specific sub-codes) |
 | `rom-mismatch` | ROM size/identity is inconsistent with the selected set |
 | `invalid-state` | Operation is not valid for the current machine lifecycle |
+| `invalid-input` | A host input snapshot field is malformed |
+| `unsupported-media` | Operation requires drive fidelity the high-level IEC model does not provide |
 | `internal-fault` | Checked invariant failed; execution stops with diagnostic context |
 
 The bridge surfaces failures to the UI and tests. It must not silently reset, substitute
@@ -195,12 +205,14 @@ ROMs, or report success-shaped defaults.
 | Item | Status | Notes |
 |------|--------|-------|
 | Timing profiles (PAL 6569, NTSC 6567R8) | Implemented | Exact reduced-rational phi2 clocks and cycle/line/frame counts |
-| C++17 machine shell and bus | Implemented | RAM, ROM windows, colour RAM, processor port/DDR banking, clocked-device boundary |
+| C++17 machine shell and bus | Implemented | RAM, ROM windows, colour RAM, processor port/DDR banking, concrete clocked devices |
+| Cycle-integrated execution | Implemented | Per-cycle device advancement, BA/AEC read stalls, aggregated device IRQ/NMI, NMOS CLI/SEI/PLP interrupt-enable delay |
 | NMOS 6510 core | Implemented | Complete 151-opcode documented set; cycle-exact; decimal, interrupts, RMW, JMP-indirect bug; native + WASM golden/parity tests |
 | ROM set validation | Implemented | Sizes, per-role SHA-256, deterministic set id; memory-only; synthetic test fixtures |
 | Machine lifecycle | Implemented | Configure/validate, power-on/warm reset, PRG load (no run-address inference), direct-mode PC, bounded `runCycles`, breakpoints, debug inspect/write |
-| Native and embind APIs | Implemented | Behaviourally identical; value types only; no exceptions cross embind |
-| Headless deterministic runner | Implemented | Node loads the production WASM artifact; native/WASM scenario parity is byte-identical |
-| VIC-II / SID / CIA devices | Not started | Explicit Unimplemented boundary; reported unavailable |
-| Mounted D64 / framebuffer / audio / input | Not started | Operations return the `unavailable` error |
+| Native and embind APIs | Implemented | `setInput`/`copyFramebuffer`/`drainAudio`/`mountD64` with owned-copy semantics; value types only; no exceptions cross embind |
+| Headless deterministic runner | Implemented | Node loads the production WASM artifact; native/WASM scenario parity is byte-identical (integer device state); SID float audio validated separately |
+| VIC-II / SID / CIA devices | Implemented | See VIC-II.md and IO.md for the exact modelled behaviour and honestly-labelled unsupported fidelity |
+| Mounted D64 / framebuffer / audio / input | Implemented | Read-only D64 via a high-level KERNAL LOAD/IEC trap (see MEDIA.md); indexed framebuffer; mono float audio; keyboard/joystick/RESTORE input |
 | Save-state format | Deferred | Requires a separate versioned contract |
+

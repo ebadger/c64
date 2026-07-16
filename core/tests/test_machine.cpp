@@ -112,17 +112,30 @@ TEST(machine_reset_kinds) {
   CHECK_EQ(m.debugReadRam(0x2000), 0x00u);  // power-on pattern at $2000 is $00
 }
 
-TEST(machine_unavailable_devices) {
+TEST(machine_devices_implemented) {
   Machine m;
   boot(m);
-  CHECK_EQ(static_cast<int>(m.mountD64({}, 8).code), static_cast<int>(ErrorCode::Unavailable));
-  CHECK_EQ(static_cast<int>(m.copyFramebuffer().code), static_cast<int>(ErrorCode::Unavailable));
-  CHECK_EQ(static_cast<int>(m.drainAudio().code), static_cast<int>(ErrorCode::Unavailable));
-  CHECK_EQ(static_cast<int>(m.setInput().code), static_cast<int>(ErrorCode::Unavailable));
-  CHECK(!m.vicStatus().implemented);
-  CHECK(!m.sidStatus().implemented);
-  CHECK(!m.cia1Status().implemented);
-  CHECK(!m.cia2Status().implemented);
+  // All four devices are modelled in milestone 3.
+  CHECK(m.vicStatus().implemented);
+  CHECK(m.sidStatus().implemented);
+  CHECK(m.cia1Status().implemented);
+  CHECK(m.cia2Status().implemented);
+  // Input is accepted (not "unavailable").
+  InputSnapshot input;
+  CHECK_EQ(static_cast<int>(m.setInput(input).code), static_cast<int>(ErrorCode::None));
+  // Framebuffer and audio drain succeed and report sane metadata.
+  CHECK(m.framebufferSize() > 0u);
+  FrameInfo fi = m.frameInfo();
+  CHECK(fi.width > 0u && fi.height > 0u);
+  AudioInfo ai = m.drainAudio(nullptr, 0);
+  CHECK(ai.sampleRate > 0u);
+  // A malformed D64 is rejected (never mounted); mounting on a non-8 drive is unsupported.
+  MediaResult bad = m.mountD64(std::vector<u8>(10, 0), 8);
+  CHECK(!bad.ok);
+  CHECK_EQ(static_cast<int>(bad.error.code), static_cast<int>(ErrorCode::UnsupportedGeometry));
+  CHECK(!m.diskMounted());
+  MediaResult wrongDrive = m.mountD64(std::vector<u8>(174848, 0), 9);
+  CHECK_EQ(static_cast<int>(wrongDrive.error.code), static_cast<int>(ErrorCode::UnsupportedMedia));
 }
 
 TEST(machine_frame_sequence) {

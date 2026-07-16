@@ -25,6 +25,13 @@ enum class ErrorCode : u8 {
   InvalidState,        // "invalid-state": operation invalid for the current lifecycle
   Unavailable,         // "unavailable": device/feature not implemented in this milestone
   InternalFault,       // "internal-fault": a checked invariant failed
+  // Media-layer codes (see specs/MEDIA.md).
+  UnsupportedGeometry, // "unsupported-geometry": D64 size/track layout is not supported
+  InvalidTrackSector,  // "invalid-track-sector": a chain link references outside the image
+  ChainCycle,          // "chain-cycle": a directory or file chain loops
+  InvalidBam,          // "invalid-bam": the BAM directory-link track is wrong
+  InvalidInput,        // "invalid-input": host input snapshot is malformed
+  UnsupportedMedia,    // "unsupported-media": operation requires unsupported drive fidelity
 };
 
 // Returns the stable lowercase string identifier for a code (the cross-layer contract).

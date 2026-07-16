@@ -9,12 +9,14 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 > **Current status:** this repository contains the specialized mission, architecture, and
 > operating foundation; the implemented deterministic source-to-artifact pipeline (NMOS 6510
 > assembler, PRG serializer, and standard 35-track D64 builder/parser); and the deterministic
-> C++17 machine core — a complete documented NMOS 6510 CPU, C64 bus/banking, and ROM
-> validation compiled once to a production WebAssembly artifact and proven by native and
-> byte-identical headless WASM parity tests. The VIC-II, SID/CIA/input, disk media, browser
-> IDE, gallery, and Pages deployment are specified but not yet implemented, and the core
-> reports those devices and operations as unavailable. There is no runnable application or
-> live production site today.
+> C++17 machine core — a complete documented NMOS 6510 CPU with cycle-integrated devices
+> (VIC-II video, SID audio, two CIAs with keyboard/joystick/timers/TOD), read-only mounted D64
+> execution via a high-level KERNAL LOAD/IEC trap, and framebuffer/audio/input APIs — compiled
+> once to a production WebAssembly artifact and proven by native and byte-identical headless
+> WASM parity tests. The browser IDE, examples gallery, and GitHub Pages deployment are
+> specified but not yet implemented. There is no runnable application or live production site
+> today, and device/media fidelity is honestly labelled (line-based VIC renderer, approximate
+> SID filter, high-level rather than cycle-level 1541 drive) in the specs.
 
 ## Planned user workflow
 
@@ -31,8 +33,9 @@ source produces long URLs.
 
 ## Architecture
 
-- **Emulator:** deterministic C++17 NMOS 6510 CPU and bus/banking are implemented; VIC-II,
-  SID, CIA, input, and disk/media modules are specified but not yet implemented.
+- **Emulator:** deterministic C++17 NMOS 6510 CPU, bus/banking, and cycle-integrated VIC-II,
+  SID, and CIA devices with read-only mounted D64 execution are implemented; the browser IDE
+  and gallery are specified but not yet implemented.
 - **Execution:** one Emscripten/embind WebAssembly artifact for browser use and headless WASM
   tests; the same C++ sources also compile natively for diagnostics.
 - **Code generation:** one dependency-light ES module assembler for browser and Node.js,

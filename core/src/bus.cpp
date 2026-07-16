@@ -1,5 +1,7 @@
 #include "c64/bus.hpp"
 
+#include "c64/cpu.hpp"
+
 namespace c64 {
 
 namespace {
@@ -10,17 +12,25 @@ const char* const kRegionIds[] = {"ram",     "basic-rom", "kernal-rom",   "char-
 
 const char* mappedRegionId(MappedRegion region) { return kRegionIds[static_cast<u8>(region)]; }
 
-Bus::Bus()
-    : vic_(std::make_unique<UnimplementedDevice>("vic-ii")),
-      sid_(std::make_unique<UnimplementedDevice>("sid")),
-      cia1_(std::make_unique<UnimplementedDevice>("cia1")),
-      cia2_(std::make_unique<UnimplementedDevice>("cia2")) {
+Bus::Bus() {
   ram_.fill(0);
   colorRam_.fill(0);
   recomputeBanking();
 }
 
 void Bus::setRoms(const RomSet& roms) { roms_ = &roms; }
+
+void Bus::configureDevices(const TimingProfile& profile, Sid::Model sidModel, u32 sampleRate) {
+  const u64 phi2Hz = profile.clockDenominator
+                         ? (profile.clockNumerator + profile.clockDenominator / 2) /
+                               profile.clockDenominator
+                         : 985248;
+  vic_.configure(profile, ram_.data(), colorRam_.data(),
+                 roms_ ? roms_->chargen.data() : nullptr);
+  sid_.configure(sidModel, phi2Hz, sampleRate);
+  cia1_.configure(profile.cyclesPerFrame);
+  cia2_.configure(profile.cyclesPerFrame);
+}
 
 u8 Bus::readPort() const {
   return static_cast<u8>((portLatch_ & ddr_) | (inputPins_ & static_cast<u8>(~ddr_)));
@@ -44,22 +54,26 @@ void Bus::powerOnReset(u8 fillSeed) {
   ddr_ = 0x2F;
   portLatch_ = 0x37;
   lastBusValue_ = 0;
+  cycleCounter_ = 0;
+  prevNmiLine_ = false;
   recomputeBanking();
-  vic_->reset();
-  sid_->reset();
-  cia1_->reset();
-  cia2_->reset();
+  vic_.reset();
+  sid_.reset();
+  cia1_.reset();
+  cia2_.reset();
 }
 
 void Bus::warmReset() {
   ddr_ = 0x2F;
   portLatch_ = 0x37;
   lastBusValue_ = 0;
+  cycleCounter_ = 0;
+  prevNmiLine_ = false;
   recomputeBanking();
-  vic_->reset();
-  sid_->reset();
-  cia1_->reset();
-  cia2_->reset();
+  vic_.reset();
+  sid_.reset();
+  cia1_.reset();
+  cia2_.reset();
 }
 
 MappedRegion Bus::regionOf(u16 addr) const {
@@ -108,16 +122,16 @@ u8 Bus::read(u16 addr) {
       value = static_cast<u8>((colorRam_[addr - 0xD800] & 0x0F) | (lastBusValue_ & 0xF0));
       break;
     case MappedRegion::IoVic:
-      value = vic_->read(addr, true, lastBusValue_);
+      value = vic_.read(static_cast<u8>(addr & 0x3F), true);
       break;
     case MappedRegion::IoSid:
-      value = sid_->read(addr, true, lastBusValue_);
+      value = sid_.read(static_cast<u8>(addr & 0x1F), true);
       break;
     case MappedRegion::IoCia1:
-      value = cia1_->read(addr, true, lastBusValue_);
+      value = cia1_.read(static_cast<u8>(addr & 0x0F), true);
       break;
     case MappedRegion::IoCia2:
-      value = cia2_->read(addr, true, lastBusValue_);
+      value = cia2_.read(static_cast<u8>(addr & 0x0F), true);
       break;
     case MappedRegion::IoExpansion:
       value = lastBusValue_;  // open bus
@@ -171,16 +185,16 @@ void Bus::write(u16 addr, u8 value) {
       colorRam_[addr - 0xD800] = static_cast<u8>(value & 0x0F);
       return;
     case MappedRegion::IoVic:
-      vic_->write(addr, value);
+      vic_.write(static_cast<u8>(addr & 0x3F), value);
       return;
     case MappedRegion::IoSid:
-      sid_->write(addr, value);
+      sid_.write(static_cast<u8>(addr & 0x1F), value);
       return;
     case MappedRegion::IoCia1:
-      cia1_->write(addr, value);
+      cia1_.write(static_cast<u8>(addr & 0x0F), value);
       return;
     case MappedRegion::IoCia2:
-      cia2_->write(addr, value);
+      cia2_.write(static_cast<u8>(addr & 0x0F), value);
       return;
     case MappedRegion::IoExpansion:
       return;  // open bus, ignored
@@ -195,11 +209,40 @@ void Bus::write(u16 addr, u8 value) {
   }
 }
 
-void Bus::tickDevices(u32 cpuCycles) {
-  vic_->tick(cpuCycles);
-  sid_->tick(cpuCycles);
-  cia1_->tick(cpuCycles);
-  cia2_->tick(cpuCycles);
+void Bus::cycle() {
+  // Tick every clocked device by exactly one CPU cycle, then aggregate their interrupt outputs
+  // onto the CPU. C64 wiring: VIC-II and CIA1 drive IRQ; CIA2 (and RESTORE, handled by the
+  // machine via triggerNmi) drives NMI. The VIC bank comes from CIA2 port A.
+  ++cycleCounter_;
+  vic_.setBank(cia2_.vicBank());
+  vic_.tickCycle();
+  cia1_.tickCycle();
+  cia2_.tickCycle();
+  sid_.tickCycle();
+  if (cpu_ != nullptr) {
+    cpu_->setDeviceIrq(vic_.irqAsserted() || cia1_.irqAsserted());
+    const bool nmiLine = cia2_.irqAsserted();
+    if (nmiLine && !prevNmiLine_) cpu_->triggerNmi();
+    prevNmiLine_ = nmiLine;
+  }
+}
+
+u8 Bus::readCycle(u16 addr) {
+  // BA/AEC: a bad line (or sprite DMA) steals bus cycles; the CPU is halted on its next read
+  // until the VIC releases the bus. Apply any pending steal before completing this read.
+  const u32 steal = vic_.takeBaSteal();
+  if (steal != 0) idleCycles(steal);
+  cycle();
+  return read(addr);
+}
+
+void Bus::writeCycle(u16 addr, u8 value) {
+  cycle();
+  write(addr, value);
+}
+
+void Bus::idleCycles(u32 count) {
+  for (u32 i = 0; i < count; ++i) cycle();
 }
 
 }  // namespace c64

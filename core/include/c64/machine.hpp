@@ -14,6 +14,8 @@
 
 #include "c64/bus.hpp"
 #include "c64/cpu.hpp"
+#include "c64/io_types.hpp"
+#include "c64/media.hpp"
 #include "c64/result.hpp"
 #include "c64/rom.hpp"
 #include "c64/timing.hpp"
@@ -23,9 +25,10 @@ namespace c64 {
 
 struct MachineConfig {
   std::string timingProfile = "pal-6569";  // "pal-6569" | "ntsc-6567r8"
-  std::string sidModel = "6581";           // "6581" | "8580" (validated; unused until IO.md)
+  std::string sidModel = "6581";           // "6581" | "8580"
   RomSet roms;
-  u8 powerOnSeed = 0;  // deterministic power-on RAM pattern selector (never host randomness)
+  u8 powerOnSeed = 0;      // deterministic power-on RAM pattern selector (never host randomness)
+  u32 sampleRate = 44100;  // SID audio output sample rate
 };
 
 enum class ResetKind : u8 { PowerOn, Warm };
@@ -103,20 +106,45 @@ class Machine {
   u64 totalCycles() const { return totalCycles_; }
   u64 frameSequence() const;
 
-  // Device availability. Milestone 2 reports these as unavailable honestly.
+  // Device availability. All four devices are modelled in milestone 3.
   DeviceStatus vicStatus() const { return bus_.vicStatus(); }
   DeviceStatus sidStatus() const { return bus_.sidStatus(); }
   DeviceStatus cia1Status() const { return bus_.cia1Status(); }
   DeviceStatus cia2Status() const { return bus_.cia2Status(); }
 
-  // Operations belonging to unimplemented devices — always return Unavailable in milestone 2.
-  Error mountD64(const std::vector<u8>& bytes, u8 driveNumber = 8);
-  Error copyFramebuffer();
-  Error drainAudio();
-  Error setInput();
+  // --- Device I/O APIs (implemented in milestone 3) ---
+
+  // Feed the CIA1 keyboard/joystick matrix and drive the RESTORE NMI edge. Owned copy semantics:
+  // the snapshot is consumed, not retained. Returns invalid-input if a snapshot field is invalid.
+  Error setInput(const InputSnapshot& snapshot);
+  // Release all keys/joysticks (host focus loss). Explicitly driven, never inferred.
+  void releaseAllInput();
+
+  // Copy the current VIC-II framebuffer (one 4-bit colour index per byte) into the caller's
+  // buffer and return frame metadata. Copies min(framebufferSize(), destLen) bytes and clears the
+  // dirty flag. Dropping an already-completed frame never changes machine state.
+  FrameInfo copyFramebuffer(u8* dest, u32 destLen);
+  u32 framebufferSize() const;
+  FrameInfo frameInfo() const;
+
+  // Drain up to maxFrames mono float samples ([-1,1]) into the caller's buffer and return audio
+  // metadata. Only already-emitted samples are dropped on overflow; state is never altered.
+  AudioInfo drainAudio(float* dest, u32 maxFrames);
+
+  // Mount an immutable, validated D64 as read-only media on the given drive (only drive 8 is
+  // supported). Malformed media is never mounted. The mounted disk is served through a
+  // deterministic high-level KERNAL LOAD/IEC trap (see specs/MEDIA.md for the compatibility
+  // boundary); custom drive code is not emulated.
+  MediaResult mountD64(const std::vector<u8>& bytes, u8 driveNumber = 8);
+  bool diskMounted() const { return disk_.loaded; }
 
  private:
   Error requireReady() const;
+  // High-level LOAD trap: services a JSR to the KERNAL LOAD vector ($FFD5) from mounted media.
+  bool serviceLoadTrap();
+  void rtsFromTrap(CpuState& st);
+  bool findFile(const std::vector<u8>& petsciiName, size_t& outIndex) const;
+  std::vector<u8> buildDirectoryListing() const;
 
   bool ready_ = false;
   const TimingProfile* profile_ = nullptr;
@@ -126,6 +154,9 @@ class Machine {
   Cpu cpu_;
   u64 totalCycles_ = 0;
   std::set<u16> breakpoints_;
+
+  Disk disk_;                  // mounted read-only media (empty until mountD64)
+  bool restorePrev_ = false;   // RESTORE edge detection for the NMI
 };
 
 }  // namespace c64
