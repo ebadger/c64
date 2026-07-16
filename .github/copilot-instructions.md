@@ -23,9 +23,14 @@ product truth with template content.
 - Open a PR for `ebadger`; never self-merge.
 - Check PR state before pushing to an existing PR branch.
 - Use the model-diverse review in `docs/CODE-REVIEW-PANEL.md` for behavior changes.
-- Escalate every blocker and every review finding estimated above one minute to `ebadger`
-  with evidence, effort, and a fix/do-not-fix/re-scope recommendation. Take no disposition
-  action until that item has a decision.
+- Treat reviewer findings as advisory until the primary validates a reproducible case, a
+  supported/reachable contract violation, and material impact. Escalate to `ebadger` — with
+  evidence, effort, and a fix/do-not-fix/re-scope recommendation — only an independently
+  validated release blocker, a material scope change, or work estimated above 30 minutes;
+  take no disposition action on those until that item has a decision. Preserve each
+  reviewer's classification but let the primary override it with concise checkable
+  evidence; a reviewer's "blocking" label alone does not force escalation. Dispose of
+  everything else as a trivial fix, override, or follow-up.
 - Keep planned and implemented behavior distinct in specs, README, and status.
 - Prefer deleting or consolidating governance over adding agents, reports, or ceremonies.
 - Never put credentials, secret values, copyrighted ROM bytes, or user-supplied binary

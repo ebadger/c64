@@ -72,13 +72,21 @@ improvements back to
 rediscover the same improvements. The template governs shared operating machinery, never a
 specialization's product truth; see `specs/TEMPLATE-INHERITANCE.md`.
 
-**§8. Escalate blockers and >1-minute review work before acting.** Present every blocking
-finding and any finding estimated to require more than one minute to implement and validate
-to ebadger with its evidence, risk/value, effort estimate, and the agent's recommendation to
-fix, not fix, or re-scope it. Obtain an explicit item-level decision before disposition.
-WHY: even non-blocking feedback can silently redirect execution away from ebadger's intent;
-only non-blocking findings at or below one minute remain agent-triaged. See
-`docs/CODE-REVIEW-PANEL.md`.
+**§8. Validate reviewer findings; escalate only material ones.** Treat every reviewer
+finding as advisory until the primary independently validates a reproducible case, a
+supported/reachable contract violation, and material impact. Escalate to ebadger — with
+evidence, effort, and a fix/not-fix/re-scope recommendation — only an independently
+validated release blocker (security/privacy exposure, data corruption or wrong output on
+realistic supported input, data loss, crash, common-path regression, build/deploy failure),
+a material scope change, or work estimated over 30 minutes to implement and validate.
+Preserve each reviewer's original classification but let the primary downgrade/override it
+with concise checkable evidence; a reviewer's "blocking" label alone does not force
+escalation. Dispose of everything else as a trivial validated fix, a checkable override, or
+a follow-up. Re-review is delta-focused on new commits and their regression surface;
+accepted decisions are not re-litigated unless evidence, impact, or scope materially
+changes. WHY: an unbounded adversarial loop spends budget re-auditing unchanged code and
+chasing immaterial or unreachable findings; a validated materiality bar keeps human
+attention on real release risk. See `docs/CODE-REVIEW-PANEL.md`.
 
 **Worktree hygiene.** Never `git checkout`/merge `main` from a session
 worktree — branch off `origin/main`. Don't rely on `--delete-branch` in a
