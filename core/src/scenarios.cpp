@@ -373,9 +373,13 @@ std::string scenInterrupts() {
   Json j;
   j.beginObject();
 
-  m.runCycles(2);  // CLI executed (I cleared)
+  m.runCycles(2);  // CLI executed (I cleared, effect delayed one instruction)
   m.setIrqLine(true);
-  RunResult afterIrq = m.runCycles(1);  // services IRQ (7 cycles)
+  // NMOS delay: the instruction after CLI runs before the pending IRQ is taken.
+  RunResult delayed = m.runCycles(1);  // delayed NOP runs, no IRQ yet
+  j.key("delayedPc").num(m.cpuState().pc);
+  j.key("delayedCycles").num(delayed.cyclesExecuted);
+  RunResult afterIrq = m.runCycles(1);  // now services IRQ (7 cycles)
   j.key("irqEntryPc").num(m.cpuState().pc);
   j.key("irqEntryCycles").num(afterIrq.cyclesExecuted);
   j.key("irqSp").num(m.cpuState().sp);
@@ -485,10 +489,156 @@ std::string scenDeviceStatus() {
     j.endObject();
   }
   j.endArray();
-  j.key("mountD64").str(errorCodeId(m.mountD64({}, 8).code));
-  j.key("copyFramebuffer").str(errorCodeId(m.copyFramebuffer().code));
-  j.key("drainAudio").str(errorCodeId(m.drainAudio().code));
-  j.key("setInput").str(errorCodeId(m.setInput().code));
+  // Implemented device APIs: framebuffer/audio metadata and a rejected malformed mount.
+  j.key("framebufferSize").num(m.framebufferSize());
+  j.key("frameWidth").num(m.frameInfo().width);
+  j.key("frameHeight").num(m.frameInfo().height);
+  InputSnapshot input;
+  j.key("setInput").str(errorCodeId(m.setInput(input).code));
+  j.key("mountMalformed").str(errorCodeId(m.mountD64(std::vector<u8>(10, 0), 8).error.code));
+  j.endObject();
+  return j.str();
+}
+
+// --- Device integration scenarios (integer-only outputs for byte-identical native/WASM parity;
+//     SID float audio is validated by native unit tests + a WASM smoke test, not byte-parity). ---
+
+// Minimal valid D64 with one PRG file, mirroring src/d64.js layout (for the load-trap scenario).
+std::vector<u8> buildScenarioD64(const char* name, const std::vector<u8>& prg) {
+  auto sectorsIn = [](int t) {
+    if (t >= 1 && t <= 17) return 21;
+    if (t >= 18 && t <= 24) return 19;
+    if (t >= 25 && t <= 30) return 18;
+    if (t >= 31 && t <= 35) return 17;
+    return 0;
+  };
+  auto off = [&](int t, int s) {
+    int cnt = 0;
+    for (int i = 1; i < t; ++i) cnt += sectorsIn(i);
+    return (cnt + s) * 256;
+  };
+  std::vector<u8> img(174848, 0);
+  const int o0 = off(1, 0);
+  img[o0] = 0;
+  img[o0 + 1] = static_cast<u8>(prg.size() + 1);
+  for (size_t i = 0; i < prg.size(); ++i) img[o0 + 2 + i] = prg[i];
+  const int dir = off(18, 1);
+  img[dir] = 0;
+  img[dir + 1] = 0xFF;
+  img[dir + 2] = 0x82;
+  img[dir + 3] = 1;
+  img[dir + 4] = 0;
+  for (int i = 0; i < 16; ++i) img[dir + 5 + i] = 0xA0;
+  for (int i = 0; name[i]; ++i) img[dir + 5 + i] = static_cast<u8>(name[i]);
+  img[dir + 30] = 1;
+  const int bam = off(18, 0);
+  img[bam] = 18;
+  img[bam + 1] = 1;
+  img[bam + 2] = 0x41;
+  for (int i = 0; i < 16; ++i) img[bam + 0x90 + i] = 0xA0;
+  img[bam + 0xA2] = 'I';
+  img[bam + 0xA3] = 'D';
+  return img;
+}
+
+std::string vicFrameScenario(const char* timing) {
+  Machine m;
+  configureSynthetic(m, 0xC000, 0xC100, 0xC200, timing);
+  // Set DEN off (whole screen border) and border colour to 6; loop.
+  const std::vector<u8> code = {0xA9, 0x0B, 0x8D, 0x11, 0xD0, 0xA9, 0x06,
+                                0x8D, 0x20, 0xD0, 0x4C, 0x0A, 0xC0};
+  std::vector<u8> prg = {0x00, 0xC0};
+  prg.insert(prg.end(), code.begin(), code.end());
+  m.loadPrg(prg);
+  m.setProgramCounter(0xC000);
+  m.runCycles(40000);  // ~2 frames
+  std::vector<u8> fb(m.framebufferSize(), 0);
+  FrameInfo info = m.copyFramebuffer(fb.data(), static_cast<u32>(fb.size()));
+  Json j;
+  j.beginObject();
+  j.key("frameWidth").num(info.width);
+  j.key("frameHeight").num(info.height);
+  j.key("frameSequence").num(info.sequence);
+  j.key("borderTopLeft").num(fb[0]);
+  j.key("borderCenter").num(fb[fb.size() / 2]);
+  j.endObject();
+  return j.str();
+}
+
+std::string scenVicFramePal() { return vicFrameScenario("pal-6569"); }
+std::string scenVicFrameNtsc() { return vicFrameScenario("ntsc-6567r8"); }
+
+std::string scenCiaTimer() {
+  Machine m;
+  configureSynthetic(m, 0xC000, 0xC100, 0xC200);
+  // Start CIA1 timer A one-shot (latch 4), run past underflow, capture the ICR into $10.
+  const std::vector<u8> code = {
+      0xA9, 0x04, 0x8D, 0x04, 0xDC,  // LDA #4; STA $DC04 (TA lo)
+      0xA9, 0x00, 0x8D, 0x05, 0xDC,  // LDA #0; STA $DC05 (TA hi)
+      0xA9, 0x09, 0x8D, 0x0E, 0xDC,  // LDA #$09; STA $DC0E (start, one-shot)
+      0xEA, 0xEA, 0xEA, 0xEA, 0xEA,  // NOPs
+      0xAD, 0x0D, 0xDC, 0x85, 0x10,  // LDA $DC0D (ICR); STA $10
+      0x00};
+  std::vector<u8> prg = {0x00, 0xC0};
+  prg.insert(prg.end(), code.begin(), code.end());
+  m.loadPrg(prg);
+  m.setProgramCounter(0xC000);
+  m.runCycles(300);
+  Json j;
+  j.beginObject();
+  j.key("icr").num(m.debugReadRam(0x10));
+  j.endObject();
+  return j.str();
+}
+
+std::string scenLoadTrap() {
+  Machine m;
+  configureSynthetic(m, 0xC000, 0xC100, 0xC200);
+  const std::vector<u8> filePrg = {0x01, 0x08, 0x11, 0x22, 0x33, 0x44};
+  m.mountD64(buildScenarioD64("PROG", filePrg), 8);
+  const char* name = "PROG";
+  for (int i = 0; name[i]; ++i) m.debugWriteRam(static_cast<u16>(0x0500 + i), name[i]);
+  m.debugWriteRam(0xB7, 4);
+  m.debugWriteRam(0xBB, 0x00);
+  m.debugWriteRam(0xBC, 0x05);
+  m.debugWriteRam(0xB9, 0x01);
+  m.debugWriteRam(0xBA, 0x08);
+  std::vector<u8> prg = {0x00, 0xC0, 0x20, 0xD5, 0xFF, 0x00};  // JSR $FFD5; BRK
+  m.loadPrg(prg);
+  m.setProgramCounter(0xC000);
+  m.runCycles(3000);
+  Json j;
+  j.beginObject();
+  j.key("mounted").boolean(m.diskMounted());
+  j.key("byte0801").num(m.debugReadRam(0x0801));
+  j.key("byte0804").num(m.debugReadRam(0x0804));
+  j.key("carrySet").boolean((m.cpuState().p & FlagC) != 0);
+  j.key("endX").num(m.cpuState().x);
+  j.key("endY").num(m.cpuState().y);
+  j.endObject();
+  return j.str();
+}
+
+std::string scenKeyboardInput() {
+  Machine m;
+  configureSynthetic(m, 0xC000, 0xC100, 0xC200);
+  InputSnapshot input;
+  input.keyboardColumns[2] = static_cast<u8>(~(1u << 5) & 0xFF);  // key at column 2, row 5
+  m.setInput(input);
+  const std::vector<u8> code = {
+      0xA9, 0xFF, 0x8D, 0x02, 0xDC,  // DDRA = output
+      0xA9, 0x00, 0x8D, 0x03, 0xDC,  // DDRB = input
+      0xA9, 0xFB, 0x8D, 0x00, 0xDC,  // select column 2
+      0xAD, 0x01, 0xDC, 0x85, 0x10,  // read rows -> $10
+      0x00};
+  std::vector<u8> prg = {0x00, 0xC0};
+  prg.insert(prg.end(), code.begin(), code.end());
+  m.loadPrg(prg);
+  m.setProgramCounter(0xC000);
+  m.runCycles(300);
+  Json j;
+  j.beginObject();
+  j.key("rowRead").num(m.debugReadRam(0x10));
   j.endObject();
   return j.str();
 }
@@ -512,6 +662,11 @@ const Scenario kScenarios[] = {
     {"prg-load", scenPrgLoad},
     {"determinism", scenDeterminism},
     {"device-status", scenDeviceStatus},
+    {"vic-frame-pal", scenVicFramePal},
+    {"vic-frame-ntsc", scenVicFrameNtsc},
+    {"cia-timer", scenCiaTimer},
+    {"keyboard-input", scenKeyboardInput},
+    {"load-trap", scenLoadTrap},
 };
 
 }  // namespace

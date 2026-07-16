@@ -121,6 +121,12 @@ u16 Cpu::read16(u16 addr) {
   return static_cast<u16>(lo | (hi << 8));
 }
 
+u16 Cpu::peekVector(u16 addr) {
+  const u8 lo = bus_.peek(addr);
+  const u8 hi = bus_.peek(static_cast<u16>(addr + 1));
+  return static_cast<u16>(lo | (hi << 8));
+}
+
 void Cpu::push(u8 v) {
   write(static_cast<u16>(0x0100 + sp_), v);
   sp_ = static_cast<u8>(sp_ - 1);
@@ -218,9 +224,15 @@ void Cpu::powerOn() {
 void Cpu::reset() {
   sp_ = 0xFD;
   p_ = FlagI | FlagU;
-  irqLine_ = false;
+  extIrq_ = false;
+  devIrq_ = false;
   nmiPending_ = false;
-  pc_ = read16(0xFFFC);
+  iPollDelay_ = false;
+  iPollValue_ = false;
+  busCycles_ = 0;
+  // The reset vector fetch does not tick devices: reset also resets the device clocks, so the
+  // machine starts with the CPU and devices both at cycle 0.
+  pc_ = peekVector(0xFFFC);
 }
 
 CpuState Cpu::state() const {
@@ -244,13 +256,23 @@ void Cpu::setState(const CpuState& s) {
 }
 
 StepResult Cpu::step() {
+  busCycles_ = 0;
+
+  // Effective I flag for this instruction's interrupt poll. CLI/SEI/PLP defer their I-flag
+  // change by one instruction (NMOS quirk), so the poll here can use the pre-change value.
+  bool effectiveI = (p_ & FlagI) != 0;
+  if (iPollDelay_) {
+    effectiveI = iPollValue_;
+    iPollDelay_ = false;
+  }
+
   // Service interrupts before fetching. NMI edge takes priority over a level IRQ.
   if (nmiPending_) {
     nmiPending_ = false;
     serviceInterrupt(0xFFFA, false);
     return StepResult{7, StepStop::None, 0, pc_};
   }
-  if (irqLine_ && !(p_ & FlagI)) {
+  if (irqAsserted() && !effectiveI) {
     serviceInterrupt(0xFFFE, false);
     return StepResult{7, StepStop::None, 0, pc_};
   }
@@ -349,7 +371,12 @@ StepResult Cpu::step() {
     case PHA: push(a_); break;
     case PHP: push(static_cast<u8>(p_ | FlagB | FlagU)); break;
     case PLA: a_ = pull(); setZN(a_); break;
-    case PLP: p_ = static_cast<u8>((pull() & ~FlagB) | FlagU); break;
+    case PLP:
+      // NMOS: the I-flag change is deferred one instruction for interrupt polling.
+      iPollValue_ = (p_ & FlagI) != 0;
+      iPollDelay_ = true;
+      p_ = static_cast<u8>((pull() & ~FlagB) | FlagU);
+      break;
     case AND: a_ = static_cast<u8>(a_ & read(ea)); setZN(a_); break;
     case ORA: a_ = static_cast<u8>(a_ | read(ea)); setZN(a_); break;
     case EOR: a_ = static_cast<u8>(a_ ^ read(ea)); setZN(a_); break;
@@ -477,8 +504,16 @@ StepResult Cpu::step() {
     case BEQ: branch((p_ & FlagZ) != 0, static_cast<i8>(fetch()), cycles); break;
     case CLC: setFlag(FlagC, false); break;
     case SEC: setFlag(FlagC, true); break;
-    case CLI: setFlag(FlagI, false); break;
-    case SEI: setFlag(FlagI, true); break;
+    case CLI:
+      iPollValue_ = (p_ & FlagI) != 0;
+      iPollDelay_ = true;
+      setFlag(FlagI, false);
+      break;
+    case SEI:
+      iPollValue_ = (p_ & FlagI) != 0;
+      iPollDelay_ = true;
+      setFlag(FlagI, true);
+      break;
     case CLV: setFlag(FlagV, false); break;
     case CLD: setFlag(FlagD, false); break;
     case SED: setFlag(FlagD, true); break;

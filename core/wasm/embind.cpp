@@ -129,15 +129,70 @@ class MachineHandle {
   bool cia1Implemented() const { return m_.cia1Status().implemented; }
   bool cia2Implemented() const { return m_.cia2Status().implemented; }
 
-  std::string mountD64(const val& bytes) {
-    return errorCodeId(m_.mountD64(toBytes(bytes), 8).code);
+  // Feed the keyboard matrix (8 column bytes), joysticks, and RESTORE NMI. Active-low bits.
+  std::string setInput(const val& columns, int joy1, int joy2, bool restore) {
+    InputSnapshot snapshot;
+    const std::vector<u8> cols = toBytes(columns);
+    for (size_t i = 0; i < snapshot.keyboardColumns.size() && i < cols.size(); ++i) {
+      snapshot.keyboardColumns[i] = cols[i];
+    }
+    snapshot.joystick1 = static_cast<u8>(joy1 & 0xFF);
+    snapshot.joystick2 = static_cast<u8>(joy2 & 0xFF);
+    snapshot.restorePressed = restore;
+    return errorCodeId(m_.setInput(snapshot).code);
   }
-  std::string copyFramebuffer() { return errorCodeId(m_.copyFramebuffer().code); }
-  std::string drainAudio() { return errorCodeId(m_.drainAudio().code); }
-  std::string setInput() { return errorCodeId(m_.setInput().code); }
+
+  void releaseAllInput() { m_.releaseAllInput(); }
+
+  int framebufferSize() const { return static_cast<int>(m_.framebufferSize()); }
+
+  // Copy the framebuffer into a module-owned buffer and expose a view. The JS wrapper copies it
+  // (new Uint8Array(...)) so no writable WebAssembly memory view outlives a memory growth.
+  val copyFramebuffer() {
+    fbBuffer_.assign(m_.framebufferSize(), 0);
+    FrameInfo info = m_.copyFramebuffer(fbBuffer_.data(), static_cast<u32>(fbBuffer_.size()));
+    val o = val::object();
+    o.set("width", info.width);
+    o.set("height", info.height);
+    o.set("sequence", static_cast<double>(info.sequence));
+    o.set("dirty", info.dirty);
+    o.set("pixels", val(typed_memory_view(fbBuffer_.size(), fbBuffer_.data())));
+    return o;
+  }
+
+  val drainAudio(int maxFrames) {
+    // Cap the allocation so a pathological request cannot exhaust memory; the SID buffer holds
+    // at most ~one second of samples, so this never truncates a legitimate drain.
+    u32 n = static_cast<u32>(maxFrames < 0 ? 0 : maxFrames);
+    if (n > (1u << 20)) n = 1u << 20;
+    audioBuffer_.assign(n, 0.0f);
+    AudioInfo info = m_.drainAudio(audioBuffer_.data(), n);
+    val o = val::object();
+    o.set("sampleRate", info.sampleRate);
+    o.set("channels", info.channels);
+    o.set("framesWritten", info.framesWritten);
+    o.set("sequence", static_cast<double>(info.sequence));
+    o.set("dropped", info.dropped);
+    o.set("samples", val(typed_memory_view(static_cast<size_t>(info.framesWritten),
+                                           audioBuffer_.data())));
+    return o;
+  }
+
+  val mountD64(const val& bytes) {
+    MediaResult r = m_.mountD64(toBytes(bytes), 8);
+    val o = val::object();
+    o.set("ok", r.ok);
+    o.set("errorCode", std::string(errorCodeId(r.error.code)));
+    o.set("errorMessage", r.error.message);
+    o.set("diskName", r.metadata.diskName);
+    o.set("fileCount", r.metadata.fileCount);
+    return o;
+  }
 
  private:
   Machine m_;
+  std::vector<u8> fbBuffer_;
+  std::vector<float> audioBuffer_;
 };
 
 std::string scenarioJson(const std::string& id) { return runScenario(id); }
@@ -179,8 +234,10 @@ EMSCRIPTEN_BINDINGS(c64_core) {
       .function("sidImplemented", &MachineHandle::sidImplemented)
       .function("cia1Implemented", &MachineHandle::cia1Implemented)
       .function("cia2Implemented", &MachineHandle::cia2Implemented)
-      .function("mountD64", &MachineHandle::mountD64)
+      .function("setInput", &MachineHandle::setInput)
+      .function("releaseAllInput", &MachineHandle::releaseAllInput)
+      .function("framebufferSize", &MachineHandle::framebufferSize)
       .function("copyFramebuffer", &MachineHandle::copyFramebuffer)
       .function("drainAudio", &MachineHandle::drainAudio)
-      .function("setInput", &MachineHandle::setInput);
+      .function("mountD64", &MachineHandle::mountD64);
 }

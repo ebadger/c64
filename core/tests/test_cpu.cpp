@@ -304,10 +304,34 @@ TEST(cpu_irq_line) {
   stepOne(m);                                 // CLI clears I
   CHECK(!flag(m, FlagI));
   m.setIrqLine(true);
+  // NMOS CLI delay: the instruction immediately following CLI still runs before a pending IRQ
+  // is taken. So the first step executes the NOP, and only the next step services the IRQ.
+  CHECK_EQ(stepOne(m), 2u);                   // the delayed NOP runs first
+  CHECK_EQ(m.cpuState().pc, 0xC002u);
   RunResult r = m.runCycles(1);
   CHECK_EQ(r.cyclesExecuted, 7u);
   CHECK_EQ(m.cpuState().pc, 0xC100u);
   CHECK(flag(m, FlagI));  // I set on entry
+}
+
+TEST(cpu_cli_sei_interrupt_delay) {
+  // NMOS one-instruction interrupt-enable delay for CLI (and symmetrically SEI/PLP): a pending
+  // IRQ raised while I is set is not serviced until AFTER the instruction that follows CLI.
+  Machine m;
+  boot(m);
+  m.debugWriteRam(0xC100, 0x40);  // IRQ handler: RTI
+  // SEI; CLI; NOP; NOP  — IRQ is asserted before CLI executes.
+  loadCodeAt(m, 0xC000, {0x78, 0x58, 0xEA, 0xEA});
+  stepOne(m);            // SEI (I=1)
+  m.setIrqLine(true);    // IRQ pending while masked
+  stepOne(m);            // CLI (clears I, but effect delayed one instruction)
+  CHECK(!flag(m, FlagI));
+  CHECK_EQ(m.cpuState().pc, 0xC002u);  // no IRQ yet: PC advanced past CLI
+  stepOne(m);                          // the delayed instruction (first NOP) runs
+  CHECK_EQ(m.cpuState().pc, 0xC003u);
+  RunResult r = m.runCycles(1);        // now the IRQ is serviced
+  CHECK_EQ(r.cyclesExecuted, 7u);
+  CHECK_EQ(m.cpuState().pc, 0xC100u);
 }
 
 TEST(cpu_irq_masked_when_i_set) {

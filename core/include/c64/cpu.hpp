@@ -55,12 +55,23 @@ class Cpu {
   void reset();
 
   // Execute exactly one instruction (servicing a pending NMI/IRQ first when due). Returns the
-  // cycles consumed and any stop condition (BRK or illegal opcode).
+  // cycles consumed and any stop condition (BRK or illegal opcode). Each bus access ticks the
+  // clocked devices by one cycle through the Bus, so devices advance in lock-step with the CPU.
   StepResult step();
 
   // Interrupt lines. The IRQ line is level-sensitive; NMI is edge-triggered.
-  void setIrqLine(bool asserted) { irqLine_ = asserted; }
-  void triggerNmi() { nmiPending_ = true; }
+  //
+  // There are two independent IRQ inputs OR-ed together: an external line (test/host hook) and a
+  // device line driven by the Bus each cycle from the VIC-II and CIA1 outputs. Keeping them
+  // separate lets host-driven and device-driven interrupts coexist without clobbering each other.
+  void setIrqLine(bool asserted) { extIrq_ = asserted; }        // external/host IRQ input
+  void setDeviceIrq(bool asserted) { devIrq_ = asserted; }      // aggregated device IRQ (Bus)
+  void triggerNmi() { nmiPending_ = true; }                     // edge input (CIA2/RESTORE/host)
+
+  // Number of bus (read/write) cycles the most recent step() performed. The enclosing machine
+  // uses this to tick the remaining internal (non-bus) cycles of the instruction so the device
+  // clock advances exactly once per consumed CPU cycle.
+  u32 busCycles() const { return busCycles_; }
 
   CpuState state() const;
   void setState(const CpuState& s);
@@ -73,11 +84,14 @@ class Cpu {
   u8 status() const { return static_cast<u8>(p_ | FlagU); }
 
  private:
-  // Bus helpers (each memory access already routed through banking).
-  u8 read(u16 addr) { return bus_.read(addr); }
-  void write(u16 addr, u8 value) { bus_.write(addr, value); }
+  // Bus helpers. Each read/write is one CPU cycle: it ticks the clocked devices through the Bus
+  // and counts toward busCycles_. readCycle() may stall (BA/AEC) when the VIC steals the bus.
+  u8 read(u16 addr) { ++busCycles_; return bus_.readCycle(addr); }
+  void write(u16 addr, u8 value) { ++busCycles_; bus_.writeCycle(addr, value); }
   u8 fetch() { return read(pc_++); }
   u16 read16(u16 addr);
+  // Read a vector without ticking devices (used only by reset, which resets device clocks).
+  u16 peekVector(u16 addr);
 
   void push(u8 v);
   u8 pull();
@@ -106,8 +120,19 @@ class Cpu {
   u8 sp_ = 0xFD;
   u8 p_ = FlagI | FlagU;
 
-  bool irqLine_ = false;
+  bool extIrq_ = false;    // external/host IRQ input
+  bool devIrq_ = false;    // aggregated device IRQ input (VIC-II | CIA1), driven by the Bus
   bool nmiPending_ = false;
+
+  // NMOS interrupt-enable delay: CLI/SEI/PLP update the I flag, but the interrupt poll for the
+  // single following instruction still uses the pre-update value. This defers the effect of
+  // enabling/disabling IRQs by one instruction, matching NMOS 6502/6510 hardware.
+  bool iPollDelay_ = false;
+  bool iPollValue_ = false;
+
+  u32 busCycles_ = 0;  // read/write cycles performed by the most recent step()
+
+  bool irqAsserted() const { return extIrq_ || devIrq_; }
 };
 
 // Decode metadata for one opcode byte, for exhaustive table tests.

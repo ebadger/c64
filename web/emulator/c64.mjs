@@ -170,20 +170,60 @@ export class Machine {
     };
   }
 
+  /**
+   * Feed host input. `keyboardColumns` is 8 active-low column bytes; joystick1/2 are active-low
+   * (bit0 up..bit4 fire); restore is the RESTORE NMI. The snapshot is copied into the core.
+   * @returns {string} error code id ("none" on success)
+   */
+  setInput({ keyboardColumns, joystick1 = 0xff, joystick2 = 0xff, restorePressed = false } = {}) {
+    const cols = toUint8(keyboardColumns ?? new Uint8Array(8).fill(0xff));
+    return this._h.setInput(cols, joystick1 & 0xff, joystick2 & 0xff, Boolean(restorePressed));
+  }
+
+  /** Release all keys/joysticks (host focus loss). */
+  releaseAllInput() {
+    this._h.releaseAllInput();
+  }
+
+  framebufferSize() {
+    return this._h.framebufferSize();
+  }
+
+  /**
+   * Copy the current framebuffer. Returns { width, height, sequence, dirty, pixels } where
+   * pixels is a JS-owned Uint8Array copy (one 4-bit colour index per byte). The copy detaches
+   * from WebAssembly memory so a later memory growth cannot invalidate it.
+   */
+  copyFramebuffer() {
+    const r = this._h.copyFramebuffer();
+    return {
+      width: r.width,
+      height: r.height,
+      sequence: r.sequence,
+      dirty: r.dirty,
+      pixels: new Uint8Array(r.pixels), // copy out of WASM memory immediately
+    };
+  }
+
+  /**
+   * Drain up to maxFrames mono float samples. Returns audio metadata plus a JS-owned Float32Array
+   * copy of the drained samples.
+   */
+  drainAudio(maxFrames) {
+    const r = this._h.drainAudio(Number(maxFrames) | 0);
+    return {
+      sampleRate: r.sampleRate,
+      channels: r.channels,
+      framesWritten: r.framesWritten,
+      sequence: r.sequence,
+      dropped: r.dropped,
+      samples: new Float32Array(r.samples), // copy out of WASM memory immediately
+    };
+  }
+
+  /** Mount an immutable D64. Returns { ok, errorCode, errorMessage, diskName, fileCount }. */
   mountD64(bytes) {
     return this._h.mountD64(toUint8(bytes));
-  }
-
-  copyFramebuffer() {
-    return this._h.copyFramebuffer();
-  }
-
-  drainAudio() {
-    return this._h.drainAudio();
-  }
-
-  setInput() {
-    return this._h.setInput();
   }
 
   /** Release the underlying WASM handle. */

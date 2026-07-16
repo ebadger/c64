@@ -77,11 +77,27 @@ deterministically.
 - Downstream: [`WEB-CLIENT.md`](./WEB-CLIENT.md) canvas presentation and diagnostics,
   deterministic video tests.
 
-## Implementation Status
+## Implementation status
+
+Fidelity note: the renderer is **line-based** — each raster line is produced from the register
+state at the line boundary. This reproduces per-line raster effects (colour bars, split screens,
+smooth scroll, mode changes between lines) but is **not pixel-cycle-exact within a line**;
+mid-line register changes take effect at the next line. BA/AEC bus stalls are represented at
+**bad-line + sprite-DMA granularity** (a bad line steals ~40 cycles; each active sprite ~2),
+not at exact per-cycle BA edge timing. These approximations are deliberate for the
+broad-compatibility MVP and are the honestly-labelled unsupported fidelity.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Register and raster model | Not started | PAL/NTSC golden traces required |
-| Display modes and borders | Not started | Indexed framebuffer output |
-| Sprites, collisions, and DMA | Not started | Cycle-level arbitration required |
-| Browser renderer | Not started | Lives in web client, not this module |
+| Register file and mirrors | Implemented | `$D000-$D03F` with correct readable bits/latches; colour regs read top nibble 1; unused read `$FF` |
+| Raster counters and interrupts | Implemented | 9-bit raster (`$D012` + `$D011` bit7), compare IRQ, `$D019` ack, `$D01A` mask; golden PAL/NTSC vectors |
+| Bad lines and bus arbitration | Implemented | DEN-qualified bad-line detection; BA steal on read (line granularity) |
+| Borders | Implemented | RSEL/CSEL top/bottom/left/right; DEN-off blanking |
+| Text/bitmap modes | Implemented | Standard + multicolor text, standard + multicolor bitmap, ECM; invalid combos render deterministic black |
+| Colour RAM | Implemented | Low nibble from colour RAM through the bus |
+| Sprites | Implemented | 8 sprites: enable, X (incl. MSB), Y, X/Y expansion, multicolor, priority, pointer/DMA fetch, sprite-sprite and sprite-background collision latches + IRQ |
+| CIA2 VIC bank | Implemented | 16 KB bank from CIA2 port A; char-ROM overlay in banks 0/2 |
+| Indexed framebuffer + FrameInfo | Implemented | One 4-bit colour index per byte; stable per-profile dimensions (PAL 384x284, NTSC 384x235) |
+| Pixel-cycle-exact rendering | Not implemented | Line-based renderer; documented above |
+| Browser renderer | Implemented | Lives in the web client (`web/client/lib/video.js` + palette), not this module |
+
