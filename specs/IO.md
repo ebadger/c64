@@ -87,10 +87,18 @@ emulator/web presentation`.
 
 ## Implementation Status
 
+> v0 subset: the bus maps SID (`$D400-$D41F`), CIA 1 (`$DC00-$DC0F`), and CIA 2 (`$DD00-$DD0F`)
+> as deterministic register shadows so executing code can read and write them without faulting,
+> and undriven keyboard/joystick data ports read as all-high. No timers, TOD, interrupt logic,
+> audio synthesis, keyboard-matrix scanning, or IEC signalling is implemented yet; none of this
+> feeds machine state. This is enough to run code that touches these registers while the VIC-II
+> border/background path is exercised, and honestly nothing more.
+
 | Item | Status | Notes |
 |------|--------|-------|
-| CIA 1/2 registers and timers | Not started | Requires interrupt/timer vectors |
-| Keyboard and joystick matrix | Not started | Browser mapping remains separate |
-| SID voices and envelopes | Not started | Model fidelity must be labeled honestly |
-| SID filters and resampling | Not started | No analog-perfect claim |
+| CIA 1/2 register shadows | Implemented (stub) | Read/write shadows only; no timers/TOD/IRQ in `core/src/bus.cpp` |
+| CIA 1/2 timers, TOD, interrupts | Not started | Requires interrupt/timer vectors wired to the CPU |
+| Keyboard and joystick matrix | Not started | Data ports read all-high; browser mapping remains separate |
+| SID register shadow | Implemented (stub) | Deterministic read/write; no synthesis |
+| SID voices, envelopes, filters, resampling | Not started | Model fidelity must be labelled honestly; no analog-perfect claim |
 | IEC-facing signal contract | Not started | Drive model selected in media implementation |

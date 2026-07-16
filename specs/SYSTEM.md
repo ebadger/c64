@@ -12,10 +12,12 @@ can edit NMOS 6510 assembly, deterministically build the same source into a PRG 
 run the PRG through a WebAssembly C64 emulator, share the source through a URL or curated
 example, and download standard artifacts for external tools or physical hardware.
 
-This repository currently contains the specialized product and architecture foundation plus
-the implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64). The
-emulator, WebAssembly core, web client, examples gallery, and deployment workflow are planned
-and are not yet implemented.
+This repository currently contains the specialized product and architecture foundation, the
+implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64), and a first
+deterministic emulator-core subset compiled to WebAssembly: an NMOS 6510 CPU, a memory bus with
+I/O routing, and a minimal VIC-II that renders border/background colour into an indexed
+framebuffer. The web client, examples gallery, ROM handling, SID/CIA devices, and deployment
+workflow are planned and are not yet implemented.
 
 ## Architecture at a glance
 
@@ -97,9 +99,11 @@ There is no runtime API, account system, database, or secret.
 |------|--------|
 | Product mission and architecture | Specified in this specialization PR |
 | Template lineage and operating controls | Inherited and instantiated at template commit `66a14469787860a1b08918f4089f9070680bb3e9` |
-| Emulator, VIC-II, SID/CIA/input | Not started |
+| Emulator core and memory bus | Implemented (subset) — deterministic NMOS 6510 (all documented opcodes, cycles, flags, decimal, interrupts), 64 KiB bus with `$00/$01` banking and I/O routing in `core/` |
+| Minimal VIC-II | Implemented (subset) — raster counter + border/background indexed framebuffer; no text/bitmap/sprites/raster-IRQ yet |
+| SID/CIA/input | Not started — deterministic register shadows only; no timers, audio, or keyboard scan |
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
 | ROM asset handling | Not started |
 | Web client, examples, and gallery | Not started (one canonical assembler example fixture exists under `examples/`) |
-| Native/WASM tests and build pipeline | Node pipeline tests implemented; native/WASM build and tests not started |
+| Native/WASM tests and build pipeline | Implemented — CMake native + CTest golden vectors, pinned Emscripten/embind WASM build, headless WASM smoke test on the production artifact |
 | GitHub Pages deployment | Planned; no workflow or deployed site exists yet |

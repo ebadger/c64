@@ -3,6 +3,8 @@
 /out/
 /dist/
 /cmake-build-*/
+/core/build-native/
+/core/build-wasm/
 /CMakeFiles/
 /CMakeCache.txt
 /cmake_install.cmake

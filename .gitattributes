@@ -5,3 +5,8 @@
 *.mjs      text eol=lf
 .template-source text eol=lf
 .githooks/pre-push text eol=lf
+
+# Generated core fixtures are emitted with LF by tools/gen-core-fixtures.mjs; pin LF so the
+# byte-for-byte verify (node tools/gen-core-fixtures.mjs) is stable on every platform.
+core/tests/fixtures/*.hpp  text eol=lf
+core/tests/fixtures/*.json text eol=lf

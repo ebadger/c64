@@ -1,0 +1,41 @@
+{
+  "name": "border-bg",
+  "prg": [
+    0,
+    192,
+    169,
+    2,
+    141,
+    32,
+    208,
+    169,
+    6,
+    141,
+    33,
+    208,
+    76,
+    10,
+    192
+  ],
+  "loadAddress": 49152,
+  "runAddress": 49152,
+  "timingProfile": "pal-6569",
+  "expected": {
+    "border": 2,
+    "background": 6,
+    "width": 384,
+    "height": 272,
+    "borderSample": {
+      "x": 0,
+      "y": 0,
+      "index": 0,
+      "color": 2
+    },
+    "centreSample": {
+      "x": 192,
+      "y": 136,
+      "index": 52416,
+      "color": 6
+    }
+  }
+}

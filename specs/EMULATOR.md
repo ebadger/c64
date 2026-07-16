@@ -55,7 +55,33 @@ The JavaScript bridge owns typed-array allocation/copy policy and translates str
 errors. It must not expose writable views whose lifetime can outlive a WebAssembly memory
 growth.
 
-## CPU and bus rules
+### v0 WebAssembly boundary (shipped subset)
+
+The first implemented embind surface (`core/wasm/embind.cpp`) is a deliberately small subset of
+the full contract above, coordinated with the web client so integration can begin. It is
+projected 1:1 from the native `c64::Machine`; native and WASM builds share the same sources.
+
+```text
+class Machine {
+  constructor(timingProfile: "pal-6569" | "ntsc-6567r8")
+  reset()                                  // power-on reset
+  setPC(address: uint16)                   // direct-mode entry
+  loadPrg(bytes: Uint8Array) -> { ok, loadAddress, endAddress, error }
+  runCycles(maxCycles: uint32) -> cyclesRun: number
+  runFrame() -> { cyclesRun, frameSequence, stopped }
+  framebuffer() -> Uint8Array              // fresh copy; c64-indexed-8, frameWidth*frameHeight
+  frameWidth() -> uint16                    // 384
+  frameHeight() -> uint16                   // 272
+  readMem(address: uint16) -> uint8         // side-effect-free
+  writeMem(address: uint16, value: uint8)
+  delete()                                  // release the C++ instance
+}
+```
+
+`framebuffer()` returns a newly allocated `Uint8Array` copied out of WASM memory, so no writable
+view outlives a memory growth. `create/mountD64/setInput/copyFramebuffer/drainAudio/saveState`
+from the full contract are not part of v0 and are tracked below. This boundary is expected to
+grow toward the full contract; changes are coordinated with the web client before landing.
 
 - Implement NMOS 6510 behavior, including decimal mode, interrupt sequencing, page-crossing
   timing, read-modify-write bus cycles, the 6510 data-direction register at `$0000`, and
@@ -85,10 +111,13 @@ truth. Supporting another VIC revision requires another profile ID and golden ve
 
 ## Behaviour / Rules
 
-- `runCycles(n)` executes no more than `n` CPU cycles and reports the exact amount consumed.
-  It may stop early only for a declared stop reason.
+- `runCycles(n)` runs whole instructions until at least `n` CPU cycles have executed and
+  reports the exact amount consumed; the final instruction may carry execution a few cycles
+  past `n` at its boundary. It may stop early only for a declared stop reason (`fault` in the
+  v0 core; `budget` otherwise). Sub-instruction cycle budgeting is a later refinement.
 - PRG loading validates the two-byte little-endian load address and rejects images that
-  would exceed `$FFFF`; it does not infer a run address from file content.
+  would exceed `$FFFF`; it does not infer a run address from file content. Bytes are written to
+  the underlying RAM regardless of the current bank configuration.
 - Browser Run uses the entry contract from `CODEGEN.md`: direct mode sets the CPU program
   counter after loading; BASIC SYS mode starts through a reset BASIC environment and its
   generated stub.
@@ -127,8 +156,10 @@ ROMs, or report success-shaped defaults.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| C++17 machine shell and bus | Not started | Architecture only |
-| NMOS 6510 core | Not started | Requires opcode and cycle golden vectors |
-| Native and embind APIs | Not started | Must remain behaviorally identical |
-| Headless deterministic runner | Not started | Must load the production WASM artifact |
+| C++17 machine shell and bus | Implemented (subset) | 64 KiB RAM, 6510 `$00/$01` port banking, I/O routing to VIC/colour-RAM/SID/CIA in `core/` |
+| NMOS 6510 core | Implemented | All documented opcodes with cycle counts, page-cross/branch penalties, RMW timing, NMOS decimal ADC/SBC, BRK/IRQ/NMI/RESET; illegal opcodes fault. No undocumented opcodes |
+| Native and embind APIs | Implemented (v0 subset) | Shared native `Machine`; embind v0 boundary above. `mountD64/setInput/drainAudio/copyFramebuffer/saveState` not yet exposed |
+| Headless deterministic runner | Implemented | `tests/wasm-smoke.test.mjs` runs the production `c64core.wasm`; native golden vectors via CTest (`core/tests`) |
+| SID / CIA devices | Not started | Register shadows only (deterministic); no timers, IRQ, audio, or keyboard scan yet — see `IO.md` |
 | Save-state format | Deferred | Requires a separate versioned contract |
+| Sub-instruction cycle budgeting, breakpoints | Not started | `runCycles` budgets whole instructions in v0 |

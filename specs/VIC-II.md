@@ -79,9 +79,19 @@ deterministically.
 
 ## Implementation Status
 
+> v0 subset: the model tracks the raster position deterministically and renders an indexed
+> framebuffer of `384x272` (a fixed border frame around the `320x200` display) using the border
+> (`$D020`) and background-0 (`$D021`) registers. Colours are sampled at frame completion, so a
+> direct-mode PRG that writes those registers yields visible, deterministic output. `$D011`
+> bit 7 / `$D012` expose the live raster line and the colour registers read back with the
+> hardware's high-nibble-set behaviour. Character/bitmap fetches, per-raster mid-frame splits,
+> sprites, bad lines, and video interrupts are not implemented and are tracked below.
+
 | Item | Status | Notes |
 |------|--------|-------|
-| Register and raster model | Not started | PAL/NTSC golden traces required |
-| Display modes and borders | Not started | Indexed framebuffer output |
+| Raster counter and register file | Implemented (subset) | Deterministic raster/line/frame advance; `$D011`/`$D012` readback and register read-mask behaviour in `core/src/vicii.cpp` |
+| Framebuffer output | Implemented (subset) | Indexed `c64-indexed-8`, border + background-0 only; sampled at frame end |
+| Display modes and borders | Not started | No text/bitmap character fetches yet |
 | Sprites, collisions, and DMA | Not started | Cycle-level arbitration required |
+| Raster interrupts and bad lines | Not started | No VIC IRQ source wired to the CPU yet |
 | Browser renderer | Not started | Lives in web client, not this module |
