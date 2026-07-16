@@ -68,7 +68,6 @@ class Vic {
   void renderLine(u16 line);
   u8 vicFetch(u16 addr14) const;         // 14-bit VIC address within the selected bank
   u8 renderTextBitmapPixel(u16 line, int dpx, bool& foreground) const;
-  void renderSprites(u16 line, int fbRow);
 
   // Register file (48 registers; unused ones read back with set high bits).
   std::array<u8, 0x40> reg_{};

@@ -110,6 +110,19 @@ TEST(sid_pulse_waveform_output) {
   CHECK(sawHigh);
 }
 
+TEST(sid_slowest_envelope_rate_progresses) {
+  // Regression: rate index 15 has a period (39063) above 0x7FFF; the envelope must still advance
+  // (a 15-bit rate-counter mask would make this rate never progress).
+  Sid sid;
+  sid.configure(Sid::Model::Mos6581, kPhi2, kRate);
+  sid.write(14 + 4, 0x21);  // sawtooth + gate
+  sid.write(14 + 5, 0xF0);  // attack = 15 (slowest), decay = 0
+  sid.write(14 + 6, 0xF0);  // sustain = 15
+  CHECK_EQ(sid.read(0x1C, true), 0x00u);
+  run(sid, 39063u * 3 + 100);  // enough for a few attack steps at the slowest rate
+  CHECK(sid.read(0x1C, true) >= 2u);  // the envelope advanced
+}
+
 TEST(sid_test_bit_holds_oscillator) {
   Sid sid;
   sid.configure(Sid::Model::Mos6581, kPhi2, kRate);

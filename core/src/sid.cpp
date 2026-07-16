@@ -127,7 +127,10 @@ void Sid::clockEnvelope(int i) {
     rateIndex = static_cast<u8>(voice.sr & 0x0F);
   }
 
-  voice.rateCounter = static_cast<u16>((voice.rateCounter + 1) & 0x7FFF);
+  // rateCounter is a 16-bit counter that reaches the (up to 39063-cycle) period and resets. It is
+  // NOT masked to 15 bits: the two slowest periods exceed 0x7FFF, so masking would make the
+  // slowest rate index unreachable (it would never progress).
+  voice.rateCounter = static_cast<u16>(voice.rateCounter + 1);
   if (voice.rateCounter != kRatePeriod[rateIndex]) return;
   voice.rateCounter = 0;
 
