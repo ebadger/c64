@@ -3,13 +3,13 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-16 — bundled OpenROMs/default-run candidate_
+_Last verified: 2026-07-16 — disk browse/run/eject and animated-example candidate_
 
 ## Environments
 
 | Environment | Current location | URL | State |
 |-------------|------------------|-----|-------|
-| Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker and production WASM machine |
+| Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker, production WASM machine, and D64 directory/run/eject controls |
 | Production | GitHub Pages | `https://ebadger.github.io/c64/` | Live static deployment. `release.yml` rebuilds and deploys the exact gated `dist/` artifact on merged `main`; no runtime backend or secret |
 
 ## Run locally
@@ -28,6 +28,9 @@ The static browser IDE in `web/client/` runs the production assembler in a modul
 production WASM machine through `web/emulator/c64.mjs`. Edit/build/download work without the WASM
 artifact; **Run** additionally requires the built WASM core. The pinned generic MEGA65 OpenROMs
 set loads by default, with an explicit complete custom local-set override that remains memory-only.
+A valid local or curated D64 immediately exposes its directory; a selected PRG runs at a detected
+first-line BASIC `SYS` target or a user-supplied entry address, and **Eject** removes drive-8 media
+without stopping or resetting the CPU.
 
 ## Build and run the machine core
 
@@ -48,11 +51,11 @@ bus/banking and processor port, ROM-set validation and identity, machine lifecyc
 sprites/modes/indexed framebuffer), SID (voices/ADSR/waveforms + approximate filter, mono float
 audio), the two CIAs (ports/timers/TOD/keyboard/joystick/VIC-bank), read-only mounted D64
 execution through a high-level KERNAL LOAD/IEC trap, the `setInput`/`copyFramebuffer`/
-`drainAudio`/`mountD64` APIs, the embind projection, and the `web/emulator` ES wrapper. The
-static browser IDE (`web/client/`) is implemented on top of these; the GitHub Pages deployment is
-a later milestone and is not live. Device and media fidelity is honestly
-labelled (line-based VIC renderer, approximate SID filter, high-level rather than cycle-level
-1541 drive); see the layer specs.
+`drainAudio`/`mountD64`/`unmountD64` APIs, the embind projection, and the `web/emulator` ES
+wrapper. The static browser IDE (`web/client/`) is implemented on top of these, and the GitHub
+Pages deployment is live. Device and media fidelity is honestly labelled (line-based VIC
+renderer, approximate SID filter, high-level rather than cycle-level 1541 drive); see the layer
+specs.
 
 ## Verify the files that exist
 
@@ -86,7 +89,7 @@ in `SETUP.md`).
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
 | CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + full browser matrix + external interop + dist build/integrity + Pages deploy on main) and `.github/workflows/core.yml` (fast per-branch feedback) |
-| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, `gallery.json`, bundled pinned OpenROMs, and complete memory-only custom-set override |
+| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned OpenROMs, and complete memory-only custom-set override |
 | Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and exact OpenROMs/license/source allowlist; WASM required (fail-not-skip) |
 | Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI) |
 | External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
@@ -134,8 +137,10 @@ repository or CI data.
   SID output is float, so native/WASM byte-identical parity is asserted only over integer device
   state; SID audio is validated by native unit tests and a WASM smoke test.
 - The mounted-D64 drive is a **high-level KERNAL LOAD/IEC trap** (drive 8, standard file and
-  directory LOAD), not a cycle-level 1541 CPU/VIA/GCR drive. Custom drive code, fastloaders, and
-  bit-level GCR access are not emulated (see `specs/MEDIA.md`).
+  directory LOAD), not a cycle-level 1541 CPU/VIA/GCR drive. Browser directory launch extracts
+  and directly loads the exact selected PRG; subsequent emulated disk access still uses the
+  high-level trap. Custom drive code, fastloaders, and bit-level GCR access are not emulated (see
+  `specs/MEDIA.md`).
 - The CIA serial shift register (SDR) has limited support; full RS-232/serial timing is not
   modelled. Interrupts are sampled at instruction boundaries (the NMOS CLI/SEI/PLP enable delay
   is modelled).

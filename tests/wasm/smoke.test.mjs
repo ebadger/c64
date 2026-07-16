@@ -133,6 +133,7 @@ test("mount a JS-built D64 and LOAD it through the WASM boundary", async (t) => 
     const mount = machine.mountD64(built.d64);
     assert.equal(mount.ok, true, mount.errorMessage);
     assert.equal(mount.fileCount, 1);
+    assert.equal(machine.diskMounted(), true);
 
     // Set up the KERNAL LOAD zero page (as SETNAM/SETLFS would) and JSR $FFD5.
     const name = "PROG";
@@ -152,6 +153,13 @@ test("mount a JS-built D64 and LOAD it through the WASM boundary", async (t) => 
     const st = machine.cpuState();
     assert.equal(st.x, 0x05); // end address low
     assert.equal(st.y, 0x08); // end address high
+
+    const beforeEject = machine.cpuState();
+    assert.equal(machine.unmountD64(), "none");
+    assert.equal(machine.diskMounted(), false);
+    assert.deepEqual(machine.cpuState(), beforeEject, "eject does not reset CPU state");
+    assert.equal(machine.debugReadRam(0x0801), 0x11, "eject does not reset RAM");
+    assert.equal(machine.unmountD64(), "none", "eject is idempotent");
   } finally {
     machine.dispose();
   }

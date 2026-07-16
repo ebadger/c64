@@ -3,7 +3,8 @@
 // bundled OpenROMs default, custom-ROM privacy/gating, machine run + frame progression,
 // keyboard release (stuck-key prevention),
 // URL share/remix round-trip (Unicode), gallery load + reproducible buildId, artifact downloads,
-// and D64 import. Skips cleanly when the WASM artifact or Playwright is not available.
+// and D64 directory/launch/eject behavior. Skips cleanly when the WASM artifact or Playwright is
+// not available.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -26,6 +27,14 @@ import { makeProject } from "../../web/client/lib/projectModel.js";
 const OBSERVABLE_PROGRAM = `start
         lda #$07
         sta $0400
+loop
+        inc $d020
+        jmp loop
+`;
+
+const DISK_PROGRAM = `start
+        lda #$5a
+        sta $0420
 loop
         inc $d020
         jmp loop
@@ -224,13 +233,93 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     assert.deepEqual(new Uint8Array(readFileSync(prgPath)), expectedPrg, "downloaded PRG is byte-identical to the assembled PRG");
     assert.equal(build.prgLen, expectedPrg.length, "reported PRG length matches");
 
-    // --- D64 import (read-only) -------------------------------------------------------------
-    const disk = buildD64({ outputName: "PROG", diskName: "TESTDISK", diskId: "ID" }, Uint8Array.from([0x01, 0x08, 0x2a, 0x2b]));
+    // --- D64 directory, direct PRG launch, reset continuity, and live eject -----------------
+    const diskProgram = buildArtifacts(makeProject({
+      name: "disk-program",
+      source: DISK_PROGRAM,
+      outputName: "PROG",
+    }));
+    assert.equal(diskProgram.ok, true, "the disk program must assemble");
+    const disk = buildD64(
+      { outputName: "PROG", diskName: "TESTDISK", diskId: "ID" },
+      diskProgram.bundle.prg,
+    );
     assert.equal(disk.ok, true);
     const d64Path = join(workDir, "test.d64");
     writeFileSync(d64Path, Buffer.from(disk.d64));
     await page.setInputFiles("#d64-file", d64Path);
-    await page.waitForFunction(() => /Selected|Mounted/.test(document.getElementById("d64-status").textContent));
+    await page.waitForFunction(() => document.getElementById("d64-controls").hidden === false);
+    assert.match(await page.locator("#d64-status").textContent(), /Mounted TESTDISK/);
+    assert.match(await page.locator("#d64-program option").textContent(), /"PROG" PRG/);
+    assert.equal(
+      await page.locator("#d64-entry").inputValue(),
+      `$${diskProgram.assembly.runAddress.toString(16).toUpperCase().padStart(4, "0")}`,
+      "the first-line BASIC SYS target is detected",
+    );
+    assert.equal(await page.locator("#btn-run-d64").isEnabled(), true);
+
+    await page.click("#btn-run-d64");
+    await page.waitForFunction(
+      () => window.__c64.running() && window.__c64.peek(0x0420) === 0x5a,
+      null,
+      { timeout: 5000 },
+    );
+    assert.equal(await page.evaluate(() => window.__c64.diskMounted()), true);
+
+    // A pending older file read must not remount media after the user presses Eject.
+    const replacementD64Path = join(workDir, "replacement.d64");
+    writeFileSync(replacementD64Path, Buffer.from(disk.d64));
+    await page.evaluate(() => {
+      const originalArrayBuffer = File.prototype.arrayBuffer;
+      let markStarted;
+      let releaseSlowRead;
+      const started = new Promise((resolve) => {
+        markStarted = resolve;
+      });
+      File.prototype.arrayBuffer = function arrayBuffer() {
+        if (this.name !== "replacement.d64") return originalArrayBuffer.call(this);
+        markStarted();
+        return new Promise((resolve, reject) => {
+          releaseSlowRead = () => originalArrayBuffer.call(this).then(resolve, reject);
+        }).finally(() => {
+          window.__d64ReadRace.delivered = true;
+        });
+      };
+      window.__d64ReadRace = {
+        delivered: false,
+        waitForStart: () => started,
+        release: () => releaseSlowRead(),
+        restore: () => {
+          File.prototype.arrayBuffer = originalArrayBuffer;
+          delete window.__d64ReadRace;
+        },
+      };
+    });
+    await page.setInputFiles("#d64-file", replacementD64Path);
+    await page.evaluate(() => window.__d64ReadRace.waitForStart());
+    const diskSeqBeforeEject = await page.evaluate(() => window.__c64.frame().sequence);
+    await page.click("#btn-eject-d64");
+    assert.equal(await page.evaluate(() => window.__c64.diskMounted()), false);
+    assert.equal(await page.locator("#d64-controls").isHidden(), true);
+    assert.equal(await page.locator("#d64-status").textContent(), "No disk mounted.");
+    assert.equal(await page.evaluate(() => window.__c64.running()), true, "eject does not stop the CPU");
+    await page.waitForTimeout(150);
+    const diskSeqAfterEject = await page.evaluate(() => window.__c64.frame().sequence);
+    assert.ok(Number(diskSeqAfterEject) > Number(diskSeqBeforeEject), "frames continue after eject");
+
+    await page.evaluate(() => window.__d64ReadRace.release());
+    await page.waitForFunction(() => window.__d64ReadRace.delivered);
+    await page.waitForTimeout(0);
+    assert.equal(await page.locator("#d64-controls").isHidden(), true, "a stale disk read cannot undo Eject");
+    await page.evaluate(() => window.__d64ReadRace.restore());
+
+    await page.click("#btn-reset");
+    await page.waitForFunction(
+      () => window.__c64.running() && window.__c64.peek(0x0420) === 0x5a,
+      null,
+      { timeout: 5000 },
+    );
+    await page.click("#btn-stop");
 
     // --- Gallery load + reproducible buildId ------------------------------------------------
     const expected = JSON.parse(readFileSync(new URL("../../web/client/gallery.json", import.meta.url)));
@@ -248,6 +337,22 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     );
     const galleryBuild = await page.evaluate(() => window.__c64.lastBuild());
     assert.equal(galleryBuild.buildId, expected[0].expectedBuildId, "gallery entry reproduces its buildId in-browser");
+
+    await page.click("#btn-run");
+    await page.waitForFunction(() => window.__c64.running() === true, null, { timeout: 5000 });
+    const borderColors = await page.evaluate(async () => {
+      const observed = new Set();
+      const deadline = performance.now() + 800;
+      while (performance.now() < deadline) {
+        const frame = window.__c64.frame();
+        if (frame && frame.pixels.length > 0) observed.add(frame.pixels[0]);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return [...observed];
+    });
+    const paletteColors = borderColors.filter((color) => [0x00, 0x06, 0x0e, 0x01, 0x02].includes(color));
+    assert.ok(new Set(paletteColors).size >= 3, `border example visibly cycles colours: ${borderColors.join(", ")}`);
+    await page.click("#btn-stop");
 
     // --- URL share/remix round-trip (Unicode) -----------------------------------------------
     const unicode = "; remix ☕ 日本語\nlda #$01\nrts\n";

@@ -1,10 +1,7 @@
-// Machine lifecycle: configuration, deterministic reset, PRG loading, bounded execution, and
-// explicit debug/inspection APIs.
-//
-// The Machine owns the ROM set, bus, and CPU. Operations that belong to devices not yet
-// implemented (mounting a D64, framebuffer, audio, input) return a stable Unavailable error
-// rather than pretending to succeed. All fallible operations return values carrying an Error;
-// no exception crosses this API or the embind projection. See specs/EMULATOR.md.
+// Machine lifecycle: configuration, deterministic reset, PRG/media loading, bounded execution,
+// device I/O, and explicit debug/inspection APIs. The Machine owns the ROM set, bus, CPU, and
+// mounted read-only media. All fallible operations return values carrying an Error; no exception
+// crosses this API or the embind projection. See specs/EMULATOR.md.
 #ifndef C64_MACHINE_HPP
 #define C64_MACHINE_HPP
 
@@ -136,6 +133,8 @@ class Machine {
   // deterministic high-level KERNAL LOAD/IEC trap (see specs/MEDIA.md for the compatibility
   // boundary); custom drive code is not emulated.
   MediaResult mountD64(const std::vector<u8>& bytes, u8 driveNumber = 8);
+  // Remove drive-8 media without resetting machine state. Idempotent when no disk is mounted.
+  Error unmountD64(u8 driveNumber = 8);
   bool diskMounted() const { return disk_.loaded; }
 
  private:

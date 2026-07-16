@@ -1,6 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parsePrg, downloadFilename } from "../src/prg.js";
+import {
+  BASIC_LOAD_ADDRESS,
+  buildBasicSysStub,
+  detectBasicSysRunAddress,
+} from "../src/basicStub.js";
+
+function basicLinePrg(body, tail = [0x00, 0x00, 0xea]) {
+  const lineEnd = 4 + body.length;
+  const nextLine = BASIC_LOAD_ADDRESS + lineEnd + 1;
+  return Uint8Array.from([
+    0x01,
+    0x08,
+    nextLine & 0xff,
+    nextLine >> 8,
+    0x0a,
+    0x00,
+    ...body,
+    0x00,
+    ...tail,
+  ]);
+}
 
 test("a valid PRG returns load/end metadata", () => {
   const r = parsePrg(new Uint8Array([0x01, 0x08, 0xaa, 0xbb]));
@@ -29,6 +50,30 @@ test("a PRG ending exactly at $10000 is valid", () => {
 
 test("non-Uint8Array input is rejected", () => {
   assert.equal(parsePrg([0x01, 0x08, 0x00]).error.code, "invalid-prg");
+});
+
+test("a generated one-line BASIC SYS stub exposes its direct run address", () => {
+  const target = 0xc000;
+  const prg = Uint8Array.from([0x01, 0x08, ...buildBasicSysStub(target), 0xea]);
+  assert.equal(detectBasicSysRunAddress(prg), target);
+});
+
+test("BASIC SYS detection accepts spaces but never guesses from malformed PRGs", () => {
+  const spaced = basicLinePrg([0x20, 0x9e, 0x20, 0x34, 0x30, 0x39, 0x36, 0x20]);
+  assert.equal(detectBasicSysRunAddress(spaced), 4096);
+
+  const wrongLoad = Uint8Array.from(spaced);
+  wrongLoad[1] = 0x10;
+  assert.equal(detectBasicSysRunAddress(wrongLoad), null);
+
+  const badPointer = Uint8Array.from(spaced);
+  badPointer[2] ^= 0x01;
+  assert.equal(detectBasicSysRunAddress(badPointer), null);
+
+  assert.equal(detectBasicSysRunAddress(basicLinePrg([0x9e])), null);
+  assert.equal(detectBasicSysRunAddress(basicLinePrg([0x9e, ...Buffer.from("65536")])), null);
+  assert.equal(detectBasicSysRunAddress(basicLinePrg([0x99, ...Buffer.from("4096")])), null);
+  assert.equal(detectBasicSysRunAddress([0x01, 0x08]), null);
 });
 
 test("download filenames are sanitized lowercase ASCII with the right extension", () => {

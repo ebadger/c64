@@ -89,6 +89,10 @@ const REWRITES = {
       find: 'const repoBase = new URL("../../", import.meta.url); // repository root static base',
       replace: 'const repoBase = new URL("./", import.meta.url); // app root static base (dist)',
     },
+    {
+      find: 'import { detectBasicSysRunAddress, extractPrg, parseD64 } from "../../src/index.js";',
+      replace: 'import { detectBasicSysRunAddress, extractPrg, parseD64 } from "./pipeline/index.js";',
+    },
   ],
   "web/client/buildWorker.js": [
     { find: 'import { buildArtifacts } from "../../src/index.js";', replace: 'import { buildArtifacts } from "./pipeline/index.js";' },

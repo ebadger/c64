@@ -190,6 +190,17 @@ button.secondary { background: var(--panel-2); color: var(--ink); border: 1px so
 .rom-role .state.needs-confirm { color: var(--warn); }
 .rom-role .state.error { color: var(--error); }
 
+/* Disk directory + launch */
+.media-controls {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+.media-controls[hidden] { display: none; }
+.media-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
 /* Artifacts + share */
 .artifact-buttons, .share-buttons, .artifact-status { margin-top: 0.5rem; }
 .artifact-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }

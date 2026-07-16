@@ -60,6 +60,7 @@ TEST(machine_operations_require_ready) {
   CHECK_EQ(static_cast<int>(m.reset(ResetKind::Warm).code), static_cast<int>(ErrorCode::InvalidState));
   CHECK_EQ(static_cast<int>(m.setProgramCounter(0x1000).code),
            static_cast<int>(ErrorCode::InvalidState));
+  CHECK_EQ(static_cast<int>(m.unmountD64().code), static_cast<int>(ErrorCode::InvalidState));
 }
 
 TEST(machine_load_prg_valid) {
@@ -136,6 +137,39 @@ TEST(machine_devices_implemented) {
   CHECK(!m.diskMounted());
   MediaResult wrongDrive = m.mountD64(std::vector<u8>(174848, 0), 9);
   CHECK_EQ(static_cast<int>(wrongDrive.error.code), static_cast<int>(ErrorCode::UnsupportedMedia));
+}
+
+TEST(machine_unmount_d64_is_idempotent_and_preserves_machine_state) {
+  Machine m;
+  boot(m);
+  MediaResult mounted = m.mountD64(makeD64("PROG", {0x01, 0x08, 0x11}), 8);
+  CHECK(mounted.ok);
+  CHECK(m.diskMounted());
+
+  loadCodeAt(m, 0xC000,
+             {0xA9, 0x2A, 0x85, 0x30, 0xEA, 0x4C, 0x04, 0xC0});  // write; NOP; loop
+  m.runCycles(100);
+  const CpuState before = m.cpuState();
+  const u64 cyclesBefore = m.totalCycles();
+
+  Error wrongDrive = m.unmountD64(9);
+  CHECK_EQ(static_cast<int>(wrongDrive.code), static_cast<int>(ErrorCode::UnsupportedMedia));
+  CHECK(m.diskMounted());
+
+  CHECK(m.unmountD64().ok());
+  CHECK(!m.diskMounted());
+  const CpuState after = m.cpuState();
+  CHECK_EQ(after.pc, before.pc);
+  CHECK_EQ(after.a, before.a);
+  CHECK_EQ(after.x, before.x);
+  CHECK_EQ(after.y, before.y);
+  CHECK_EQ(after.sp, before.sp);
+  CHECK_EQ(after.p, before.p);
+  CHECK_EQ(m.totalCycles(), cyclesBefore);
+  CHECK_EQ(m.debugReadRam(0x30), 0x2Au);
+
+  CHECK(m.unmountD64().ok());
+  CHECK(!m.diskMounted());
 }
 
 TEST(machine_frame_sequence) {

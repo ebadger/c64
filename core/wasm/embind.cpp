@@ -189,6 +189,9 @@ class MachineHandle {
     return o;
   }
 
+  std::string unmountD64() { return errorCodeId(m_.unmountD64(8).code); }
+  bool diskMounted() const { return m_.diskMounted(); }
+
  private:
   Machine m_;
   std::vector<u8> fbBuffer_;
@@ -239,5 +242,7 @@ EMSCRIPTEN_BINDINGS(c64_core) {
       .function("framebufferSize", &MachineHandle::framebufferSize)
       .function("copyFramebuffer", &MachineHandle::copyFramebuffer)
       .function("drainAudio", &MachineHandle::drainAudio)
-      .function("mountD64", &MachineHandle::mountD64);
+      .function("mountD64", &MachineHandle::mountD64)
+      .function("unmountD64", &MachineHandle::unmountD64)
+      .function("diskMounted", &MachineHandle::diskMounted);
 }

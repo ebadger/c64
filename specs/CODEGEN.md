@@ -154,6 +154,10 @@ a zero-page address encodes as zero page.
   `SourceProject.runAddress` field is authoritative only in `direct` mode.
 - The SYS decimal text, BASIC next-line pointer, terminators, and machine-code origin are
   generated from final addresses and covered by byte-exact vectors.
+- `detectBasicSysRunAddress(prg)` is the inverse convenience used for imported PRGs. It returns
+  a run address only when the PRG loads at `$0801` and its structurally valid first tokenized
+  BASIC line begins with optional spaces followed by `SYS` and a decimal uint16 target. It
+  returns `null` for every other layout; it never guesses an arbitrary machine-code entry point.
 
 ## Determinism and rebuild rules
 
@@ -197,6 +201,6 @@ converted to empty successful artifacts.
 | Source project schema | Implemented | Validation, defaults, LF normalization, canonical JSON, SHA-256 buildId |
 | Lexer/parser and NMOS instruction table | Implemented | Complete 151-opcode documented set; no 65C02/undocumented opcodes |
 | Multi-pass symbol resolution | Implemented | Grow-only zero-page/absolute fixpoint; stable sorted diagnostics |
-| PRG serializer and BASIC SYS stub | Implemented | Byte-exact stub and gap/overlap/range handling under golden vectors |
+| PRG serializer and BASIC SYS stub | Implemented | Byte-exact stub, imported-stub SYS target detection, and gap/overlap/range handling under golden vectors |
 | Browser/Node dual-use packaging | Implemented | Single ES module in `src/`; no runtime deps or environment globals |
 | Worker integration and UI wiring | Implemented | The `web/client/` module worker imports these same `src/` modules; see `WEB-CLIENT.md` |

@@ -46,6 +46,8 @@ MediaResult {
 - `mountD64` passes an immutable validated byte image to the emulator/drive model. It rejects
   media that fails the geometry/directory/file-chain checks above, but not (yet) media whose
   only defect is an inconsistent BAM free map (see ebadger/c64#2).
+- `unmountD64` removes the immutable drive-8 image immediately and is idempotent. It does not
+  reset the machine or persist/export media state.
 - Download filenames are sanitized ASCII/PETSCII-derived names with `.prg` or `.d64`.
 
 ## PRG rules
@@ -53,7 +55,9 @@ MediaResult {
 - A PRG is at least three bytes: two-byte little-endian load address plus at least one data
   byte.
 - `loadAddress + dataLength` must be at most `$10000`; wraparound is invalid.
-- The media layer does not infer a run address. Run metadata comes from `SourceProject`.
+- The media layer does not infer a run address. Source builds carry `SourceProject` run
+  metadata; the web client may use the strictly bounded first-line BASIC `SYS` recognizer from
+  `CODEGEN.md` for an imported PRG, otherwise the user must supply the entry address explicitly.
 - Downloaded bytes are exactly the assembler bytes; no browser metadata is prepended.
 
 ## D64 geometry and filesystem rules
@@ -97,6 +101,17 @@ error-byte table:
 
 - File selection and curated `?d64` fetches provide bytes to `parseD64`; malformed media is
   never mounted.
+- A successful selection renders the validated directory and preselects its first PRG entry.
+  Selection alone never starts a program: a D64 can contain multiple PRGs and does not encode a
+  general machine-code entry address.
+- **Run selected PRG** calls `extractPrg` for the chosen directory index, then configures and
+  powers on the machine, mounts the selected read-only D64, loads the exact extracted PRG, and
+  enters at either a structurally detected first-line BASIC `SYS` target or a valid user-supplied
+  uint16 entry address. When no target is detected, the control remains disabled until an address
+  is entered; the client never substitutes the load address as a success-shaped guess.
+- **Eject** clears the selected bytes and directory controls and calls `unmountD64(8)` when a
+  machine exists. It does not stop or reset an otherwise running program. Selecting malformed
+  replacement media leaves any prior valid selection and mount intact.
 - Emulation is **read-only** in this milestone. Writable disk support requires copy-on-write
   state and a separate persistence/export contract before it can ship.
 - Imported bytes remain in memory. They are not placed in source share URLs, localStorage,
@@ -133,8 +148,8 @@ error-byte table:
 ## Data flow
 
 `AssemblyResult PRG -> deterministic D64 builder -> ArtifactBundle -> Blob downloads and
-emulated media`; or `local/curated D64 bytes -> validator -> immutable drive media ->
-emulator`.
+emulated media`; or `local/curated D64 bytes -> validator -> directory -> selected PRG
+extraction + explicit/detected entry -> immutable drive media + emulator load`.
 
 ## Error handling
 
@@ -165,6 +180,7 @@ visible but marks them stale.
 | Deterministic 35-track D64 builder | Implemented | Byte-exact BAM/directory/chain construction under tests |
 | D64 parser/import | Implemented (limited) | `parseD64`/`extractPrg` (JS) and the C++ core `parseD64`/`extractFile` validate geometry, directory chain, and file chains; full BAM-consistency validation is deferred to ebadger/c64#2 |
 | 1541 drive behavior | Implemented (high-level trap) | Read-only KERNAL LOAD/IEC file-service trap for drive 8 (see the fidelity section above); no cycle-level GCR drive |
+| Browser directory/run/eject workflow | Implemented | Immediate validation, explicit PRG selection and entry, direct exact-byte load, and idempotent drive-8 eject |
 | Curated D64 routes | Implemented | Same-origin gallery IDs only (`?d64` resolves through a valid gallery entry); owned by `WEB-CLIENT.md` |
 | External-tool interoperability | Implemented (software) | `tests/interop/` round-trips a generated D64 through VICE `c1541` (provisioned reproducibly, no committed binary) and asserts 35-track directory metadata plus byte-exact extracted PRG (`tests/interop/PROVENANCE.md`) |
 

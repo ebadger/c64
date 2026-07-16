@@ -1,11 +1,11 @@
 {
-  "buildId": "28f69407145b98fe4f7f8c89b0145915420d13e589fc34935b24377f147fae99",
+  "buildId": "43b646a305c2c251d6bdc52632c66558f4c8cb9c9a319ab3af36fe7e79b787ee",
   "loadAddress": 2049,
   "runAddress": 2061,
-  "prgLength": 59,
-  "prgSha256": "abdd319d2b8fb6d560437d6c4a50a02501b2eea030cc8c839f4e9606b1a470ab",
+  "prgLength": 67,
+  "prgSha256": "dca62629d778829a4db28b58773d070a27ccce7b96b494eb92577846c88aa772",
   "d64Length": 174848,
-  "d64Sha256": "0702b967aab49dd21c31dea34a836a018977d154aecc085b797cb0d4965cbd83",
+  "d64Sha256": "c2add89862647fadd1be6537012e458bb4d7c0f5dde316937db1c0ce2bfc52db",
   "prgName": "border-flash.prg",
   "d64Name": "border-flash.d64"
 }

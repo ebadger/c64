@@ -49,10 +49,10 @@ There is no runtime API, account system, database, or secret.
 
 - **Stack:** C++17; Emscripten/embind WebAssembly; dependency-light ES modules; vanilla
   HTML/CSS/JavaScript; Node.js headless tests; static GitHub Pages hosting.
-- **Development environment (planned):** native CMake build plus Emscripten build, a static
-  local web server, and Node/native/WASM smoke and golden-vector tests.
-- **Production environment (planned):** GitHub Pages at
-  `https://ebadger.github.io/c64/`; no runtime backend or production secrets.
+- **Development environment:** native CMake build plus Emscripten build, a static local web
+  server, and Node/native/WASM/browser smoke and golden-vector tests.
+- **Production environment:** live GitHub Pages at `https://ebadger.github.io/c64/`; no
+  runtime backend or production secrets.
 
 ## Sub-specs
 
@@ -95,8 +95,10 @@ There is no runtime API, account system, database, or secret.
    user-controlled file download.
 3. **Share/remix:** source -> base64url UTF-8 `?code` URL -> recipient decode -> editable
    project -> deterministic rebuild. Canonical `?src` examples resolve from committed files.
-4. **Import media:** local D64 selection or curated `?d64` -> validation -> emulated drive
-   media -> deterministic IEC/disk behavior. Imported bytes are not uploaded.
+4. **Import media:** local D64 selection or curated `?d64` -> validation -> visible directory
+   and selected PRG extraction -> explicit/detected entry -> emulated drive media + direct
+   machine load -> deterministic execution and subsequent IEC/disk behavior. Eject removes
+   drive-8 media without persisting bytes; imported bytes are not uploaded.
 5. **Publish canonical example:** contributor changes committed source and `gallery.json` ->
    tests rebuild expected PRG/D64 -> GitHub pull request -> human review and merge.
 
@@ -108,9 +110,9 @@ There is no runtime API, account system, database, or secret.
 | Template lineage and operating controls | Inherited and instantiated at template commit `66a14469787860a1b08918f4089f9070680bb3e9` |
 | Machine core (CPU, bus/banking, ROM validation, lifecycle) | Implemented — deterministic C++17 core with native + WASM parity tests |
 | VIC-II, SID/CIA/input | Implemented — cycle-integrated devices (line-based VIC renderer, approximate SID filter); honestly-labelled fidelity in the layer specs |
-| Mounted D64 execution | Implemented — read-only, via a high-level KERNAL LOAD/IEC trap (drive 8); not a cycle-level 1541 GCR drive |
+| Mounted D64 execution | Implemented — read-only browse/run/eject plus a high-level KERNAL LOAD/IEC trap (drive 8); not a cycle-level 1541 GCR drive |
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
 | ROM asset handling | Implemented — pinned generic MEGA65 OpenROMs default with exact integrity/provenance/source gate; explicit complete custom-set override remains memory-only with unknown-digest confirmation |
-| Web client, examples, and gallery | Implemented — static `web/client/` IDE (build worker, machine, presentation, input, sharing, downloads) and a validated `gallery.json`; the milestone-1 example is a runnable gallery entry |
+| Web client, examples, and gallery | Implemented — static `web/client/` IDE (build worker, machine, presentation, input, disk controls, sharing, downloads) and a validated `gallery.json`; the milestone-1 example visibly cycles its border while running |
 | Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and CI workflows |
 | Production dist build + GitHub Pages deployment | Implemented and live — deterministic `dist/` build (`scripts/build/build-dist.mjs`), dist reference/integrity tests, external D64 interoperability (VICE `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and `.github/workflows/release.yml` deploying the gated artifact on merged `main` |

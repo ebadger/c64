@@ -18,6 +18,7 @@ export { assemble } from "./assembler.js";
 export {
   buildBasicSysStub,
   basicSysStubLength,
+  detectBasicSysRunAddress,
   defaultBasicCodeOrigin,
   BASIC_LOAD_ADDRESS,
 } from "./basicStub.js";

@@ -119,6 +119,20 @@ export class MachineController {
     return { ok: true, error: null, meta: { diskName: result.diskName, fileCount: result.fileCount } };
   }
 
+  /** Eject drive-8 media without resetting CPU/device state. */
+  unmount() {
+    if (!this._machine) return { ok: false, error: notReady() };
+    const code = this._machine.unmountD64();
+    if (code !== "none") {
+      return { ok: false, error: { category: categoryForCode(code), code, message: `Eject failed: ${code}.` } };
+    }
+    return { ok: true, error: null };
+  }
+
+  get diskMounted() {
+    return this._machine ? this._machine.diskMounted() : false;
+  }
+
   /**
    * Run a bounded cycle batch. Returns the raw RunResult, or marks the machine crashed on a
    * fault. `brk` is a normal program halt (not an error).
