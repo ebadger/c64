@@ -37,6 +37,7 @@ const MIME = {
   ".d64": "application/octet-stream",
   ".bin": "application/octet-stream",
   ".rom": "application/octet-stream",
+  ".gz": "application/gzip",
 };
 
 function contentType(path) {

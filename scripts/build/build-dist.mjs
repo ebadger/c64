@@ -3,8 +3,9 @@
 // Assembles a clean, flattened `dist/` containing only the files the deployed site needs:
 // the HTML/CSS/ES-module client, the module worker, the shared assembler pipeline, the thin
 // emulator wrapper, the production Emscripten loader + WASM, the validated gallery and its
-// referenced example sources, a license inventory, and a sha256 asset manifest. It emits no
-// source maps, no private inputs, and no ROM bytes.
+// referenced example sources, the allowlisted OpenROMs set with license/corresponding source,
+// a license inventory, and a sha256 asset manifest. It emits no source maps, private inputs,
+// proprietary Commodore ROMs, or user-supplied bytes.
 //
 // Base-path independence: every asset reference in the client resolves *relatively* (ES module
 // specifiers and `import.meta.url` math, relative `fetch`/`new URL`, relative HTML href/src), so
@@ -56,6 +57,8 @@ export const CONTENT_TYPES = Object.freeze({
   ".txt": "text/plain; charset=utf-8",
   ".d64": "application/octet-stream",
   ".prg": "application/octet-stream",
+  ".rom": "application/octet-stream",
+  ".gz": "application/gzip",
 });
 
 export function contentTypeFor(path) {
@@ -106,12 +109,98 @@ const REWRITES = {
     { find: 'export const WASM_LOADER_PATH = "build/wasm/c64core.mjs";', replace: 'export const WASM_LOADER_PATH = "wasm/c64core.mjs";' },
     { find: 'export const EMULATOR_WRAPPER_PATH = "web/emulator/c64.mjs";', replace: 'export const EMULATOR_WRAPPER_PATH = "emulator/c64.mjs";' },
     { find: 'export const GALLERY_PATH = "web/client/gallery.json";', replace: 'export const GALLERY_PATH = "gallery.json";' },
+    { find: 'export const BUNDLED_ROM_MANIFEST_PATH = "third_party/open-roms/manifest.json";', replace: 'export const BUNDLED_ROM_MANIFEST_PATH = "roms/manifest.json";' },
     { find: '  return new URL("../../../", moduleUrl);', replace: '  return new URL("../", moduleUrl);' },
   ],
 };
 
+const OPEN_ROM_SOURCE_DIR = "third_party/open-roms";
+const OPEN_ROM_DIST_DIR = "roms";
+const OPEN_ROM_ROLES = Object.freeze({ basic: 8192, kernal: 8192, chargen: 4096 });
+const OPEN_ROM_REDISTRIBUTION_FILES = Object.freeze(["LICENSE.txt", "COPYING", "COPYING.LESSER", "PROVENANCE.md"]);
+
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function safeSingleFilename(path) {
+  return typeof path === "string" && /^[A-Za-z0-9._-]+$/.test(path);
+}
+
+/**
+ * Validate the allowlisted OpenROMs manifest and every integrity-addressed binary in a tree.
+ * The returned file list is the complete subtree the production build may copy.
+ */
+export function verifyOpenRomAssets(root, baseDir = OPEN_ROM_SOURCE_DIR) {
+  const base = join(resolve(root), baseDir);
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(join(base, "manifest.json"), "utf8"));
+  } catch (err) {
+    throw new Error(`build-dist: invalid OpenROMs manifest: ${String(err && err.message ? err.message : err)}`);
+  }
+  if (
+    !manifest || manifest.schema !== 1 || typeof manifest.id !== "string" ||
+    typeof manifest.title !== "string" || !/^[0-9a-f]{40}$/.test(manifest.revision || "") ||
+    manifest.licenseId !== "LGPL-3.0-or-later" || manifest.licensePath !== "LICENSE.txt" ||
+    typeof manifest.upstreamRepository !== "string" || typeof manifest.sourceUrl !== "string" ||
+    !manifest.roles || !manifest.sourceArchive
+  ) {
+    throw new Error("build-dist: malformed OpenROMs manifest metadata");
+  }
+  const roleNames = Object.keys(manifest.roles).sort();
+  if (JSON.stringify(roleNames) !== JSON.stringify(Object.keys(OPEN_ROM_ROLES).sort())) {
+    throw new Error(`build-dist: OpenROMs manifest roles must be exactly ${Object.keys(OPEN_ROM_ROLES).join(", ")}`);
+  }
+
+  const integrityFiles = [];
+  for (const [role, expectedBytes] of Object.entries(OPEN_ROM_ROLES)) {
+    const entry = manifest.roles[role];
+    if (
+      !entry || !safeSingleFilename(entry.path) || entry.bytes !== expectedBytes ||
+      !/^[0-9a-f]{64}$/.test(entry.sha256 || "")
+    ) {
+      throw new Error(`build-dist: invalid OpenROMs ${role} manifest entry`);
+    }
+    integrityFiles.push({ label: `${role} ROM`, ...entry });
+  }
+  const sourceArchive = manifest.sourceArchive;
+  if (
+    !safeSingleFilename(sourceArchive.path) || !sourceArchive.path.endsWith(".tar.gz") ||
+    sourceArchive.path !== `open-roms-${manifest.revision}.tar.gz` ||
+    !Number.isSafeInteger(sourceArchive.bytes) || sourceArchive.bytes <= 0 ||
+    !/^[0-9a-f]{64}$/.test(sourceArchive.sha256 || "")
+  ) {
+    throw new Error("build-dist: invalid OpenROMs sourceArchive manifest entry");
+  }
+  integrityFiles.push({ label: "source archive", ...sourceArchive });
+
+  for (const entry of integrityFiles) {
+    const path = join(base, entry.path);
+    if (!existsSync(path) || !statSync(path).isFile()) {
+      throw new Error(`build-dist: OpenROMs ${entry.label} is missing: ${entry.path}`);
+    }
+    const bytes = readFileSync(path);
+    if (bytes.length !== entry.bytes || sha256(bytes) !== entry.sha256) {
+      throw new Error(`build-dist: OpenROMs ${entry.label} failed size/sha256 verification: ${entry.path}`);
+    }
+  }
+  for (const path of OPEN_ROM_REDISTRIBUTION_FILES) {
+    if (!existsSync(join(base, path)) || !statSync(join(base, path)).isFile()) {
+      throw new Error(`build-dist: OpenROMs redistribution file is missing: ${path}`);
+    }
+  }
+
+  const files = [
+    "manifest.json",
+    ...Object.values(manifest.roles).map((entry) => entry.path),
+    sourceArchive.path,
+    ...OPEN_ROM_REDISTRIBUTION_FILES,
+  ];
+  if (new Set(files).size !== files.length || files.some((path) => !safeSingleFilename(path))) {
+    throw new Error("build-dist: OpenROMs manifest contains duplicate or unsafe file paths");
+  }
+  return { manifest, files };
 }
 
 function applyRewrites(relSource, text) {
@@ -224,6 +313,12 @@ export function buildDist({ repoRoot = defaultRepoRoot, outDir, requireWasm = tr
     }
   }
 
+  // Only the reviewed, manifest-addressed OpenROMs set and its redistribution materials.
+  const openRoms = verifyOpenRomAssets(root);
+  for (const path of openRoms.files) {
+    copies.push({ src: `${OPEN_ROM_SOURCE_DIR}/${path}`, dest: `${OPEN_ROM_DIST_DIR}/${path}` });
+  }
+
   // Perform copies + rewrites.
   for (const { src, dest } of copies) writeOut(root, out, src, dest, null);
   for (const { src, dest } of rewrites) {
@@ -248,6 +343,7 @@ export function buildDist({ repoRoot = defaultRepoRoot, outDir, requireWasm = tr
     app: "c64",
     basePathIndependent: true,
     wasmIncluded: wasmPresent,
+    openRomsIncluded: true,
     fileCount: files.length,
     files,
   };
@@ -264,11 +360,9 @@ function writeOut(root, out, src, dest, textOrNull) {
 }
 
 function thirdPartyNotices() {
-  // The runtime client and pipeline are first-party and dependency-free. The only third-party
-  // component in the shipped bytes is the Emscripten-generated loader glue (c64core.mjs) and the
-  // WebAssembly compiled from the first-party C++ core; Emscripten's runtime support is MIT/
-  // University-of-Illinois licensed. No npm runtime dependencies are bundled. Playwright and the
-  // emsdk toolchain are build-time only and are never shipped.
+  // The runtime client and pipeline are first-party and dependency-free. Shipped third-party
+  // components are OpenROMs and Emscripten-generated loader support. No npm runtime dependencies
+  // are bundled. Playwright and the emsdk toolchain are build-time only and are never shipped.
   return [
     "# Third-party notices — c64 production bundle",
     "",
@@ -282,6 +376,7 @@ function thirdPartyNotices() {
     "|-----------|--------|---------|-----------|",
     "| `wasm/c64core.mjs` (loader glue) | Emscripten-generated | MIT / University of Illinois/NCSA | Yes |",
     "| `wasm/c64core.wasm` | Compiled from first-party `core/` C++17 | Repository license (see CONTRIBUTING.md) | Yes |",
+    "| `roms/` MEGA65 OpenROMs generic C64 set | MEGA65/open-roms, pinned revision | LGPL-3.0-or-later; identified BASIC portions MIT | Yes — unmodified images, license texts, provenance, corresponding source |",
     "| Web client, `lib/`, `pipeline/`, `emulator/` | First-party (this repository) | Repository license | Yes |",
     "",
     "## Build-time only (NOT shipped)",
@@ -294,8 +389,8 @@ function thirdPartyNotices() {
     "",
     "## Explicitly excluded",
     "",
-    "- No copyrighted Commodore ROM bytes are ever committed, fetched, logged, or bundled.",
-    "- No user-supplied ROM/D64 bytes are included; they remain local, in-memory, and private.",
+    "- No proprietary Commodore ROM dump is committed, fetched, logged, or bundled.",
+    "- No user-supplied ROM/D64 bytes are included; custom files remain local, in-memory, and private.",
     "- No source maps, tests, or private inputs are emitted into the bundle.",
     "",
   ].join("\n");

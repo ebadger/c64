@@ -153,9 +153,10 @@ node scripts/dev/serve.mjs            # open http://127.0.0.1:8080/web/client/
 node scripts/dev/serve.mjs --port 5173
 ```
 
-Build the production WebAssembly artifact first (see the section above) so **Run** works. Because
-no redistributable ROM set ships yet, Run also requires locally selected BASIC/KERNAL/character
-ROM files; they stay in memory and are never uploaded, stored, or logged.
+Build the production WebAssembly artifact first (see the section above) so **Run** works. The app
+loads and verifies the pinned MEGA65 OpenROMs generic set by default. Use the ROM-source selector
+for a complete local BASIC/KERNAL/character override; custom files stay in memory and are never
+uploaded, stored, or logged.
 
 Test and verify:
 
@@ -195,8 +196,9 @@ node scripts/build/build-dist.mjs --allow-missing-wasm   # inspection-only dev b
 
 `dist/` is base-path independent: the same bytes serve unchanged at `/` and under `/c64/`. Repeated
 clean builds from the same commit and pinned toolchain are byte-identical; `dist/asset-manifest.json`
-records a sha256 + byte size + MIME per file. No source maps, private inputs, or ROM bytes are
-emitted.
+records a sha256 + byte size + MIME per file. No source maps, private inputs, proprietary Commodore
+ROMs, or user-supplied bytes are emitted. The only ROM images are the manifest-allowlisted MEGA65
+OpenROMs files, shipped with complete license texts, provenance, and pinned corresponding source.
 
 ## External D64 interoperability (VICE `c1541`)
 
@@ -218,7 +220,6 @@ browser matrix, external interop, and the production dist build + integrity) wit
 tools — Emscripten `3.1.74`, Node 18, Playwright Chromium/Firefox/WebKit, and VICE `c1541` — and
 uploads the static `dist/` as a Pages artifact for inspection only. On a push to `main` it rebuilds
 from source and deploys the exact gated artifact to GitHub Pages via the official actions (least
-permissions, concurrency-serialized, with a post-deploy smoke check). Nothing auto-merges. While
-this work is unmerged, the Pages site is **deployable/pending**, not live; it goes live only after a
-`main` deployment succeeds. `core.yml` remains a fast per-branch feedback lane.
-
+permissions, concurrency-serialized, with a post-deploy smoke check). Nothing auto-merges. The live
+site is `https://ebadger.github.io/c64/`; it changes only after a successful `main` deployment.
+`core.yml` remains a fast per-branch feedback lane.

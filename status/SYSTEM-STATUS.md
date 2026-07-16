@@ -3,14 +3,14 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-15 — Copilot milestone-5 release session_
+_Last verified: 2026-07-16 — bundled OpenROMs/default-run candidate_
 
 ## Environments
 
 | Environment | Current location | URL | State |
 |-------------|------------------|-----|-------|
-| Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker and production WASM machine; served locally, no deployment |
-| Production | GitHub Pages (deployable/pending) | `https://ebadger.github.io/c64/` | Deterministic `dist/` build + `release.yml` deploy the gated artifact on merged `main`; **not yet live** while this PR is unmerged. Deploys the exact bytes verified by the release gate; no runtime backend or secret |
+| Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker and production WASM machine |
+| Production | GitHub Pages | `https://ebadger.github.io/c64/` | Live static deployment. `release.yml` rebuilds and deploys the exact gated `dist/` artifact on merged `main`; no runtime backend or secret |
 
 ## Run locally
 
@@ -26,8 +26,8 @@ node scripts/dev/serve.mjs         # serve the static browser IDE at http://127.
 
 The static browser IDE in `web/client/` runs the production assembler in a module worker and the
 production WASM machine through `web/emulator/c64.mjs`. Edit/build/download work without the WASM
-artifact; **Run** additionally requires the built WASM core and a locally selected ROM set (no
-redistributable set ships, so ROM files are user-supplied and memory-only).
+artifact; **Run** additionally requires the built WASM core. The pinned generic MEGA65 OpenROMs
+set loads by default, with an explicit complete custom local-set override that remains memory-only.
 
 ## Build and run the machine core
 
@@ -86,11 +86,11 @@ in `SETUP.md`).
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
 | CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + full browser matrix + external interop + dist build/integrity + Pages deploy on main) and `.github/workflows/core.yml` (fast per-branch feedback) |
-| Static asset build (IDE, gallery) | Implemented — `web/client/` IDE, build worker, `gallery.json`; no bundled ROM set (user-supplied, memory-only) |
-| Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP; WASM required (fail-not-skip) |
+| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, `gallery.json`, bundled pinned OpenROMs, and complete memory-only custom-set override |
+| Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and exact OpenROMs/license/source allowlist; WASM required (fail-not-skip) |
 | Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI) |
 | External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
-| GitHub Pages deploy | Implemented (deployable/pending) — `release.yml` deploys the gated `dist/` on merged `main` via official Pages actions; live only after a `main` deploy succeeds |
+| GitHub Pages deploy | Implemented and live — `release.yml` deploys the gated `dist/` on merged `main` via official Pages actions |
 
 The remaining fidelity/legal gaps are tracked below; the deployment machinery is implemented.
 
@@ -119,10 +119,10 @@ repository or CI data.
   (`runAddress`); it does **not** run the ROM's BASIC cold-start or tokenize/`RUN` the stub
   in-process. The *downloaded* PRG still autostarts via BASIC `RUN` on a stock machine per
   `specs/CODEGEN.md`. This is the reconciled, honestly-labelled boundary — an in-process BASIC
-  `RUN` path could not be validated on the release gate because no BASIC/KERNAL ROM ships and tests
-  use only synthetic ROM fixtures (copyrighted ROMs are forbidden).
-- No redistributable ROM set ships, so the IDE requires user-supplied BASIC/KERNAL/character ROM
-  files to Run; they are memory-only and never persisted. Edit/build/download work without them.
+  `RUN` path is outside the supported contract because the bundled OpenROMs BASIC remains incomplete.
+- The pinned generic MEGA65 OpenROMs set is the default and is shipped with full license texts,
+  provenance, and corresponding source. A complete custom BASIC/KERNAL/character set can replace
+  it for one page session; custom bytes and source selection are never persisted.
 - **Web Audio is optional.** When a browser provides no Web Audio (e.g. headless WebKit), the
   emulator still loads, builds, runs video, accepts input, and downloads artifacts, but sound is
   unavailable and the audio control is disabled and labelled.
@@ -139,8 +139,8 @@ repository or CI data.
 - The CIA serial shift register (SDR) has limited support; full RS-232/serial timing is not
   modelled. Interrupts are sampled at instruction boundaries (the NMOS CLI/SEI/PLP enable delay
   is modelled).
-- No redistributable replacement ROM set has been selected or legally reviewed; the core and
-  its tests use only synthetic generated ROMs. No 1541 drive ROM is used by the high-level trap.
+- No proprietary Commodore ROM dump ships. Core conformance tests retain synthetic generated ROMs,
+  and the high-level D64 trap uses no 1541 drive ROM.
 - Generated D64 images are now independently verified against **external software tooling** (VICE
   `c1541`: 35-track directory metadata + byte-exact extracted PRG). This is a **software**
   interoperability claim only — it does not verify physical 1541 hardware, real GCR flux/timing, or
@@ -151,4 +151,3 @@ repository or CI data.
 - The published browser matrix pins Playwright Chromium, Firefox, and WebKit and drives the full
   journey against the production `dist` bytes at `/` and `/c64/`; capability detection/fallback is
   tested honestly. It does not exercise physical devices or non-Playwright browser builds.
-

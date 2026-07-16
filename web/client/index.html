@@ -130,12 +130,33 @@
       <section class="panel panel-rom" aria-labelledby="h-rom">
         <h2 id="h-rom">ROMs</h2>
         <p class="muted">
-          No redistributable replacement ROM set ships yet, so Run requires you to select local
-          BASIC, KERNAL, and character ROM files. They stay in memory on your machine — never
-          uploaded, stored, or logged.
+          The bundled generic MEGA65 OpenROMs set is used by default. It is redistributable under
+          LGPL-3.0-or-later and supports this IDE's assembly-first Run path; upstream BASIC
+          compatibility is still incomplete.
         </p>
-        <p id="rom-status" class="rom-status" aria-live="polite">Run is disabled until a valid ROM set is loaded.</p>
-        <div id="rom-roles" class="rom-roles"></div>
+        <label class="field rom-source">
+          <span>ROM source</span>
+          <select id="sel-rom-source">
+            <option value="bundled">Bundled MEGA65 OpenROMs (default)</option>
+            <option value="custom">Custom local ROM files</option>
+          </select>
+        </label>
+        <p id="rom-status" class="rom-status" aria-live="polite">Loading bundled OpenROMs…</p>
+        <p id="rom-legal" class="muted" hidden>
+          Redistribution materials:
+          <a id="rom-provenance-link">provenance</a> ·
+          <a id="rom-license-link">package notice</a> ·
+          <a id="rom-lgpl-link">LGPL text</a> ·
+          <a id="rom-gpl-link">GPL text</a> ·
+          <a id="rom-source-link" download>corresponding source archive</a>
+        </p>
+        <div id="rom-custom" hidden>
+          <p class="muted">
+            Select a complete alternative set. Files stay in memory for this page session and are
+            never uploaded, stored, or logged.
+          </p>
+          <div id="rom-roles" class="rom-roles"></div>
+        </div>
       </section>
 
       <!-- Media import -->

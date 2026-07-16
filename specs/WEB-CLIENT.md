@@ -17,7 +17,7 @@ Static assets include:
 - `index.html` and versioned CSS/ES modules
 - the production emulator `.wasm` and generated embind loader
 - `gallery.json` plus committed example source and optional curated media
-- approved redistributable ROM assets and their manifest, when available
+- the pinned MEGA65 OpenROMs generic C64 set, its manifest, licenses, provenance, and corresponding source
 
 `gallery.json` entries use a versioned shape:
 
@@ -81,7 +81,8 @@ intentionally has its own `buildId`; the two golden records do not have to match
   allocation amplification and recommends downloading source instead.
 - Autosave uses `c64.dev.v1.autosave` for canonical project JSON and
   `c64.dev.v1.preferences` for non-sensitive UI settings. Storage events are version checked.
-  ROM and imported D64 bytes are never stored there.
+  ROM and imported D64 bytes are never stored there. ROM-source selection is also not
+  persisted: every new page load starts from the bundled default.
 - URL-loaded source remains editable and is a remix. The address bar is not mutated to
   include edits until the user explicitly invokes Share.
 
@@ -90,15 +91,19 @@ intentionally has its own `buildId`; the two golden records do not have to match
 - Initial UI areas: source editor, diagnostics, Run/Stop/Reset, machine profile, video,
   audio enable, keyboard/joystick help, artifact downloads, share, gallery, ROM status, and
   D64 import.
-- Build runs through the dual-use assembler, preferably in a worker. Run is enabled only
-  for the latest successful build and a valid ROM set.
+- Build runs through the dual-use assembler, preferably in a worker. The same-origin,
+  manifest-verified MEGA65 OpenROMs generic set loads by default, so Run is enabled once the
+  latest build succeeds. An explicit ROM-source control can switch to a complete custom local
+  BASIC/KERNAL/CHARGEN trio for the current page session.
+- Switching ROM source stops execution and replaces the set atomically. Custom mode starts
+  empty and cannot inherit individual bundled roles, avoiding unsupported mixed sets.
 - In-app **Run** resets the machine (power-on), loads the PRG, and enters the machine-code entry
   at `runAddress` (for `basic-sys` this is the SYS target the generated stub jumps to). It does
   not run the ROM's BASIC cold-start or tokenize and `RUN` the stub in-process; the *downloaded*
   PRG still autostarts via BASIC `RUN` on a stock machine per [`CODEGEN.md`](./CODEGEN.md). This
   keeps Run deterministic and ROM-agnostic and is the honestly-labelled in-app boundary: because
-  no BASIC/KERNAL ROM ships and tests use only synthetic ROM fixtures, an in-process BASIC `RUN`
-  path could not be validated on the release gate without copyrighted ROMs.
+  the bundled OpenROMs BASIC remains incomplete upstream and the release gate also retains
+  synthetic fixtures, an in-process BASIC `RUN` path is outside the supported contract.
 - The WASM core runs in bounded cycle batches. The browser uses `requestAnimationFrame` and
   audio-buffer demand to pace presentation; it never changes the selected machine clock or
   skips emulated cycles to match display refresh.
@@ -110,8 +115,9 @@ intentionally has its own `buildId`; the two golden records do not have to match
   completed frames when behind but cannot mutate emulator state.
 - Download controls create client-side `Blob` URLs, click a sanitized filename, and revoke
   the URL after use.
-- Assembly errors, missing ROMs, unsupported browsers, WASM startup errors, and invalid
-  media render explicit states. The client never fabricates successful output.
+- Assembly errors, bundled-ROM manifest/fetch/integrity failures, missing custom ROMs,
+  unsupported browsers, WASM startup errors, and invalid media render explicit states. The
+  client never fabricates successful output.
 
 ### Presentation palette (declared)
 
@@ -164,6 +170,9 @@ holds focus, and every blur/visibility-loss path calls release-all so no key can
   absolute/external asset URL and the browser-matrix E2E runs under the deployed CSP with zero
   console CSP violations.
 - Source is treated as data, never inserted as HTML or evaluated as JavaScript.
+- Bundled ROMs are committed release assets fetched only from the same app origin at runtime.
+  Their pinned source revision, license, sizes, and hashes ship beside them; production
+  assembly independently rechecks the allowlisted files before emitting `dist/`.
 - No analytics, ads, accounts, uploads, remote code execution, cross-origin source fetches,
   or runtime write endpoints exist in the initial architecture.
 - Canonical publishing is documented as a GitHub contribution flow; the app does not hold a
@@ -172,8 +181,9 @@ holds focus, and every blur/visibility-loss path calls release-all so no key can
 ## Data flow
 
 `gallery/query/autosave/user edit -> SourceProject -> assembler worker -> PRG/D64 + diagnostics
--> downloads and WASM machine -> frame/audio -> UI`; and `local ROM/D64 picker -> validation
--> in-memory emulator resources`. Canonical content changes only through GitHub PRs.
+-> downloads and WASM machine -> frame/audio -> UI`; and `bundled same-origin ROM manifest or
+local ROM picker -> integrity validation -> atomic in-memory RomSet`, plus `local D64 picker ->
+in-memory media`. Canonical content changes only through GitHub PRs.
 
 ## Error handling
 
@@ -195,8 +205,10 @@ not continue showing a running state.
 files the deployed site needs: `index.html`, `main.js`, `styles.css`, `buildWorker.js`, `lib/`, the
 shared assembler `pipeline/` (from `src/`), the `emulator/` wrapper, the production
 `wasm/c64core.{mjs,wasm}`, `gallery.json` and its referenced example sources, a
-`THIRD-PARTY-NOTICES.md` license inventory, and a content-derived `asset-manifest.json` (sha256 +
-byte size + MIME per file). It emits no source maps, no private inputs, and no ROM bytes.
+manifest-verified `roms/` subtree containing only the approved OpenROMs set and its
+licenses/provenance/corresponding source, a `THIRD-PARTY-NOTICES.md` inventory, and a content-derived
+`asset-manifest.json` (sha256 + byte size + MIME per file). It emits no source maps, private
+inputs, Commodore ROM dumps, or user-supplied bytes.
 
 - **Base-path independence.** Every asset reference resolves relatively (ES module specifiers and
   `import.meta.url` math, relative `fetch`/`new URL`, relative HTML `href`/`src`), so the same
@@ -234,4 +246,5 @@ commands live in `SETUP.md`.
 | WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core |
 | URL share/remix and autosave | Implemented | `?code`/`?src`/`?d64`, bearer-data warning, namespaced autosave/preferences |
 | Gallery and canonical PR flow | Implemented | `web/client/gallery.json` with a validated, reproducible border-flash entry |
-| GitHub Pages deployment | Implemented (deployable/pending) | Deterministic `dist/` build (`scripts/build/build-dist.mjs`) + release workflow (`.github/workflows/release.yml`) deploy the gated artifact to Pages on merged `main`; not yet live while this PR is unmerged |
+| Default and custom ROM selection | Implemented | Bundled, pinned OpenROMs generic set loads and verifies by default; explicit memory-only complete custom-set override |
+| GitHub Pages deployment | Implemented and live | Deterministic `dist/` build (`scripts/build/build-dist.mjs`) + release workflow (`.github/workflows/release.yml`) deploy the gated artifact to Pages on merged `main` |

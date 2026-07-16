@@ -1,7 +1,6 @@
-// ROM manager (browser). Reads locally selected ROM files, validates size + digest, tracks the
-// three roles with unknown-digest confirmation, and holds bytes in memory ONLY. ROM bytes never
-// enter storage, URLs, shares, logs, analytics, or network requests (see specs/ROM-ASSETS.md).
-// Only a role + digest are ever surfaced for diagnostics.
+// ROM manager. Atomically accepts a verified bundled set or a complete user-selected replacement
+// set and owns the bytes in memory. Custom bytes never enter storage, URLs, shares, logs, analytics,
+// or network requests (see specs/ROM-ASSETS.md). Only role/digest/source metadata is public.
 
 import { validateRomRole, romSetStatus, computeRomSetId, ROM_ROLES } from "./romValidate.js";
 
@@ -10,6 +9,8 @@ export class RomManager {
     // Public descriptors (no bytes). Bytes live in a private map, never exposed in status.
     this._descriptors = {};
     this._bytes = new Map();
+    this._source = null;
+    this._setMetadata = null;
   }
 
   /** Set a role from raw bytes (used by the file picker and by tests). */
@@ -18,6 +19,7 @@ export class RomManager {
     if (!result.ok) {
       return { ok: false, error: result.error };
     }
+    if (this._source === "bundled") this.clear();
     // Keep only role/size/digest/known publicly; bytes stay private and memory-only. `ok: true`
     // marks the descriptor as an accepted (size-valid) role: romSetStatus() keys readiness off it,
     // so it must be present or the set never becomes ready and Run can never enable.
@@ -29,9 +31,63 @@ export class RomManager {
       known: result.known,
       requiresConfirmation: result.requiresConfirmation,
       confirmed: !result.requiresConfirmation,
+      source: "user-supplied",
+      licenseId: null,
     };
-    this._bytes.set(role, bytes);
+    this._bytes.set(role, new Uint8Array(bytes));
+    this._source = "custom";
+    this._setMetadata = null;
     return { ok: true, descriptor: { ...this._descriptors[role] } };
+  }
+
+  /**
+   * Replace the active set atomically with a manifest-verified bundled set.
+   * @param {{ id:string, title:string, revision:string, licenseId:string,
+   *           roles:Record<string,{bytes:Uint8Array,sha256:string}> }} set
+   */
+  setBundledSet(set) {
+    if (
+      !set ||
+      typeof set.id !== "string" ||
+      typeof set.title !== "string" ||
+      typeof set.revision !== "string" ||
+      typeof set.licenseId !== "string"
+    ) {
+      return { ok: false, error: bundledSetError("The bundled ROM set metadata is invalid.") };
+    }
+    const descriptors = {};
+    const ownedBytes = new Map();
+    for (const role of ROM_ROLES) {
+      const entry = set && set.roles && set.roles[role];
+      if (!entry || !(entry.bytes instanceof Uint8Array) || typeof entry.sha256 !== "string") {
+        return { ok: false, error: bundledSetError(`The bundled ROM set is missing a valid ${role} entry.`) };
+      }
+      const result = validateRomRole(role, entry.bytes, { expectedDigest: entry.sha256 });
+      if (!result.ok) return { ok: false, error: result.error };
+      descriptors[role] = {
+        ok: true,
+        role,
+        size: result.size,
+        digest: result.digest,
+        known: true,
+        requiresConfirmation: false,
+        confirmed: true,
+        source: "bundled-replacement",
+        licenseId: set.licenseId,
+      };
+      ownedBytes.set(role, new Uint8Array(entry.bytes));
+    }
+
+    this._descriptors = descriptors;
+    this._bytes = ownedBytes;
+    this._source = "bundled";
+    this._setMetadata = {
+      id: set.id,
+      title: set.title,
+      revision: set.revision,
+      licenseId: set.licenseId,
+    };
+    return { ok: true, set: { ...this._setMetadata } };
   }
 
   /** Set a role from a File/Blob (reads bytes in memory only). */
@@ -51,8 +107,21 @@ export class RomManager {
   }
 
   clearRole(role) {
+    if (this._source === "bundled") {
+      this.clear();
+      return;
+    }
     delete this._descriptors[role];
     this._bytes.delete(role);
+    this._source = "custom";
+    this._setMetadata = null;
+  }
+
+  clear() {
+    this._descriptors = {};
+    this._bytes = new Map();
+    this._source = null;
+    this._setMetadata = null;
   }
 
   /** Public status: readiness plus per-role digest summaries (never bytes). */
@@ -62,7 +131,12 @@ export class RomManager {
     for (const role of ROM_ROLES) {
       roles[role] = this._descriptors[role] ? { ...this._descriptors[role] } : null;
     }
-    return { ...set, roles };
+    return {
+      ...set,
+      source: this._source,
+      set: this._setMetadata ? { ...this._setMetadata } : null,
+      roles,
+    };
   }
 
   ready() {
@@ -77,4 +151,8 @@ export class RomManager {
     const chargen = this._bytes.get("chargen");
     return { basic, kernal, chargen, id: computeRomSetId({ basic, kernal, chargen }) };
   }
+}
+
+function bundledSetError(message) {
+  return { category: "rom", code: "rom-manifest", message };
 }

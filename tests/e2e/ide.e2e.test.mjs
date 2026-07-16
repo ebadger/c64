@@ -1,6 +1,7 @@
 // End-to-end browser test for the c64 web IDE. Drives the real static app against the ACTUAL
 // production WASM artifact via the dev server and a headless Chromium. Covers the build worker,
-// ROM privacy/gating, machine run + frame progression, keyboard release (stuck-key prevention),
+// bundled OpenROMs default, custom-ROM privacy/gating, machine run + frame progression,
+// keyboard release (stuck-key prevention),
 // URL share/remix round-trip (Unicode), gallery load + reproducible buildId, artifact downloads,
 // and D64 import. Skips cleanly when the WASM artifact or Playwright is not available.
 
@@ -15,6 +16,7 @@ import { wasmArtifactExists, tryLoadPlaywright, syntheticRomArrays, buildTempDis
 import { encodeSourceToCode } from "../../web/client/lib/base64url.js";
 import { buildD64 } from "../../src/d64.js";
 import { buildArtifacts } from "../../src/index.js";
+import { sha256Hex } from "../../src/hash.js";
 import { makeProject } from "../../web/client/lib/projectModel.js";
 
 // basic-sys is the default project mode: the assembler emits the BASIC stub at $0801 and places the
@@ -43,6 +45,7 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
   // Assemble the deployable dist (production WASM required) and serve THAT — the real bytes that
   // ship to GitHub Pages — rooted so the app is at "/".
   const distDir = buildTempDist();
+  const workDir = mkdtempSync(join(tmpdir(), "c64-e2e-"));
   const { server, url } = await startServer({ port: 0, root: distDir });
   let browser;
   try {
@@ -83,19 +86,16 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     const build = await page.evaluate(() => window.__c64.lastBuild());
     assert.ok(build.buildId && build.prgLen > 0 && build.d64Len === 174848, "build produced a PRG and full D64");
 
-    // Run is disabled until a valid ROM set exists.
-    assert.equal(await page.evaluate(() => window.__c64.runEnabled()), false);
-
-    // --- ROM privacy + gating ---------------------------------------------------------------
-    const roms = syntheticRomArrays();
-    await page.evaluate((r) => {
-      window.__c64.setRomBytes("basic", r.basic);
-      window.__c64.setRomBytes("kernal", r.kernal);
-      window.__c64.setRomBytes("chargen", r.chargen);
-    }, roms);
+    // --- Bundled OpenROMs default -------------------------------------------------------------
+    assert.equal(await page.evaluate(() => window.__c64.romSource()), "bundled");
     assert.equal(await page.evaluate(() => window.__c64.romReady()), true);
     assert.equal(await page.evaluate(() => window.__c64.runEnabled()), true);
-    // ROM bytes never touch storage.
+    assert.equal(await page.locator("#sel-rom-source").inputValue(), "bundled");
+    assert.equal(await page.locator("#rom-custom").isHidden(), true);
+    assert.match(await page.locator("#rom-license-link").getAttribute("href"), /\/roms\/LICENSE\.txt$/);
+    assert.match(await page.locator("#rom-source-link").getAttribute("href"), /\/roms\/open-roms-.*\.tar\.gz$/);
+
+    // ROM bytes and source-selection state never touch storage.
     const storedHasRom = await page.evaluate(() => {
       for (let i = 0; i < localStorage.length; i++) {
         const v = localStorage.getItem(localStorage.key(i)) || "";
@@ -126,10 +126,98 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     await page.click("#btn-stop");
     await page.waitForFunction(() => window.__c64.running() === false);
 
+    // --- Complete custom local ROM override -------------------------------------------------
+    await page.selectOption("#sel-rom-source", "custom");
+    assert.equal(await page.evaluate(() => window.__c64.romSource()), "custom");
+    assert.equal(await page.evaluate(() => window.__c64.romReady()), false);
+    assert.equal(await page.evaluate(() => window.__c64.runEnabled()), false);
+    assert.equal(await page.locator("#rom-custom").isVisible(), true);
+
+    const customRoms = syntheticRomArrays();
+    const staleBasic = [...customRoms.basic];
+    staleBasic[0] ^= 0xff;
+    const staleBasicPath = join(workDir, "stale-basic.rom");
+    const currentBasicPath = join(workDir, "current-basic.rom");
+    writeFileSync(staleBasicPath, Buffer.from(staleBasic));
+    writeFileSync(currentBasicPath, Buffer.from(customRoms.basic));
+    const currentBasicDigest = sha256Hex(Uint8Array.from(customRoms.basic));
+
+    // A delayed earlier read must not replace the user's newer selection for the same role.
+    await page.evaluate(() => {
+      const originalArrayBuffer = File.prototype.arrayBuffer;
+      let markStarted;
+      let releaseSlowRead;
+      const started = new Promise((resolve) => {
+        markStarted = resolve;
+      });
+      File.prototype.arrayBuffer = function arrayBuffer() {
+        if (this.name !== "stale-basic.rom") return originalArrayBuffer.call(this);
+        markStarted();
+        return new Promise((resolve, reject) => {
+          releaseSlowRead = () => originalArrayBuffer.call(this).then(resolve, reject);
+        }).finally(() => {
+          window.__romReadRace.delivered = true;
+        });
+      };
+      window.__romReadRace = {
+        delivered: false,
+        waitForStart: () => started,
+        release: () => releaseSlowRead(),
+        restore: () => {
+          File.prototype.arrayBuffer = originalArrayBuffer;
+          delete window.__romReadRace;
+        },
+      };
+    });
+    await page.setInputFiles('input[data-role="basic"]', staleBasicPath);
+    await page.evaluate(() => window.__romReadRace.waitForStart());
+    await page.setInputFiles('input[data-role="basic"]', currentBasicPath);
+    await page.waitForFunction(
+      (digest) => document.querySelector('input[data-role="basic"]')?.closest(".rom-role")?.querySelector(".digest")?.textContent.includes(digest),
+      currentBasicDigest,
+    );
+    await page.evaluate(() => window.__romReadRace.release());
+    await page.waitForFunction(() => window.__romReadRace.delivered);
+    await page.waitForTimeout(0);
+    assert.match(
+      await page.locator('input[data-role="basic"]').locator("xpath=ancestor::div[contains(@class,'rom-role')]").locator(".digest").textContent(),
+      new RegExp(currentBasicDigest),
+      "the latest same-role custom ROM selection wins",
+    );
+    await page.evaluate(() => window.__romReadRace.restore());
+    await page.getByRole("button", { name: "Confirm basic ROM" }).click();
+
+    for (const role of ["kernal", "chargen"]) {
+      const path = join(workDir, `${role}.rom`);
+      writeFileSync(path, Buffer.from(customRoms[role]));
+      await page.setInputFiles(`input[data-role="${role}"]`, path);
+      await page.getByRole("button", { name: `Confirm ${role} ROM` }).click();
+    }
+    assert.equal(await page.evaluate(() => window.__c64.romReady()), true);
+    assert.equal(await page.evaluate(() => window.__c64.runEnabled()), true);
+    assert.equal(
+      await page.evaluate(() => {
+        for (let i = 0; i < localStorage.length; i++) {
+          if ((localStorage.getItem(localStorage.key(i)) || "").length > 4096) return true;
+        }
+        return false;
+      }),
+      false,
+      "custom ROM bytes are not written to storage",
+    );
+    await page.click("#btn-run");
+    await page.waitForFunction(() => window.__c64.running() === true, null, { timeout: 5000 });
+    await page.click("#btn-stop");
+
+    // Returning to the default clears the custom set and revalidates all bundled roles.
+    await page.selectOption("#sel-rom-source", "bundled");
+    await page.waitForFunction(() => window.__c64.romSource() === "bundled" && window.__c64.romReady());
+    assert.equal(await page.evaluate(() => window.__c64.runEnabled()), true);
+    assert.equal(await page.locator("#rom-custom").isHidden(), true);
+
     // --- Artifact download bytes ------------------------------------------------------------
-    const dir = mkdtempSync(join(tmpdir(), "c64-e2e-"));
     const [download] = await Promise.all([page.waitForEvent("download"), page.click("#btn-dl-prg")]);
-    const prgPath = join(dir, "out.prg");
+    const prgPath = join(workDir, "out.prg");
     await download.saveAs(prgPath);
     // Byte-for-byte equality against the independently-assembled PRG (not just length).
     const expectedPrg = new Uint8Array(buildArtifacts(makeProject({ source: OBSERVABLE_PROGRAM })).bundle.prg);
@@ -139,7 +227,7 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     // --- D64 import (read-only) -------------------------------------------------------------
     const disk = buildD64({ outputName: "PROG", diskName: "TESTDISK", diskId: "ID" }, Uint8Array.from([0x01, 0x08, 0x2a, 0x2b]));
     assert.equal(disk.ok, true);
-    const d64Path = join(dir, "test.d64");
+    const d64Path = join(workDir, "test.d64");
     writeFileSync(d64Path, Buffer.from(disk.d64));
     await page.setInputFiles("#d64-file", d64Path);
     await page.waitForFunction(() => /Selected|Mounted/.test(document.getElementById("d64-status").textContent));
@@ -182,5 +270,6 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     if (browser) await browser.close();
     server.close();
     safeRm(distDir);
+    safeRm(workDir);
   }
 });

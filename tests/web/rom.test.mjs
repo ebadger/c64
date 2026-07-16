@@ -1,6 +1,7 @@
 // Node tests for ROM validation, set readiness, and set-id computation (memory-only).
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   validateRomRole,
@@ -9,6 +10,10 @@ import {
   ROM_ROLES,
 } from "../../web/client/lib/romValidate.js";
 import { RomManager } from "../../web/client/lib/roms.js";
+import { loadBundledRomSet, validateBundledRomManifest } from "../../web/client/lib/bundledRoms.js";
+
+const openRomsDir = new URL("../../third_party/open-roms/", import.meta.url);
+const bundledManifest = JSON.parse(readFileSync(new URL("manifest.json", openRomsDir), "utf8"));
 
 function rom(role, fill = 0) {
   const sizes = { basic: 8192, kernal: 8192, chargen: 4096 };
@@ -123,3 +128,140 @@ test("RomManager integrates validation, confirmation, and set readiness (memory-
   // A wrong-sized role is rejected and does not corrupt the ready set.
   assert.equal(mgr.setRoleBytes("basic", new Uint8Array(10)).ok, false);
 });
+
+test("loads the pinned vendored OpenROMs set only after every role passes integrity", async () => {
+  const manifestUrl = new URL("https://example.test/c64/roms/manifest.json");
+  const fetched = [];
+  const result = await loadBundledRomSet(manifestUrl, async (url) => {
+    fetched.push(String(url));
+    if (String(url) === manifestUrl.href) {
+      return jsonResponse(bundledManifest);
+    }
+    const name = new URL(String(url)).pathname.split("/").pop();
+    const bytes = readFileSync(new URL(name, openRomsDir));
+    return bytesResponse(bytes);
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(fetched, [
+    manifestUrl.href,
+    new URL(bundledManifest.roles.basic.path, manifestUrl).href,
+    new URL(bundledManifest.roles.kernal.path, manifestUrl).href,
+    new URL(bundledManifest.roles.chargen.path, manifestUrl).href,
+  ]);
+  assert.equal(result.set.licenseUrl, new URL("LICENSE.txt", manifestUrl).href);
+  assert.equal(result.set.lgplUrl, new URL("COPYING.LESSER", manifestUrl).href);
+  assert.equal(result.set.gplUrl, new URL("COPYING", manifestUrl).href);
+  assert.equal(result.set.provenanceUrl, new URL("PROVENANCE.md", manifestUrl).href);
+  assert.equal(result.set.sourceArchiveUrl, new URL(bundledManifest.sourceArchive.path, manifestUrl).href);
+
+  const manager = new RomManager();
+  const applied = manager.setBundledSet(result.set);
+  assert.equal(applied.ok, true);
+  assert.equal(manager.ready(), true);
+  assert.equal(manager.status().source, "bundled");
+  assert.equal(manager.status().set.id, bundledManifest.id);
+  for (const role of ROM_ROLES) {
+    assert.equal(manager.status().roles[role].source, "bundled-replacement");
+    assert.equal(manager.status().roles[role].digest, bundledManifest.roles[role].sha256);
+  }
+});
+
+test("rejects malformed bundled manifests before requesting role bytes", async () => {
+  const malformed = structuredClone(bundledManifest);
+  malformed.roles.unreviewed = { ...malformed.roles.basic };
+  assert.equal(validateBundledRomManifest(malformed).error.code, "rom-manifest");
+
+  let calls = 0;
+  const result = await loadBundledRomSet("https://example.test/roms/manifest.json", async () => {
+    calls += 1;
+    return jsonResponse(malformed);
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "rom-manifest");
+  assert.equal(calls, 1, "only the manifest is requested");
+});
+
+test("a bundled role digest mismatch fails atomically and preserves the active set", async () => {
+  const manager = new RomManager();
+  for (const role of ROM_ROLES) {
+    manager.setRoleBytes(role, rom(role, 0x30 + ROM_ROLES.indexOf(role)));
+    manager.confirmRole(role);
+  }
+  const priorId = manager.getRomSet().id;
+  const manifestUrl = new URL("https://example.test/roms/manifest.json");
+  const loaded = await loadBundledRomSet(manifestUrl, async (url) => {
+    if (String(url) === manifestUrl.href) return jsonResponse(bundledManifest);
+    const name = new URL(String(url)).pathname.split("/").pop();
+    const bytes = new Uint8Array(readFileSync(new URL(name, openRomsDir)));
+    if (name === bundledManifest.roles.kernal.path) bytes[0] ^= 0xff;
+    return bytesResponse(bytes);
+  });
+
+  assert.equal(loaded.ok, false);
+  assert.equal(loaded.error.code, "rom-integrity");
+  assert.equal(manager.status().source, "custom");
+  assert.equal(manager.getRomSet().id, priorId);
+});
+
+test("RomManager never mixes a bundled role with an incremental custom set", () => {
+  const manager = new RomManager();
+  const bundledSet = {
+    id: bundledManifest.id,
+    title: bundledManifest.title,
+    revision: bundledManifest.revision,
+    licenseId: bundledManifest.licenseId,
+    roles: Object.fromEntries(
+      ROM_ROLES.map((role) => [
+        role,
+        {
+          bytes: new Uint8Array(readFileSync(new URL(bundledManifest.roles[role].path, openRomsDir))),
+          sha256: bundledManifest.roles[role].sha256,
+        },
+      ]),
+    ),
+  };
+  assert.equal(manager.setBundledSet(bundledSet).ok, true);
+  assert.equal(manager.ready(), true);
+
+  assert.equal(manager.setRoleBytes("basic", rom("basic", 0x55)).ok, true);
+  const status = manager.status();
+  assert.equal(status.source, "custom");
+  assert.deepEqual(status.missing, ["kernal", "chargen"]);
+  assert.equal(status.roles.basic.source, "user-supplied");
+  assert.equal(status.roles.kernal, null);
+  assert.equal(status.roles.chargen, null);
+});
+
+test("RomManager rejects an invalid bundled candidate without replacing a ready custom set", () => {
+  const manager = new RomManager();
+  for (const role of ROM_ROLES) {
+    manager.setRoleBytes(role, rom(role, 0x60 + ROM_ROLES.indexOf(role)));
+    manager.confirmRole(role);
+  }
+  const priorId = manager.getRomSet().id;
+  const result = manager.setBundledSet({
+    id: "incomplete",
+    title: "Incomplete",
+    revision: "0".repeat(40),
+    licenseId: "LGPL-3.0-or-later",
+    roles: {},
+  });
+  assert.equal(result.ok, false);
+  assert.equal(manager.status().source, "custom");
+  assert.equal(manager.ready(), true);
+  assert.equal(manager.getRomSet().id, priorId);
+});
+
+function jsonResponse(value) {
+  return { ok: true, status: 200, json: async () => structuredClone(value) };
+}
+
+function bytesResponse(value) {
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  return {
+    ok: true,
+    status: 200,
+    arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  };
+}
