@@ -1,0 +1,238 @@
+/* c64 browser IDE styles. System fonts only (no third-party origins under the CSP). */
+
+:root {
+  --bg: #12141c;
+  --panel: #1b1e2a;
+  --panel-2: #232735;
+  --ink: #e6e8ef;
+  --muted: #9aa1b5;
+  --accent: #6c8cff;
+  --error: #ff6b6b;
+  --warning: #ffcc66;
+  --ok: #7ee081;
+  --border: #333a4d;
+  --mono: ui-monospace, "Cascadia Code", "Consolas", "SFMono-Regular", "Menlo", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+}
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+  z-index: 10;
+  background: var(--accent);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.app-title { font-size: 18px; margin: 0; letter-spacing: 0.02em; }
+.app-subtitle { color: var(--muted); font-weight: 400; font-size: 13px; }
+.global-status { flex: 1; min-height: 1.2em; font-size: 13px; }
+.global-status.error { color: var(--error); }
+.global-status.ok { color: var(--ok); }
+
+.app-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+  gap: 12px;
+  padding: 12px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .app-grid { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.panel-heading {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.source-editor {
+  width: 100%;
+  height: 46vh;
+  min-height: 260px;
+  resize: vertical;
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 8;
+  white-space: pre;
+}
+
+.settings {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+.settings legend { color: var(--muted); font-size: 12px; padding: 0 4px; }
+.settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.settings input, .settings select {
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.toolbar, .emulator-controls, .share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.gallery-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.gallery-row select { flex: 1; }
+
+button {
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #0b0d14; font-weight: 600; }
+
+select {
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.share-panel {
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  background: rgba(255, 204, 102, 0.08);
+}
+.share-warning { font-size: 12px; color: var(--ink); margin: 0 0 8px; }
+.share-url {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.build-info { margin-top: 12px; }
+.build-meta { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 0 0 10px; }
+.build-meta > div { display: flex; gap: 8px; font-size: 12px; }
+.build-meta dt { color: var(--muted); min-width: 64px; margin: 0; }
+.build-meta dd { margin: 0; font-family: var(--mono); word-break: break-all; }
+
+.diagnostics {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  max-height: 30vh;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.diag-empty { color: var(--muted); margin: 0; }
+.diag-list { list-style: none; margin: 0; padding: 0; }
+.diag { padding: 3px 0; border-bottom: 1px solid var(--border); }
+.diag:last-child { border-bottom: none; }
+.diag-error { color: var(--error); }
+.diag-warning { color: var(--warning); }
+
+.emulator { margin-top: 12px; }
+.screen {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 384 / 272;
+  image-rendering: pixelated;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.emulator-controls { margin: 10px 0; }
+.emulator-status { font-size: 12px; color: var(--warning); margin: 4px 0; }
+.rom-status { font-size: 12px; color: var(--muted); margin: 2px 0; }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 18, 0.96);
+  z-index: 20;
+  padding: 24px;
+}
+.overlay-card {
+  max-width: 460px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+.overlay-card h1 { margin-top: 0; }

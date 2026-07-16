@@ -12,10 +12,11 @@ can edit NMOS 6510 assembly, deterministically build the same source into a PRG 
 run the PRG through a WebAssembly C64 emulator, share the source through a URL or curated
 example, and download standard artifacts for external tools or physical hardware.
 
-This repository currently contains the specialized product and architecture foundation plus
-the implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64). The
-emulator, WebAssembly core, web client, examples gallery, and deployment workflow are planned
-and are not yet implemented.
+This repository currently contains the specialized product and architecture foundation, the
+implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64), and the
+static browser IDE that drives that pipeline. The emulator, WebAssembly core, examples
+gallery beyond the first entry, and deployment workflow are planned; the IDE's Run control
+renders an explicit unavailable state until the WASM core and a ROM set exist.
 
 ## Architecture at a glance
 
@@ -100,6 +101,6 @@ There is no runtime API, account system, database, or secret.
 | Emulator, VIC-II, SID/CIA/input | Not started |
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
 | ROM asset handling | Not started |
-| Web client, examples, and gallery | Not started (one canonical assembler example fixture exists under `examples/`) |
+| Web client, examples, and gallery | Implemented (shell) — static `web/` IDE builds via a worker over the `src/` pipeline, downloads PRG/D64, shares/remixes, and loads the `border-flash` gallery entry; Run stays unavailable pending the emulator |
 | Native/WASM tests and build pipeline | Node pipeline tests implemented; native/WASM build and tests not started |
 | GitHub Pages deployment | Planned; no workflow or deployed site exists yet |
