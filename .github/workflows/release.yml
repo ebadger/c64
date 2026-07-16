@@ -1,0 +1,133 @@
+name: release
+
+# Release + GitHub Pages pipeline. This is the authoritative release gate; `core.yml` is the fast
+# per-branch feedback lane. On pull requests it runs every gate (foundation, Node/golden, native,
+# production WASM, external D64 interoperability, production dist build + integrity, and the full
+# Chromium/Firefox/WebKit browser matrix against the deployed bytes) and uploads the static dist as
+# a Pages artifact for inspection only — it does NOT deploy. On a push to `main` it rebuilds from
+# source with the same pinned tools and deploys the exact gated artifact through the official
+# GitHub Pages actions. Nothing here auto-merges, and there is no runtime backend or secret.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege by default; the deploy job elevates only what Pages needs.
+permissions:
+  contents: read
+
+concurrency:
+  # Cancel superseded PR runs, but never cancel an in-progress main build/deploy.
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Read pinned Emscripten version
+        id: emsdk
+        run: echo "version=$(grep -Eo '^[0-9.]+' scripts/build/emscripten-version.txt | head -n1)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Emscripten (pinned)
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ steps.emsdk.outputs.version }}
+
+      - name: Install VICE (external c1541 for D64 interop)
+        run: sudo apt-get update && sudo apt-get install -y vice
+
+      - name: Record tool provenance
+        run: |
+          node --version
+          emcc --version | head -n1
+          c1541 -help | head -n1 || true
+          dpkg-query -W -f='vice ${Version}\n' vice || true
+
+      - name: Native build + CTest
+        run: sh scripts/build/build-native.sh
+
+      - name: WebAssembly build (production artifact)
+        run: sh scripts/build/build-wasm.sh
+
+      - name: Require release artifacts (fail, do not skip, if missing)
+        run: node scripts/dev/require-release-artifacts.mjs
+
+      - name: Install Playwright browser matrix (Chromium, Firefox, WebKit)
+        run: |
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium firefox webkit
+
+      - name: Full gated test suite (WASM parity, dist, interop, browser matrix — non-skipping)
+        env:
+          C64_E2E_REQUIRE: "1"
+          C64_INTEROP_REQUIRE: "1"
+        run: node --test tests/
+
+      - name: Example golden vectors
+        run: node examples/build-example.mjs
+
+      - name: Gallery golden vectors
+        run: node web/client/tools/build-gallery.mjs
+
+      - name: Assemble production dist/ (WASM required)
+        run: node scripts/build/build-dist.mjs
+
+      - name: Verify dist integrity + smoke (manifest hashes, CSP, no leaks)
+        run: node scripts/dev/verify-dist.mjs
+
+      - name: Operating-foundation checks
+        run: |
+          sh scripts/dev/check-learnings-budget.sh
+          node scripts/dev/review-template-updates.mjs check
+          node --check .github/extensions/compliance-hooks/extension.mjs
+          node --test .github/extensions/compliance-hooks/policy.test.mjs
+
+      - name: Upload Pages artifact (inspection on PRs; deployed on main)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    # Deploy the exact gated artifact only on a merged push to main. Never on PRs. No auto-merge.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-gate
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      # GitHub's recommended pattern: serialize deploys, never cancel one in flight.
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Post-deploy smoke check
+        run: |
+          url="${{ steps.deploy.outputs.page_url }}"
+          echo "Deployed to $url"
+          code=""
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -sSL -o body.html -w "%{http_code}" "$url" || true)
+            if [ "$code" = "200" ] && grep -qi "browser IDE" body.html; then
+              echo "smoke ok ($code)"; exit 0
+            fi
+            echo "attempt $i: HTTP $code, retrying…"; sleep 10
+          done
+          echo "post-deploy smoke check failed (last HTTP $code)"; exit 1

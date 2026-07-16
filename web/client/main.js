@@ -72,6 +72,10 @@ async function init() {
   wireArtifacts();
   wireShare();
 
+  // Optional-capability degradation: the emulator runs without these, but the feature is disabled
+  // and honestly labelled rather than silently broken (see specs/WEB-CLIENT.md).
+  applyOptionalCapabilities(caps.optional);
+
   // Restore preferences, then decide the initial project from URL, autosave, or default.
   applyPreferences(storage.loadPreferences());
   await loadGalleryList();
@@ -79,6 +83,17 @@ async function init() {
 
   setText(els.statusLine, "Ready. Load ROM files to enable Run.");
   appInitialized = true; // decideInitialProject has run; the editor will not be overwritten
+}
+
+// Web Audio is optional. When it is unavailable (e.g. some headless browsers), keep the emulator
+// fully functional but disable the audio control and label it, instead of blocking startup.
+let audioAvailable = true;
+function applyOptionalCapabilities(optional) {
+  if (Array.isArray(optional) && optional.includes("Web Audio")) {
+    audioAvailable = false;
+    setEnabled(els.btnAudio, false);
+    setText(els.audioStatus, "Audio unavailable in this browser");
+  }
 }
 
 function showCapabilityError(missing) {
@@ -445,6 +460,10 @@ function onMachineStop(reason) {
 }
 
 async function toggleAudio() {
+  if (!audioAvailable) {
+    setText(els.audioStatus, "Audio unavailable in this browser");
+    return;
+  }
   if (audio.enabled) {
     await audio.disable();
     setText(els.audioStatus, "Audio off");
@@ -712,6 +731,7 @@ window.__c64 = {
   peek: (addr) => (machine && machine.ready ? machine.debugReadRam(addr) : null),
   inputSnapshot: () => (input ? input.snapshot() : null),
   running: () => !!(pacer && pacer.running),
+  audioAvailable: () => audioAvailable,
   errors: () => errorBus.items(),
   initialized: () => appInitialized,
 };

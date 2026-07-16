@@ -19,7 +19,8 @@ export class RomManager {
       return { ok: false, error: result.error };
     }
     // Keep only role/size/digest/known publicly; bytes stay private and memory-only. `ok: true`
-    // marks this role as a valid loaded descriptor for romSetStatus.
+    // marks the descriptor as an accepted (size-valid) role: romSetStatus() keys readiness off it,
+    // so it must be present or the set never becomes ready and Run can never enable.
     this._descriptors[role] = {
       ok: true,
       role,

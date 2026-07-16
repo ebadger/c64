@@ -1,14 +1,19 @@
 name: core
 
-# Build and test the deterministic machine core: native (CMake/CTest) and the production
-# WebAssembly artifact (pinned Emscripten), plus the milestone-1 Node pipeline, web-client and
-# gallery golden vectors, headless native/WASM parity, a browser E2E pass against the production
-# WASM artifact, and the operating-foundation checks. Fails closed.
+# Fast per-branch feedback lane: builds the deterministic machine core (native CMake/CTest and the
+# production WebAssembly artifact), plus the milestone-1 Node pipeline, web-client and gallery
+# golden vectors, headless native/WASM parity, a Chromium browser E2E against the production WASM
+# artifact, and the operating-foundation checks. Fails closed.
+#
+# Pull requests and pushes to `main` are gated by the comprehensive `release.yml` (full browser
+# matrix, external D64 interoperability, production dist build/integrity, and Pages deploy on main),
+# so this workflow runs only on non-main branch pushes to keep feedback fast and avoid duplicating
+# the full release gate.
 
 on:
   push:
-    branches: ["**"]
-  pull_request:
+    branches-ignore: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read

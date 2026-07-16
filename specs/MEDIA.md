@@ -166,6 +166,10 @@ visible but marks them stale.
 | D64 parser/import | Implemented (limited) | `parseD64`/`extractPrg` (JS) and the C++ core `parseD64`/`extractFile` validate geometry, directory chain, and file chains; full BAM-consistency validation is deferred to ebadger/c64#2 |
 | 1541 drive behavior | Implemented (high-level trap) | Read-only KERNAL LOAD/IEC file-service trap for drive 8 (see the fidelity section above); no cycle-level GCR drive |
 | Curated D64 routes | Implemented | Same-origin gallery IDs only (`?d64` resolves through a valid gallery entry); owned by `WEB-CLIENT.md` |
+| External-tool interoperability | Implemented (software) | `tests/interop/` round-trips a generated D64 through VICE `c1541` (provisioned reproducibly, no committed binary) and asserts 35-track directory metadata plus byte-exact extracted PRG (`tests/interop/PROVENANCE.md`) |
 
-External-tool D64 interoperability (loading generated images in real 1541 tooling or hardware)
-is not yet independently verified and is tracked as an open gap in `status/SYSTEM-STATUS.md`.
+External-tool D64 interoperability is now independently verified against **software** tooling (VICE
+`c1541`): the release gate confirms the generated image's directory metadata and extracts a
+byte-identical PRG through the third-party tool. This is a software-interoperability claim only — it
+does **not** verify physical 1541 hardware, real GCR flux/timing, custom drive code, or fastloaders,
+which remain out of scope (see the fidelity section above and `status/SYSTEM-STATUS.md`).

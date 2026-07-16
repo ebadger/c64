@@ -92,11 +92,13 @@ intentionally has its own `buildId`; the two golden records do not have to match
   D64 import.
 - Build runs through the dual-use assembler, preferably in a worker. Run is enabled only
   for the latest successful build and a valid ROM set.
-- In-app **Run** loads the PRG and enters the machine-code entry at `runAddress` (for
-  `basic-sys` this is the SYS target the generated stub jumps to). The app does not tokenize and
-  RUN BASIC in-process; the *downloaded* PRG still autostarts via BASIC `RUN` on a stock machine
-  per [`CODEGEN.md`](./CODEGEN.md). This keeps Run deterministic and ROM-agnostic and is the
-  honestly-labelled in-app boundary.
+- In-app **Run** resets the machine (power-on), loads the PRG, and enters the machine-code entry
+  at `runAddress` (for `basic-sys` this is the SYS target the generated stub jumps to). It does
+  not run the ROM's BASIC cold-start or tokenize and `RUN` the stub in-process; the *downloaded*
+  PRG still autostarts via BASIC `RUN` on a stock machine per [`CODEGEN.md`](./CODEGEN.md). This
+  keeps Run deterministic and ROM-agnostic and is the honestly-labelled in-app boundary: because
+  no BASIC/KERNAL ROM ships and tests use only synthetic ROM fixtures, an in-process BASIC `RUN`
+  path could not be validated on the release gate without copyrighted ROMs.
 - The WASM core runs in bounded cycle batches. The browser uses `requestAnimationFrame` and
   audio-buffer demand to pace presentation; it never changes the selected machine clock or
   skips emulated cycles to match display refresh.
@@ -132,8 +134,17 @@ holds focus, and every blur/visibility-loss path calls release-all so no key can
 
 ## Browser and security boundaries
 
-- Target current evergreen browsers with WebAssembly, ES modules, workers, Web Audio, and
-  typed arrays. Missing capabilities are reported before initialization.
+- Target current evergreen browsers. **Required** capabilities (missing any one is a hard,
+  pre-initialization `capability` error): WebAssembly, ES modules, Web Workers, typed arrays,
+  `TextEncoder`/`TextDecoder`, DOM, Canvas 2D, URL APIs, and `localStorage`. **Optional**
+  capabilities degrade gracefully instead of blocking the app: **Web Audio** is optional — when it
+  is absent (e.g. some headless WebKit builds) the emulator still loads, builds, runs video,
+  accepts input, and downloads artifacts, but the audio control is disabled and honestly labelled
+  ("Audio unavailable in this browser"). Capability status is computed before initialization.
+- The release browser matrix pins Playwright **Chromium, Firefox, and WebKit** and drives the full
+  user journey against the production `dist/` bytes at both the localhost root (`/`) and the GitHub
+  Pages project base (`/c64/`), asserting base-path independence and honest optional-capability
+  fallback (see `tests/e2e/matrix.e2e.test.mjs`).
 - The site uses a restrictive static Content Security Policy compatible with same-origin
   workers/WASM and no third-party scripts. The concrete policy, delivered by a `<meta
   http-equiv>` tag (Pages-compatible) and echoed by the dev server, is:
@@ -146,9 +157,12 @@ holds focus, and every blur/visibility-loss path calls release-all so no key can
 
   `'wasm-unsafe-eval'` is the minimum needed to compile the same-origin WebAssembly module; no
   `'unsafe-inline'`/`'unsafe-eval'` is used. There are no inline scripts or inline styles. The
-  production WASM artifact is built with `-sDYNAMIC_EXECUTION=0` so embind generates no runtime
-  JavaScript (`new Function`/`eval`), keeping it compatible with this policy (see
-  `core/CMakeLists.txt` and [`EMULATOR.md`](./EMULATOR.md)).
+  production WebAssembly artifact is built with Emscripten `-sDYNAMIC_EXECUTION=0` so embind
+  generates no runtime JavaScript (`new Function`/`eval`) and the generated loader contains none;
+  it therefore loads under this policy without any `'unsafe-eval'` relaxation (see
+  `core/CMakeLists.txt` and [`EMULATOR.md`](./EMULATOR.md)). A dist reference test rejects any
+  absolute/external asset URL and the browser-matrix E2E runs under the deployed CSP with zero
+  console CSP violations.
 - Source is treated as data, never inserted as HTML or evaluated as JavaScript.
 - No analytics, ads, accounts, uploads, remote code execution, cross-origin source fetches,
   or runtime write endpoints exist in the initial architecture.
@@ -175,15 +189,41 @@ not continue showing a running state.
 - Downstream: browser users and static GitHub Pages deployment.
 - Runtime dependencies: generated emulator WASM/loader and static source assets only.
 
+### Production build and deployment (`dist/`)
+
+`scripts/build/build-dist.mjs` assembles a clean, flattened, app-rooted `dist/` containing only the
+files the deployed site needs: `index.html`, `main.js`, `styles.css`, `buildWorker.js`, `lib/`, the
+shared assembler `pipeline/` (from `src/`), the `emulator/` wrapper, the production
+`wasm/c64core.{mjs,wasm}`, `gallery.json` and its referenced example sources, a
+`THIRD-PARTY-NOTICES.md` license inventory, and a content-derived `asset-manifest.json` (sha256 +
+byte size + MIME per file). It emits no source maps, no private inputs, and no ROM bytes.
+
+- **Base-path independence.** Every asset reference resolves relatively (ES module specifiers and
+  `import.meta.url` math, relative `fetch`/`new URL`, relative HTML `href`/`src`), so the same
+  `dist/` works unchanged at the localhost root (`/`) and under the GitHub Pages project base
+  (`/c64/`) with no absolute-path breakage. The build rewrites only the small, anchored set of
+  cross-tree specifiers the flattening changes and fails loudly if an anchor is missing.
+- **Determinism.** Inputs are copied byte-for-byte and the manifest/notices are pure functions of
+  content (no timestamps or commit ids), so repeated clean builds from the same commit and pinned
+  toolchain are byte-identical (WASM bytes are reproducible only to the extent the pinned Emscripten
+  toolchain is; the release records the toolchain out of band).
+- **Release gate.** The production WASM artifact is **required** by default; the build fails (never
+  silently skips) when `build/wasm/c64core.{mjs,wasm}` is missing. `--allow-missing-wasm` is for
+  inspection-only dev builds and is never used on the release path.
+- Reference/MIME/determinism/CSP invariants are enforced by `tests/dist/`.
+
 ### Local development and end-to-end testing
 
 The static app is served for local development and E2E by a dependency-light Node static server
-(`scripts/dev/serve.mjs`) rooted at the repository so `/web/client/`, `/src/`, `/web/emulator/`,
-`/examples/`, and `/build/wasm/` are same-origin. It sets correct MIME types
+(`scripts/dev/serve.mjs`). For local dev it roots at the repository so `/web/client/`, `/src/`,
+`/web/emulator/`, `/examples/`, and `/build/wasm/` are same-origin; the browser E2E instead serves
+the assembled `dist/` (the actual deployable bytes). It sets correct MIME types
 (`application/wasm`, `text/javascript`) and echoes the CSP. End-to-end tests
 (`tests/e2e/`, Playwright, an opt-in dev-only tool) drive the real app against the **actual
-production WASM artifact**; they skip cleanly when the artifact or the browser binaries are
-absent, mirroring the headless WASM parity tests. Exact commands live in `SETUP.md`.
+production WASM artifact** in `dist/` across the Chromium/Firefox/WebKit matrix. Locally they skip
+cleanly when the artifact or a browser binary is absent; on the release path CI sets
+`C64_E2E_REQUIRE` so a missing artifact or required browser **fails** rather than skips. Exact
+commands live in `SETUP.md`.
 
 ## Implementation Status
 
@@ -194,4 +234,4 @@ absent, mirroring the headless WASM parity tests. Exact commands live in `SETUP.
 | WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core |
 | URL share/remix and autosave | Implemented | `?code`/`?src`/`?d64`, bearer-data warning, namespaced autosave/preferences |
 | Gallery and canonical PR flow | Implemented | `web/client/gallery.json` with a validated, reproducible border-flash entry |
-| GitHub Pages deployment | Planned (milestone 5) | No workflow or live site yet; not claimed live |
+| GitHub Pages deployment | Implemented (deployable/pending) | Deterministic `dist/` build (`scripts/build/build-dist.mjs`) + release workflow (`.github/workflows/release.yml`) deploy the gated artifact to Pages on merged `main`; not yet live while this PR is unmerged |

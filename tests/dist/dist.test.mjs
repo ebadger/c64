@@ -1,0 +1,251 @@
+// Production dist-build tests. Assemble the flattened `dist/` into a temp directory and assert the
+// contract from specs/WEB-CLIENT.md and the milestone-5 release requirements: base-path-independent
+// (no absolute/external/escaping references), every referenced asset present, a content-derived
+// sha256 manifest with correct MIME types, byte-identical repeated builds, no source maps/private
+// inputs/ROM bytes, a restrictive CSP with no inline script/style, and a fail-not-skip WASM gate.
+//
+// These run under `node --test tests/` with no toolchain: the dist assembler is pure Node and the
+// production WASM artifact is optional here (its presence/absence is asserted, its bytes are
+// covered by the WASM parity + browser E2E gates).
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { dirname, extname, join, relative, resolve } from "node:path";
+
+import { buildDist, contentTypeFor, CONTENT_TYPES } from "../../scripts/build/build-dist.mjs";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(here, "..", "..");
+
+function freshOut(prefix) {
+  return mkdtempSync(join(tmpdir(), prefix));
+}
+
+function listFiles(dir, root = dir, acc = []) {
+  for (const name of readdirSync(dir).sort()) {
+    const abs = join(dir, name);
+    if (statSync(abs).isDirectory()) listFiles(abs, root, acc);
+    else acc.push(relative(root, abs).split("\\").join("/"));
+  }
+  return acc;
+}
+
+const TEXT_EXT = new Set([".js", ".mjs", ".html", ".css", ".json", ".md", ".asm", ".txt"]);
+function isText(p) {
+  return TEXT_EXT.has(extname(p).toLowerCase());
+}
+
+// Build once for the reference/manifest/MIME tests (WASM optional in this environment).
+const out = freshOut("c64-dist-a-");
+const { manifest, wasmIncluded } = buildDist({ repoRoot, outDir: out, requireWasm: false });
+
+test.after(() => rmSync(out, { recursive: true, force: true }));
+
+test("dist contains the required app-rooted layout and nothing private", () => {
+  const files = new Set(listFiles(out));
+  for (const required of [
+    "index.html",
+    "main.js",
+    "styles.css",
+    "buildWorker.js",
+    "gallery.json",
+    "lib/config.js",
+    "lib/machine.js",
+    "pipeline/index.js",
+    "emulator/c64.mjs",
+    "asset-manifest.json",
+    "THIRD-PARTY-NOTICES.md",
+  ]) {
+    assert.ok(files.has(required), `dist is missing required asset ${required}`);
+  }
+  // No source maps, ROM/binary blobs, package manifests, node_modules, or test files leak in.
+  for (const p of files) {
+    assert.ok(!p.endsWith(".map"), `source map must not ship: ${p}`);
+    assert.ok(!/\.(rom|bin)$/i.test(p), `ROM/binary blob must not ship: ${p}`);
+    assert.ok(p !== "package.json" && !p.endsWith("/package.json"), `package.json must not ship: ${p}`);
+    assert.ok(!p.includes("node_modules/"), `node_modules must not ship: ${p}`);
+    assert.ok(!/(^|\/)tests?\//.test(p), `test files must not ship: ${p}`);
+  }
+});
+
+test("no asset reference is absolute, external, protocol-relative, or escapes the app root", () => {
+  // Context-aware: only flag values used as actual asset references (HTML href/src, CSS url(),
+  // ES import specifiers, and `new URL(...)` first args). Plain string literals that merely
+  // contain "//" or "http" as data (e.g. path-safety checks in lib/paths.js) are not references.
+  const external = (v) => /^(https?:)?\/\//i.test(v); // http(s):// or protocol-relative //
+  const absolute = (v) => v.startsWith("/");
+  const check = (p, kind, v) => {
+    assert.ok(!external(v), `${p}: ${kind} reference is external/protocol-relative: '${v}'`);
+    assert.ok(!absolute(v), `${p}: ${kind} reference is an absolute path: '${v}'`);
+    assert.ok(!v.includes("../../"), `${p}: ${kind} reference escapes with '../../': '${v}'`);
+  };
+  for (const p of listFiles(out)) {
+    const ext = extname(p).toLowerCase();
+    if (!isText(p)) continue;
+    const text = readFileSync(join(out, p), "utf8");
+    if (ext === ".html") {
+      for (const m of text.matchAll(/\b(?:href|src)\s*=\s*["']([^"']*)["']/g)) {
+        if (m[1].startsWith("#")) continue; // in-page anchors
+        check(p, "html-attr", m[1]);
+      }
+    } else if (ext === ".css") {
+      for (const m of text.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/g)) check(p, "css-url", m[1]);
+    } else if (ext === ".js" || ext === ".mjs") {
+      for (const m of text.matchAll(/new URL\(\s*["']([^"']+)["']/g)) check(p, "new-URL", m[1]);
+      for (const m of text.matchAll(/\b(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) check(p, "es-specifier", m[1]);
+    }
+  }
+});
+
+test("every static ES module specifier resolves to a file inside dist", () => {
+  const specifier = /\b(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
+  for (const p of listFiles(out)) {
+    if (extname(p) !== ".js" && extname(p) !== ".mjs") continue;
+    // The vendored Emscripten loader (wasm/c64core.mjs) is third-party generated glue with
+    // environment-guarded Node builtin imports ('module', 'fs', ...) that browsers never execute;
+    // it is exempt from the first-party relative-specifier rule but still covered by the
+    // absolute/external-reference check above.
+    if (p.startsWith("wasm/")) continue;
+    const text = readFileSync(join(out, p), "utf8");
+    let m;
+    while ((m = specifier.exec(text)) !== null) {
+      const spec = m[1];
+      assert.ok(spec.startsWith("./") || spec.startsWith("../"), `${p}: non-relative ES specifier '${spec}'`);
+      const target = resolve(dirname(join(out, p)), spec);
+      const rel = relative(out, target);
+      assert.ok(!rel.startsWith(".."), `${p}: specifier '${spec}' escapes dist`);
+      assert.ok(existsSync(target), `${p}: specifier '${spec}' -> missing ${rel}`);
+    }
+  }
+});
+
+test("config path constants point at files that exist in dist", () => {
+  const cfg = readFileSync(join(out, "lib", "config.js"), "utf8");
+  for (const [name, expectPresent] of [
+    ["gallery.json", true],
+    ["emulator/c64.mjs", true],
+    ["wasm/c64core.mjs", wasmIncluded],
+  ]) {
+    assert.ok(cfg.includes(`"${name}"`), `config.js should reference '${name}'`);
+    if (expectPresent) assert.ok(existsSync(join(out, name)), `dist should contain '${name}'`);
+  }
+});
+
+test("asset manifest is content-accurate with correct MIME types", () => {
+  const parsed = JSON.parse(readFileSync(join(out, "asset-manifest.json"), "utf8"));
+  assert.equal(parsed.manifestVersion, 1);
+  assert.equal(parsed.wasmIncluded, wasmIncluded);
+  const onDisk = listFiles(out).filter((p) => p !== "asset-manifest.json");
+  assert.equal(parsed.fileCount, onDisk.length, "manifest fileCount matches files on disk");
+  assert.deepEqual(
+    parsed.files.map((f) => f.path),
+    [...onDisk].sort(),
+    "manifest lists exactly the files on disk, sorted",
+  );
+  for (const f of parsed.files) {
+    const bytes = readFileSync(join(out, f.path));
+    assert.equal(f.bytes, bytes.length, `${f.path}: manifest byte length`);
+    assert.equal(f.sha256, createHash("sha256").update(bytes).digest("hex"), `${f.path}: manifest sha256`);
+    assert.equal(f.contentType, contentTypeFor(f.path), `${f.path}: manifest contentType`);
+  }
+  // The manifest is a pure function of contents (also proven by the determinism test) and shares
+  // the same value produced by buildDist.
+  assert.equal(parsed.fileCount, manifest.fileCount);
+});
+
+test("MIME expectations match the served content types", () => {
+  assert.equal(CONTENT_TYPES[".mjs"], "text/javascript; charset=utf-8");
+  assert.equal(CONTENT_TYPES[".js"], "text/javascript; charset=utf-8");
+  assert.equal(CONTENT_TYPES[".wasm"], "application/wasm");
+  assert.equal(CONTENT_TYPES[".html"], "text/html; charset=utf-8");
+  assert.equal(CONTENT_TYPES[".json"], "application/json; charset=utf-8");
+  assert.equal(CONTENT_TYPES[".css"], "text/css; charset=utf-8");
+});
+
+test("index.html has the restrictive CSP and no inline script/style", () => {
+  const html = readFileSync(join(out, "index.html"), "utf8");
+  assert.match(html, /http-equiv="Content-Security-Policy"/, "CSP meta present");
+  assert.match(html, /script-src 'self' 'wasm-unsafe-eval'/, "script-src limited to self + wasm compile");
+  assert.ok(!/'unsafe-inline'/.test(html), "no 'unsafe-inline'");
+  assert.ok(!/'unsafe-eval'/.test(html), "no 'unsafe-eval'");
+  // The only script is the module entry; no inline script bodies.
+  assert.match(html, /<script type="module" src="main\.js"><\/script>/);
+  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]*\S[^<]*<\/script>/.test(html), "no inline script body");
+});
+
+test("third-party notices inventory excludes ROMs and names build-time-only tooling", () => {
+  const notices = readFileSync(join(out, "THIRD-PARTY-NOTICES.md"), "utf8");
+  assert.match(notices, /copyrighted Commodore ROM bytes are ever/i);
+  assert.match(notices, /Emscripten/);
+  assert.match(notices, /Playwright/);
+  assert.match(notices, /NOT shipped/);
+});
+
+test("repeated clean builds from the same tree are byte-identical", () => {
+  const outB = freshOut("c64-dist-b-");
+  try {
+    buildDist({ repoRoot, outDir: outB, requireWasm: false });
+    const a = listFiles(out);
+    const b = listFiles(outB);
+    assert.deepEqual(b, a, "same file set");
+    for (const p of a) {
+      const ha = createHash("sha256").update(readFileSync(join(out, p))).digest("hex");
+      const hb = createHash("sha256").update(readFileSync(join(outB, p))).digest("hex");
+      assert.equal(hb, ha, `byte-identical: ${p}`);
+    }
+  } finally {
+    rmSync(outB, { recursive: true, force: true });
+  }
+});
+
+test("the release path fails (not skips) when the production WASM artifact is missing", () => {
+  const wasmPresent = existsSync(join(repoRoot, "build", "wasm", "c64core.mjs"));
+  const outW = freshOut("c64-dist-w-");
+  try {
+    if (wasmPresent) {
+      // On a full toolchain, requireWasm:true must include the artifact.
+      const r = buildDist({ repoRoot, outDir: outW, requireWasm: true });
+      assert.equal(r.wasmIncluded, true);
+      assert.ok(existsSync(join(outW, "wasm", "c64core.wasm")));
+      assert.ok(existsSync(join(outW, "wasm", "c64core.mjs")));
+    } else {
+      assert.throws(
+        () => buildDist({ repoRoot, outDir: outW, requireWasm: true }),
+        /WASM artifact missing/,
+        "requireWasm must throw when the artifact is absent (CI gate fails, not skips)",
+      );
+    }
+  } finally {
+    rmSync(outW, { recursive: true, force: true });
+  }
+});
+
+test("the flattened pipeline executes and reproduces the gallery buildId", async () => {
+  // Prove the rewritten cross-tree specifiers resolve and run. Node treats bare `.js` as CommonJS
+  // unless a package.json marks the tree as ESM; browsers do not need this. Use a throwaway copy so
+  // the shipped dist stays clean (no package.json).
+  const copy = freshOut("c64-dist-run-");
+  try {
+    cpSync(out, copy, { recursive: true });
+    writeFileSync(join(copy, "package.json"), '{"type":"module"}\n');
+    const { buildArtifacts } = await import(pathToFileURL(join(copy, "pipeline", "index.js")).href);
+    const { makeProject } = await import(pathToFileURL(join(copy, "lib", "projectModel.js")).href);
+    const gallery = JSON.parse(readFileSync(join(copy, "gallery.json"), "utf8"));
+    const src = readFileSync(join(repoRoot, gallery[0].sourcePath), "utf8");
+    const proj = makeProject({
+      source: src,
+      name: gallery[0].id,
+      outputName: gallery[0].id,
+      timingProfile: gallery[0].timingProfile,
+    });
+    const r = buildArtifacts(proj);
+    assert.equal(r.ok, true);
+    assert.equal(r.assembly.buildId, gallery[0].expectedBuildId, "dist pipeline reproduces the gallery buildId");
+  } finally {
+    rmSync(copy, { recursive: true, force: true });
+  }
+});
