@@ -8,6 +8,7 @@ import {
   computeRomSetId,
   ROM_ROLES,
 } from "../../web/client/lib/romValidate.js";
+import { RomManager } from "../../web/client/lib/roms.js";
 
 function rom(role, fill = 0) {
   const sizes = { basic: 8192, kernal: 8192, chargen: 4096 };
@@ -50,6 +51,37 @@ test("romSetStatus reports missing and unconfirmed roles", () => {
   const confirmed = { ok: true, requiresConfirmation: true, confirmed: true };
   const ready = romSetStatus({ basic: confirmed, kernal: confirmed, chargen: confirmed });
   assert.equal(ready.ready, true);
+});
+
+test("RomManager becomes ready after confirming a complete unknown-digest set (Run enablement)", () => {
+  // Regression: setRoleBytes must store an accepted descriptor that romSetStatus keys readiness
+  // off. A prior defect stored the descriptor without `ok`, so readiness was permanently false and
+  // Run could never be enabled with user-supplied ROMs (the only supported case today).
+  const rm = new RomManager();
+  assert.equal(rm.ready(), false);
+  for (const role of ROM_ROLES) {
+    const res = rm.setRoleBytes(role, rom(role, 0x11 + ROM_ROLES.indexOf(role)));
+    assert.equal(res.ok, true);
+    // Unknown digests require explicit confirmation; before it, the set is not ready.
+    assert.equal(rm.ready(), false);
+    rm.confirmRole(role);
+  }
+  assert.equal(rm.ready(), true, "a confirmed, complete set is ready");
+  assert.equal(rm.status().complete, true);
+  assert.deepEqual(rm.status().missing, []);
+  const romSet = rm.getRomSet();
+  assert.ok(romSet && romSet.basic && romSet.kernal && romSet.chargen, "getRomSet exposes bytes when ready");
+  assert.match(romSet.id, /^[0-9a-f]{64}$/);
+});
+
+test("RomManager rejects a wrong-size role and stays not-ready", () => {
+  const rm = new RomManager();
+  for (const role of ["basic", "kernal"]) rm.setRoleBytes(role, rom(role)), rm.confirmRole(role);
+  const bad = rm.setRoleBytes("chargen", new Uint8Array(123));
+  assert.equal(bad.ok, false);
+  assert.equal(bad.error.code, "rom-size");
+  assert.equal(rm.ready(), false);
+  assert.equal(rm.getRomSet(), null);
 });
 
 test("computeRomSetId is deterministic and content-sensitive", () => {

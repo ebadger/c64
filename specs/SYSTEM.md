@@ -18,9 +18,10 @@ deterministic C++17 machine core: a complete documented NMOS 6510 CPU, C64 bus/b
 validation, plus cycle-integrated VIC-II, SID, and CIA devices and read-only mounted D64
 execution — compiled once to a production WebAssembly artifact and exercised by native and
 headless WASM parity tests. The static browser IDE (`web/client/`) integrates the production
-assembler worker and production WASM machine with a validated examples gallery; the GitHub Pages
-deployment workflow is a later milestone and is not yet implemented. Device and media fidelity is
-honestly labelled in the layer specs (line-based VIC renderer, approximate SID filter, high-level
+assembler worker and production WASM machine with a validated examples gallery, and a deterministic
+`dist/` build plus a GitHub Actions release pipeline deploy the gated bundle to GitHub Pages on
+merged `main` (deployable/pending; not live while unmerged). Device and media fidelity is honestly
+labelled in the layer specs (line-based VIC renderer, approximate SID filter, high-level
 rather than cycle-level 1541 drive).
 
 ## Architecture at a glance
@@ -109,5 +110,5 @@ There is no runtime API, account system, database, or secret.
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
 | ROM asset handling | Implemented in the core (validation, digests, memory-only); `web/client/` role picker with unknown-digest confirmation; no redistributable set selected |
 | Web client, examples, and gallery | Implemented — static `web/client/` IDE (build worker, machine, presentation, input, sharing, downloads) and a validated `gallery.json`; the milestone-1 example is a runnable gallery entry |
-| Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and a CI workflow |
-| GitHub Pages deployment | Planned; no workflow or deployed site exists yet |
+| Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and CI workflows |
+| Production dist build + GitHub Pages deployment | Implemented (deployable/pending) — deterministic `dist/` build (`scripts/build/build-dist.mjs`), dist reference/integrity tests, external D64 interoperability (VICE `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and `.github/workflows/release.yml` deploying the gated artifact on merged `main`; live only after a `main` deploy |

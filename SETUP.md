@@ -165,14 +165,60 @@ node web/client/tools/build-gallery.mjs        # verify gallery.json golden vect
 node web/client/tools/build-gallery.mjs --write # regenerate gallery.json after intended changes
 ```
 
-Browser end-to-end tests drive the real app against the actual production WASM artifact using a
-headless Chromium. They need the WASM build and Playwright (an opt-in dev-only tool) and skip
-cleanly when either is missing:
+Browser end-to-end tests drive the real app against the actual production WASM artifact — assembled
+into the deployable `dist/` — across the pinned Playwright browser matrix (Chromium, Firefox,
+WebKit) at both the localhost root (`/`) and the GitHub Pages project base (`/c64/`). They need the
+WASM build and Playwright (an opt-in dev-only tool) and skip cleanly when either is missing:
 
 ```sh
 npm i --no-save playwright
-npx playwright install chromium
-node --test tests/e2e/               # E2E against build/wasm/c64core.mjs via scripts/dev/serve.mjs
+npx playwright install chromium firefox webkit
+node --test tests/e2e/               # full matrix + deep journey against the production dist bytes
 ```
 
-The GitHub Pages deployment workflow is a later milestone and is not part of this build.
+On the release path CI sets `C64_E2E_REQUIRE=1` so a missing artifact or required browser **fails**
+instead of skipping. WebKit's headless build has no Web Audio; the app treats Web Audio as an
+optional capability and runs without sound there (the audio control is disabled and labelled), which
+the matrix test asserts as honest fallback.
+
+## Build the production dist and verify integrity
+
+Assemble the deployable static bundle into a clean `dist/`. The production WASM artifact must be
+built first (the build fails, by design, if it is missing):
+
+```sh
+node scripts/build/build-dist.mjs                 # clean, flattened, base-path-agnostic dist/
+node scripts/dev/verify-dist.mjs                  # manifest hashes, required files, CSP, no leaks
+node --test tests/dist/                           # reference/MIME/determinism/CSP invariants
+node scripts/build/build-dist.mjs --allow-missing-wasm   # inspection-only dev build (NOT releasable)
+```
+
+`dist/` is base-path independent: the same bytes serve unchanged at `/` and under `/c64/`. Repeated
+clean builds from the same commit and pinned toolchain are byte-identical; `dist/asset-manifest.json`
+records a sha256 + byte size + MIME per file. No source maps, private inputs, or ROM bytes are
+emitted.
+
+## External D64 interoperability (VICE `c1541`)
+
+Independently verify generated D64 images against a third-party tool (no binary is committed). On
+Linux/CI, install VICE (`sudo apt-get install -y vice` provides `c1541`); the test finds it on PATH,
+or set `C64_C1541=/path/to/c1541`. It verifies 35-track directory metadata and byte-exact extracted
+PRG bytes; provenance is in [`tests/interop/PROVENANCE.md`](./tests/interop/PROVENANCE.md).
+
+```sh
+node --test tests/interop/            # skips locally when c1541 is absent
+C64_INTEROP_REQUIRE=1 node --test tests/interop/   # release gate: FAIL (not skip) if c1541 missing
+```
+
+## Release pipeline and GitHub Pages
+
+`.github/workflows/release.yml` is the authoritative release gate. On pull requests it runs every
+gate (foundation, Node/golden, native + CTest, production WASM, `require-release-artifacts`, the full
+browser matrix, external interop, and the production dist build + integrity) with the same pinned
+tools — Emscripten `3.1.74`, Node 18, Playwright Chromium/Firefox/WebKit, and VICE `c1541` — and
+uploads the static `dist/` as a Pages artifact for inspection only. On a push to `main` it rebuilds
+from source and deploys the exact gated artifact to GitHub Pages via the official actions (least
+permissions, concurrency-serialized, with a post-deploy smoke check). Nothing auto-merges. While
+this work is unmerged, the Pages site is **deployable/pending**, not live; it goes live only after a
+`main` deployment succeeds. `core.yml` remains a fast per-branch feedback lane.
+

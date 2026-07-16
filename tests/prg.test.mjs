@@ -36,3 +36,22 @@ test("download filenames are sanitized lowercase ASCII with the right extension"
   assert.equal(downloadFilename("My Game!", "d64"), "my-game.d64");
   assert.equal(downloadFilename("***", "prg"), "program.prg");
 });
+
+test("download filenames cannot smuggle path traversal or separators (security)", () => {
+  // No path separator, drive, traversal, NUL, or leading dot can survive sanitization: the result
+  // is always a single flat, safe filename with the intended extension.
+  for (const [name, expected] of [
+    ["../../etc/passwd", "etc-passwd.prg"],
+    ["..\\..\\windows\\system32", "windows-system32.prg"],
+    ["/abs/olute", "abs-olute.prg"],
+    ["a/b\\c:d*e", "a-b-c-d-e.prg"],
+    ["..", "program.prg"],
+    ["\u0000evil", "evil.prg"],
+    [".hidden", "hidden.prg"],
+  ]) {
+    const out = downloadFilename(name, "prg");
+    assert.equal(out, expected);
+    assert.ok(!/[\\/:*?"<>|\u0000]/.test(out), `no unsafe char in ${out}`);
+    assert.ok(!out.includes(".."), `no traversal in ${out}`);
+  }
+});

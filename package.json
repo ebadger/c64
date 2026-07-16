@@ -11,10 +11,13 @@
     "test": "node --test tests/",
     "test:pipeline": "node --test tests/",
     "test:web": "node --test tests/web/",
+    "test:dist": "node --test tests/dist/",
     "test:wasm": "node --test tests/wasm/",
     "test:e2e": "node --test tests/e2e/",
+    "test:interop": "node --test tests/interop/",
     "build:native": "sh scripts/build/build-native.sh",
     "build:wasm": "sh scripts/build/build-wasm.sh",
+    "build:dist": "node scripts/build/build-dist.mjs",
     "example": "node examples/build-example.mjs",
     "gallery": "node web/client/tools/build-gallery.mjs",
     "serve": "node scripts/dev/serve.mjs"

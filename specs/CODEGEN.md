@@ -140,8 +140,12 @@ a zero-page address encodes as zero page.
 - `basic-sys` mode is the default for examples. It requires load address `$0801`, emits a
   tokenized one-line BASIC program equivalent to `10 SYS <runAddress>`, terminates the BASIC
   program correctly, and places machine code after the stub unless source explicitly
-  selects a non-overlapping later origin. Browser Run uses the same stub through the BASIC
-  environment. The resulting PRG can be loaded and started with `RUN` on a standard C64.
+  selects a non-overlapping later origin. In-app Run resets the machine, loads the PRG, and
+  enters the assembled machine code at the SYS target (`runAddress`) directly; it does **not**
+  execute the ROM's BASIC cold-start or tokenize/`RUN` the stub in-process. This keeps Run
+  deterministic and ROM-agnostic and is an honestly-labelled boundary (see
+  [`WEB-CLIENT.md`](./WEB-CLIENT.md)); the *downloaded* PRG still autostarts through BASIC when
+  loaded and started with `RUN` on a standard C64.
 - In basic-sys mode the assembler derives `runAddress` from final addresses: it equals the
   first emitted machine-code byte. By default that is the byte immediately after the stub
   (`$080D` for a 4-digit SYS target), computed as the fixed point of

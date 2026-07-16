@@ -3,14 +3,14 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-15 — Copilot milestone-4 browser-IDE session_
+_Last verified: 2026-07-15 — Copilot milestone-5 release session_
 
 ## Environments
 
 | Environment | Current location | URL | State |
 |-------------|------------------|-----|-------|
 | Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker and production WASM machine; served locally, no deployment |
-| Production | Planned GitHub Pages | `https://ebadger.github.io/c64/` | Not deployed; no workflow or site assets exist (milestone 5) |
+| Production | GitHub Pages (deployable/pending) | `https://ebadger.github.io/c64/` | Deterministic `dist/` build + `release.yml` deploy the gated artifact on merged `main`; **not yet live** while this PR is unmerged. Deploys the exact bytes verified by the release gate; no runtime backend or secret |
 
 ## Run locally
 
@@ -73,8 +73,9 @@ node examples/build-example.mjs
 Expected result: template lineage is current, the learnings digest is under budget, shell
 syntax checks pass, all compliance policy tests pass, the pipeline test suite passes, and the
 committed example rebuilds to its recorded golden `buildId`/PRG/D64. These checks validate the
-milestone-1 pipeline; they do not validate the machine core (see the core build/test commands
-above and in `SETUP.md`) or a web client (which does not exist).
+milestone-1 pipeline; they do not on their own validate the machine core or the web client (both
+of which are implemented — see the core build/test and web-client/browser-E2E commands above and
+in `SETUP.md`).
 
 ## Build and deployment status
 
@@ -84,18 +85,20 @@ above and in `SETUP.md`) or a web client (which does not exist).
 | Native CMake build + CTest | Implemented — `core/` project, `scripts/build/build-native.sh`, 15 test suites |
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
-| CI workflow | Implemented — `.github/workflows/core.yml` builds native + WASM, runs all suites, and runs the browser E2E |
+| CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + full browser matrix + external interop + dist build/integrity + Pages deploy on main) and `.github/workflows/core.yml` (fast per-branch feedback) |
 | Static asset build (IDE, gallery) | Implemented — `web/client/` IDE, build worker, `gallery.json`; no bundled ROM set (user-supplied, memory-only) |
-| Web-client tests (Node + browser E2E) | Implemented — `tests/web/` (environment-free logic) and `tests/e2e/` (Playwright against the production WASM artifact; skips cleanly when absent) |
-| GitHub Pages deploy | Not started (milestone 5) |
+| Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP; WASM required (fail-not-skip) |
+| Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI) |
+| External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
+| GitHub Pages deploy | Implemented (deployable/pending) — `release.yml` deploys the gated `dist/` on merged `main` via official Pages actions; live only after a `main` deploy succeeds |
 
-The remaining steps' implementation PRs must add exact commands and update this status.
+The remaining fidelity/legal gaps are tracked below; the deployment machinery is implemented.
 
 ## Configuration and secrets
 
-There are no application runtime variables, credentials, or secrets. Planned Pages hosting
-must remain static and secret-free. User-supplied ROM and D64 bytes are local inputs, not
-configuration and never repository or CI data.
+There are no application runtime variables, credentials, or secrets. Pages hosting is static and
+secret-free. User-supplied ROM and D64 bytes are local inputs, not configuration, and never
+repository or CI data.
 
 ## Key scripts
 
@@ -106,15 +109,23 @@ configuration and never repository or CI data.
 | `scripts/dev/pre-push-tests.sh` | Run operating validations and, when critical-path files change, the non-bypassable pipeline eval. |
 | `scripts/dev/test-critical-path.sh` | Product critical-path eval: full `node --test tests/` plus example golden-vector verification. |
 | `scripts/dev/review-template-updates.mjs` | Check canonical policy changes and record reviewed checkpoints. |
+| `scripts/build/build-dist.mjs` | Assemble the clean, flattened, base-path-agnostic production `dist/` with a sha256 manifest. |
+| `scripts/dev/verify-dist.mjs` | Verify the assembled `dist/` (manifest hashes, required files, CSP, no leaks). |
+| `scripts/dev/require-release-artifacts.mjs` | Release gate: fail (not skip) when the production WASM artifact is missing. |
 
 ## Current known gaps
 
-- The static browser IDE (`web/client/`) is implemented, but the GitHub Pages deployment is a
-  later milestone (no workflow or live site yet). In-app **Run** enters the machine-code entry at
-  the SYS target rather than tokenizing and running BASIC in-process; the downloaded PRG still
-  autostarts via BASIC `RUN` on a stock machine per `specs/CODEGEN.md`.
+- In-app **Run** resets, loads the PRG, and enters the assembled machine code at the SYS target
+  (`runAddress`); it does **not** run the ROM's BASIC cold-start or tokenize/`RUN` the stub
+  in-process. The *downloaded* PRG still autostarts via BASIC `RUN` on a stock machine per
+  `specs/CODEGEN.md`. This is the reconciled, honestly-labelled boundary — an in-process BASIC
+  `RUN` path could not be validated on the release gate because no BASIC/KERNAL ROM ships and tests
+  use only synthetic ROM fixtures (copyrighted ROMs are forbidden).
 - No redistributable ROM set ships, so the IDE requires user-supplied BASIC/KERNAL/character ROM
   files to Run; they are memory-only and never persisted. Edit/build/download work without them.
+- **Web Audio is optional.** When a browser provides no Web Audio (e.g. headless WebKit), the
+  emulator still loads, builds, runs video, accepts input, and downloads artifacts, but sound is
+  unavailable and the audio control is disabled and labelled.
 - VIC-II rendering is **line-based**, not pixel-cycle-exact within a raster line; mid-line
   register changes take effect at the next line. BA/AEC stalls are represented at bad-line +
   sprite-DMA granularity, not exact per-cycle BA edge timing.
@@ -130,12 +141,14 @@ configuration and never repository or CI data.
   is modelled).
 - No redistributable replacement ROM set has been selected or legally reviewed; the core and
   its tests use only synthetic generated ROMs. No 1541 drive ROM is used by the high-level trap.
-- Generated D64 images are covered by byte-exact Node tests but have not been independently
-  verified against external 1541 tooling or physical hardware.
+- Generated D64 images are now independently verified against **external software tooling** (VICE
+  `c1541`: 35-track directory metadata + byte-exact extracted PRG). This is a **software**
+  interoperability claim only — it does not verify physical 1541 hardware, real GCR flux/timing, or
+  fastloaders.
 - D64 import validates geometry, the directory chain, and file chains, but does not yet validate
   full BAM consistency (DOS version, free-count/bitmap agreement, allocation conflicts); an image
   whose only defect is an inconsistent BAM is currently accepted. Tracked in ebadger/c64#2.
-- No formal browser compatibility matrix is published; the app detects and reports missing
-  capabilities before init, and the browser E2E pins Chromium. The GitHub Pages workflow does not
-  exist yet (milestone 5).
+- The published browser matrix pins Playwright Chromium, Firefox, and WebKit and drives the full
+  journey against the production `dist` bytes at `/` and `/c64/`; capability detection/fallback is
+  tested honestly. It does not exercise physical devices or non-Playwright browser builds.
 

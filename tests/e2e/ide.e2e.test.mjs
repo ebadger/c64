@@ -11,13 +11,16 @@ import { join } from "node:path";
 import { writeFileSync, readFileSync, mkdtempSync } from "node:fs";
 
 import { startServer } from "../../scripts/dev/serve.mjs";
-import { wasmArtifactExists, tryLoadPlaywright, syntheticRomArrays } from "./helpers.mjs";
+import { wasmArtifactExists, tryLoadPlaywright, syntheticRomArrays, buildTempDist, safeRm } from "./helpers.mjs";
 import { encodeSourceToCode } from "../../web/client/lib/base64url.js";
 import { buildD64 } from "../../src/d64.js";
 import { buildArtifacts } from "../../src/index.js";
+import { makeProject } from "../../web/client/lib/projectModel.js";
 
-// A valid basic-sys program: no explicit origin, so the assembler places the machine code right
-// after the generated SYS stub. It writes an observable byte to $0400 and loops on the border.
+// basic-sys is the default project mode: the assembler emits the BASIC stub at $0801 and places the
+// machine code right after it, so the source must NOT force an overlapping `* = $0801` origin. It
+// writes an observable byte to $0400 and loops on the border. In-app Run enters at the SYS target
+// (runAddress, $080D here) per the reconciled Run contract.
 const OBSERVABLE_PROGRAM = `start
         lda #$07
         sta $0400
@@ -37,15 +40,26 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     return;
   }
 
-  const { server, url } = await startServer({ port: 0 });
+  // Assemble the deployable dist (production WASM required) and serve THAT — the real bytes that
+  // ship to GitHub Pages — rooted so the app is at "/".
+  const distDir = buildTempDist();
+  const { server, url } = await startServer({ port: 0, root: distDir });
   let browser;
   try {
-    browser = await chromium.launch();
+    // The playwright package importing does not guarantee the Chromium BINARY is installed;
+    // launch() throws when it is missing. Skip cleanly in that case (developer convenience); the
+    // strict browser matrix in matrix.e2e.test.mjs is the enforcing release gate.
+    try {
+      browser = await chromium.launch();
+    } catch (err) {
+      t.skip(`Chromium binary not installed (npx playwright install chromium): ${err && err.message ? err.message : err}`);
+      return;
+    }
     const page = await browser.newPage();
     const pageErrors = [];
     page.on("pageerror", (e) => pageErrors.push(String(e)));
 
-    await page.goto(`${url}/web/client/`);
+    await page.goto(`${url}/`);
     await page.waitForFunction(() => typeof window.__c64 === "object");
     // Wait until init() (including decideInitialProject) has fully run, so the starter project can
     // never overwrite the source we fill below.
@@ -117,7 +131,10 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     const [download] = await Promise.all([page.waitForEvent("download"), page.click("#btn-dl-prg")]);
     const prgPath = join(dir, "out.prg");
     await download.saveAs(prgPath);
-    assert.equal(readFileSync(prgPath).length, build.prgLen, "downloaded PRG has the exact byte length");
+    // Byte-for-byte equality against the independently-assembled PRG (not just length).
+    const expectedPrg = new Uint8Array(buildArtifacts(makeProject({ source: OBSERVABLE_PROGRAM })).bundle.prg);
+    assert.deepEqual(new Uint8Array(readFileSync(prgPath)), expectedPrg, "downloaded PRG is byte-identical to the assembled PRG");
+    assert.equal(build.prgLen, expectedPrg.length, "reported PRG length matches");
 
     // --- D64 import (read-only) -------------------------------------------------------------
     const disk = buildD64({ outputName: "PROG", diskName: "TESTDISK", diskId: "ID" }, Uint8Array.from([0x01, 0x08, 0x2a, 0x2b]));
@@ -147,7 +164,7 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     // --- URL share/remix round-trip (Unicode) -----------------------------------------------
     const unicode = "; remix ☕ 日本語\nlda #$01\nrts\n";
     const code = encodeSourceToCode(unicode);
-    await page.goto(`${url}/web/client/?code=${code}`);
+    await page.goto(`${url}/?code=${code}`);
     await page.waitForFunction(() => typeof window.__c64 === "object");
     await page.waitForFunction(
       (expected) => document.getElementById("editor").value === expected,
@@ -156,7 +173,7 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     );
 
     // --- Malformed ?code is a visible error, not a silent fallback --------------------------
-    await page.goto(`${url}/web/client/?code=@@@@`);
+    await page.goto(`${url}/?code=@@@@`);
     await page.waitForFunction(() => typeof window.__c64 === "object");
     await page.waitForFunction(() => window.__c64.errors().some((e) => e.category === "url"));
 
@@ -164,5 +181,6 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
   } finally {
     if (browser) await browser.close();
     server.close();
+    safeRm(distDir);
   }
 });
