@@ -10,13 +10,22 @@
   "scripts": {
     "test": "node --test tests/",
     "test:pipeline": "node --test tests/",
-    "example": "node examples/build-example.mjs"
+    "test:web": "node --test tests/web/",
+    "test:wasm": "node --test tests/wasm/",
+    "test:e2e": "node --test tests/e2e/",
+    "build:native": "sh scripts/build/build-native.sh",
+    "build:wasm": "sh scripts/build/build-wasm.sh",
+    "example": "node examples/build-example.mjs",
+    "gallery": "node web/client/tools/build-gallery.mjs",
+    "serve": "node scripts/dev/serve.mjs"
   },
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./emulator": "./web/emulator/c64.mjs"
   },
   "files": [
-    "src/"
+    "src/",
+    "web/emulator/"
   ],
   "license": "SEE LICENSE IN CONTRIBUTING.md"
 }

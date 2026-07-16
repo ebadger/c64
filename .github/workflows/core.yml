@@ -1,0 +1,65 @@
+name: core
+
+# Build and test the deterministic machine core: native (CMake/CTest) and the production
+# WebAssembly artifact (pinned Emscripten), plus the milestone-1 Node pipeline, web-client and
+# gallery golden vectors, headless native/WASM parity, a browser E2E pass against the production
+# WASM artifact, and the operating-foundation checks. Fails closed.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Read pinned Emscripten version
+        id: emsdk
+        run: echo "version=$(grep -Eo '^[0-9.]+' scripts/build/emscripten-version.txt | head -n1)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Emscripten (pinned)
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ steps.emsdk.outputs.version }}
+
+      - name: Native build + CTest
+        run: sh scripts/build/build-native.sh
+
+      - name: WebAssembly build (production artifact)
+        run: sh scripts/build/build-wasm.sh
+
+      - name: Milestone-1 pipeline tests + headless native/WASM parity
+        run: node --test tests/
+
+      - name: Example golden vectors
+        run: node examples/build-example.mjs
+
+      - name: Gallery golden vectors
+        run: node web/client/tools/build-gallery.mjs
+
+      - name: Install Playwright chromium (browser E2E)
+        run: |
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Browser E2E against the production WASM artifact
+        run: node --test tests/e2e/
+
+      - name: Operating-foundation checks
+        run: |
+          sh scripts/dev/check-learnings-budget.sh
+          node scripts/dev/review-template-updates.mjs check
+          node --check .github/extensions/compliance-hooks/extension.mjs
+          node --test .github/extensions/compliance-hooks/policy.test.mjs

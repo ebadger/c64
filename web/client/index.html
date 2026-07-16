@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>c64 — browser IDE</title>
+    <!-- Restrictive static CSP: same-origin modules/worker/WASM/audio only; no third-party
+         scripts, no inline scripts/styles, no eval beyond WASM compilation. See WEB-CLIENT.md. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#editor">Skip to editor</a>
+    <header class="app-header">
+      <h1>c64 <span class="subtitle">browser IDE</span></h1>
+      <p class="tagline">
+        Write NMOS&nbsp;6510 assembly, build a PRG and D64 deterministically, and run it in the
+        WebAssembly C64 core — all in your browser, nothing uploaded.
+      </p>
+    </header>
+
+    <!-- Shown only when required browser capabilities are missing. -->
+    <section id="capability-error" class="banner banner-error" role="alert" hidden>
+      <h2>This browser is missing required features</h2>
+      <ul id="capability-list"></ul>
+    </section>
+
+    <!-- Live status/errors region. -->
+    <section
+      id="status-region"
+      class="status-region"
+      role="status"
+      aria-live="polite"
+      aria-label="Status and messages"
+    >
+      <p id="status-line" class="status-line">Loading…</p>
+      <ul id="error-list" class="error-list" aria-label="Errors and notices"></ul>
+    </section>
+
+    <main class="app-main">
+      <!-- Editing + build -->
+      <section class="panel panel-editor" aria-labelledby="h-editor">
+        <h2 id="h-editor">Source</h2>
+        <div class="editor-toolbar" role="toolbar" aria-label="Build controls">
+          <label class="field field-name">
+            <span>Program name</span>
+            <input id="project-name" type="text" autocomplete="off" spellcheck="false" maxlength="64" />
+          </label>
+          <button id="btn-build" type="button">Build</button>
+          <button id="btn-run" type="button" disabled>Run</button>
+          <button id="btn-stop" type="button" disabled>Stop</button>
+          <button id="btn-reset" type="button" disabled>Reset</button>
+        </div>
+        <label class="visually-hidden" for="editor">Assembly source</label>
+        <textarea
+          id="editor"
+          class="editor"
+          spellcheck="false"
+          autocomplete="off"
+          autocapitalize="off"
+          wrap="off"
+          aria-describedby="diagnostics-summary"
+        ></textarea>
+        <div class="diagnostics" aria-labelledby="h-diag">
+          <h3 id="h-diag">Diagnostics</h3>
+          <p id="diagnostics-summary" class="diag-summary" aria-live="polite">No build yet.</p>
+          <ol id="diagnostics-list" class="diag-list"></ol>
+        </div>
+      </section>
+
+      <!-- Emulator + configuration -->
+      <section class="panel panel-machine" aria-labelledby="h-machine">
+        <h2 id="h-machine">Machine</h2>
+
+        <div id="screen-surface" class="screen-surface" tabindex="0" role="application"
+             aria-label="Emulator display (focus to send keyboard and joystick input)">
+          <canvas id="screen" class="screen" width="384" height="284"></canvas>
+        </div>
+        <p id="run-status" class="run-status">Stopped.</p>
+
+        <div class="controls-grid">
+          <label class="field">
+            <span>Video timing</span>
+            <select id="sel-timing">
+              <option value="pal-6569">PAL (6569)</option>
+              <option value="ntsc-6567r8">NTSC (6567R8)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>SID model</span>
+            <select id="sel-sid">
+              <option value="6581">6581</option>
+              <option value="8580">8580</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Joystick port</span>
+            <select id="sel-joyport">
+              <option value="2">Port 2</option>
+              <option value="1">Port 1</option>
+            </select>
+          </label>
+          <label class="field field-check">
+            <input id="chk-gamepad" type="checkbox" checked />
+            <span>Use gamepad</span>
+          </label>
+          <div class="field field-audio">
+            <button id="btn-audio" type="button">Enable audio</button>
+            <span id="audio-status" class="muted">Audio off</span>
+          </div>
+          <label class="field">
+            <span>Volume</span>
+            <input id="vol" type="range" min="0" max="1" step="0.05" value="0.6" />
+          </label>
+        </div>
+
+        <p class="fidelity-note muted">
+          Fidelity is honestly labelled: the VIC-II renderer is line-based, the SID filter is an
+          approximation (not analog-perfect), and the disk drive is a high-level KERNAL LOAD/IEC
+          trap, not a cycle-level 1541. In-app Run enters at the SYS target rather than tokenizing
+          BASIC.
+        </p>
+      </section>
+
+      <!-- ROMs -->
+      <section class="panel panel-rom" aria-labelledby="h-rom">
+        <h2 id="h-rom">ROMs</h2>
+        <p class="muted">
+          No redistributable replacement ROM set ships yet, so Run requires you to select local
+          BASIC, KERNAL, and character ROM files. They stay in memory on your machine — never
+          uploaded, stored, or logged.
+        </p>
+        <p id="rom-status" class="rom-status" aria-live="polite">Run is disabled until a valid ROM set is loaded.</p>
+        <div id="rom-roles" class="rom-roles"></div>
+      </section>
+
+      <!-- Media import -->
+      <section class="panel panel-media" aria-labelledby="h-media">
+        <h2 id="h-media">Disk (D64)</h2>
+        <label class="field">
+          <span>Mount a local .d64 (read-only)</span>
+          <input id="d64-file" type="file" accept=".d64" />
+        </label>
+        <p id="d64-status" class="muted" aria-live="polite">No disk mounted.</p>
+      </section>
+
+      <!-- Artifacts + share -->
+      <section class="panel panel-artifacts" aria-labelledby="h-artifacts">
+        <h2 id="h-artifacts">Artifacts</h2>
+        <p id="artifact-status" class="artifact-status" aria-live="polite">Build to produce a PRG and D64.</p>
+        <p class="build-id">Build ID: <code id="build-id">—</code></p>
+        <div class="artifact-buttons">
+          <button id="btn-dl-prg" type="button" disabled>Download PRG</button>
+          <button id="btn-dl-d64" type="button" disabled>Download D64</button>
+          <button id="btn-dl-src" type="button">Download source</button>
+        </div>
+        <div class="share">
+          <button id="btn-share" type="button">Share…</button>
+          <div id="share-panel" class="share-panel" hidden>
+            <p id="share-warning" class="share-warning"></p>
+            <label class="visually-hidden" for="share-url">Share URL</label>
+            <input id="share-url" type="text" readonly />
+            <div class="share-buttons">
+              <button id="btn-share-copy" type="button">Copy link</button>
+              <button id="btn-share-close" type="button">Close</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Gallery -->
+      <section class="panel panel-gallery" aria-labelledby="h-gallery">
+        <h2 id="h-gallery">Gallery</h2>
+        <p class="muted">Curated examples. Loading one replaces the editor with a remixable copy.</p>
+        <ul id="gallery-list" class="gallery-list"></ul>
+      </section>
+
+      <!-- Help -->
+      <section class="panel panel-help" aria-labelledby="h-help">
+        <h2 id="h-help">Keyboard &amp; joystick</h2>
+        <p class="muted">Click the display to give it focus, then:</p>
+        <table class="key-help">
+          <thead>
+            <tr><th scope="col">Your key</th><th scope="col">C64</th></tr>
+          </thead>
+          <tbody id="key-help-body"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p class="muted">
+        Static and serverless — no accounts, uploads, analytics, or remote code. GitHub Pages
+        deployment is a later milestone and is not live from this build.
+      </p>
+    </footer>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
