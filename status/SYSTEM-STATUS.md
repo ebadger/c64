@@ -3,14 +3,14 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-15 — Copilot milestone-3 devices/media session_
+_Last verified: 2026-07-15 — Copilot milestone-4 browser-IDE session_
 
 ## Environments
 
 | Environment | Current location | URL | State |
 |-------------|------------------|-----|-------|
-| Development | Repository checkout | None | Deterministic source-to-artifact pipeline plus the C++17 machine core with cycle-integrated VIC/SID/CIA devices and read-only mounted D64 execution (native CMake/CTest and the production WASM artifact) build and test; no web app or deployment |
-| Production | Planned GitHub Pages | `https://ebadger.github.io/c64/` | Not deployed; no workflow or site assets exist |
+| Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker and production WASM machine; served locally, no deployment |
+| Production | Planned GitHub Pages | `https://ebadger.github.io/c64/` | Not deployed; no workflow or site assets exist (milestone 5) |
 
 ## Run locally
 
@@ -18,12 +18,16 @@ The deterministic source-to-artifact pipeline (assembler → PRG → D64) runs u
 with no dependency install. From the repository root:
 
 ```sh
-node --test tests/                 # full pipeline test suite (uses production modules in src/)
-node examples/build-example.mjs    # verify committed example golden vectors
+node --test tests/                 # full pipeline + web-client tests (uses production modules in src/ and web/client/lib/)
+node examples/build-example.mjs    # verify example golden vectors
+node web/client/tools/build-gallery.mjs  # verify gallery.json golden vectors
+node scripts/dev/serve.mjs         # serve the static browser IDE at http://127.0.0.1:8080/web/client/
 ```
 
-There is no emulator, WebAssembly artifact, web client, CMake project, or static server yet;
-the browser IDE and C64 core described in the specs are not implemented.
+The static browser IDE in `web/client/` runs the production assembler in a module worker and the
+production WASM machine through `web/emulator/c64.mjs`. Edit/build/download work without the WASM
+artifact; **Run** additionally requires the built WASM core and a locally selected ROM set (no
+redistributable set ships, so ROM files are user-supplied and memory-only).
 
 ## Build and run the machine core
 
@@ -45,7 +49,8 @@ sprites/modes/indexed framebuffer), SID (voices/ADSR/waveforms + approximate fil
 audio), the two CIAs (ports/timers/TOD/keyboard/joystick/VIC-bank), read-only mounted D64
 execution through a high-level KERNAL LOAD/IEC trap, the `setInput`/`copyFramebuffer`/
 `drainAudio`/`mountD64` APIs, the embind projection, and the `web/emulator` ES wrapper. The
-browser IDE and Pages deployment are not implemented. Device and media fidelity is honestly
+static browser IDE (`web/client/`) is implemented on top of these; the GitHub Pages deployment is
+a later milestone and is not live. Device and media fidelity is honestly
 labelled (line-based VIC renderer, approximate SID filter, high-level rather than cycle-level
 1541 drive); see the layer specs.
 
@@ -79,9 +84,10 @@ above and in `SETUP.md`) or a web client (which does not exist).
 | Native CMake build + CTest | Implemented — `core/` project, `scripts/build/build-native.sh`, 15 test suites |
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
-| CI workflow | Implemented — `.github/workflows/core.yml` builds native + WASM and runs all suites |
-| Static asset build (IDE, gallery, ROM manifest/assets) | Not started |
-| GitHub Pages deploy | Not started |
+| CI workflow | Implemented — `.github/workflows/core.yml` builds native + WASM, runs all suites, and runs the browser E2E |
+| Static asset build (IDE, gallery) | Implemented — `web/client/` IDE, build worker, `gallery.json`; no bundled ROM set (user-supplied, memory-only) |
+| Web-client tests (Node + browser E2E) | Implemented — `tests/web/` (environment-free logic) and `tests/e2e/` (Playwright against the production WASM artifact; skips cleanly when absent) |
+| GitHub Pages deploy | Not started (milestone 5) |
 
 The remaining steps' implementation PRs must add exact commands and update this status.
 
@@ -103,8 +109,12 @@ configuration and never repository or CI data.
 
 ## Current known gaps
 
-- The web client (browser IDE), examples gallery, and GitHub Pages deployment described by the
-  layer specs are not started.
+- The static browser IDE (`web/client/`) is implemented, but the GitHub Pages deployment is a
+  later milestone (no workflow or live site yet). In-app **Run** enters the machine-code entry at
+  the SYS target rather than tokenizing and running BASIC in-process; the downloaded PRG still
+  autostarts via BASIC `RUN` on a stock machine per `specs/CODEGEN.md`.
+- No redistributable ROM set ships, so the IDE requires user-supplied BASIC/KERNAL/character ROM
+  files to Run; they are memory-only and never persisted. Edit/build/download work without them.
 - VIC-II rendering is **line-based**, not pixel-cycle-exact within a raster line; mid-line
   register changes take effect at the next line. BA/AEC stalls are represented at bad-line +
   sprite-DMA granularity, not exact per-cycle BA edge timing.
@@ -125,5 +135,7 @@ configuration and never repository or CI data.
 - D64 import validates geometry, the directory chain, and file chains, but does not yet validate
   full BAM consistency (DOS version, free-count/bitmap agreement, allocation conflicts); an image
   whose only defect is an inconsistent BAM is currently accepted. Tracked in ebadger/c64#2.
-- No browser compatibility matrix or GitHub Pages workflow exists.
+- No formal browser compatibility matrix is published; the app detects and reports missing
+  capabilities before init, and the browser E2E pins Chromium. The GitHub Pages workflow does not
+  exist yet (milestone 5).
 

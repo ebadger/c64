@@ -1,0 +1,667 @@
+// c64 browser IDE orchestrator. Wires the editor, build worker, WASM machine, presentation,
+// input, ROM/media handling, URL/state contracts, autosave, gallery, downloads, and share into
+// one static, serverless app. Nothing is uploaded; source is data, never evaluated. See
+// specs/WEB-CLIENT.md and the layer specs it references.
+
+import { byId, setText, setHidden, setEnabled, makeEl, replaceChildren } from "./lib/dom.js";
+import { detectCapabilities } from "./lib/capabilities.js";
+import { ErrorBus } from "./lib/errors.js";
+import { WASM_LOADER_PATH } from "./lib/config.js";
+import { makeProject, projectFromGalleryEntry, validateProject } from "./lib/projectModel.js";
+import { renderDiagnostics } from "./lib/diagnosticsView.js";
+import { resolveUrlState } from "./lib/urlContract.js";
+import { BuildClient, createBuildWorker } from "./lib/buildClient.js";
+import { MachineController } from "./lib/machine.js";
+import { CanvasRenderer } from "./lib/video.js";
+import { AudioPlayer } from "./lib/audio.js";
+import { InputController } from "./lib/input.js";
+import { Pacer } from "./lib/pacing.js";
+import { Storage } from "./lib/storage.js";
+import { RomManager } from "./lib/roms.js";
+import { loadGallery, fetchSource, fetchCuratedD64 } from "./lib/gallery.js";
+import { downloadBytes, downloadSource } from "./lib/downloads.js";
+import { computeShare, copyToClipboard } from "./lib/share.js";
+import { ROM_ROLES } from "./lib/romValidate.js";
+import { KEY_HELP } from "./lib/keymap.js";
+
+const repoBase = new URL("../../", import.meta.url); // repository root static base
+const clientBase = new URL("./", import.meta.url); // web/client/
+const appBaseUrl = location.origin + location.pathname; // for share links (no query/hash)
+
+const errorBus = new ErrorBus();
+const romManager = new RomManager();
+const audio = new AudioPlayer();
+
+const state = {
+  project: makeProject(),
+  lastBuild: null, // { ok, buildId, prg, d64, prgName, d64Name, runAddress, loadAddress }
+  artifactsStale: false,
+  pendingD64: null, // { bytes, label } to mount on next Run
+  galleryById: new Map(),
+};
+
+let els = {};
+let buildClient = null;
+let machine = null; // MachineController (lazy)
+let renderer = null;
+let input = null;
+let pacer = null;
+let machineLoadPromise = null;
+
+// ---------------------------------------------------------------------------------------------
+// Startup
+
+async function init() {
+  const caps = detectCapabilities();
+  if (!caps.ok) {
+    showCapabilityError(caps.missing);
+    return;
+  }
+  cacheElements();
+  errorBus.subscribe(renderErrors);
+  renderKeyHelp();
+  wireStorage();
+  wireEditor();
+  wireBuild();
+  wireMachineControls();
+  wireRoms();
+  wireMedia();
+  wireArtifacts();
+  wireShare();
+
+  // Restore preferences, then decide the initial project from URL, autosave, or default.
+  applyPreferences(storage.loadPreferences());
+  await loadGalleryList();
+  await decideInitialProject();
+
+  setText(els.statusLine, "Ready. Load ROM files to enable Run.");
+}
+
+function showCapabilityError(missing) {
+  const box = document.getElementById("capability-error");
+  const list = document.getElementById("capability-list");
+  if (list) replaceChildren(list, ...missing.map((m) => makeEl("li", { text: m })));
+  if (box) setHidden(box, false);
+  const status = document.getElementById("status-line");
+  if (status) setText(status, "This browser cannot run the emulator.");
+}
+
+function cacheElements() {
+  const ids = [
+    "statusLine:status-line", "errorList:error-list",
+    "projectName:project-name", "editor", "btnBuild:btn-build", "btnRun:btn-run",
+    "btnStop:btn-stop", "btnReset:btn-reset", "diagSummary:diagnostics-summary",
+    "diagList:diagnostics-list", "screen", "screenSurface:screen-surface", "runStatus:run-status",
+    "selTiming:sel-timing", "selSid:sel-sid", "selJoyport:sel-joyport", "chkGamepad:chk-gamepad",
+    "btnAudio:btn-audio", "audioStatus:audio-status", "vol", "romStatus:rom-status",
+    "romRoles:rom-roles", "d64File:d64-file", "d64Status:d64-status",
+    "artifactStatus:artifact-status", "buildId:build-id", "btnDlPrg:btn-dl-prg",
+    "btnDlD64:btn-dl-d64", "btnDlSrc:btn-dl-src", "btnShare:btn-share", "sharePanel:share-panel",
+    "shareWarning:share-warning", "shareUrl:share-url", "btnShareCopy:btn-share-copy",
+    "btnShareClose:btn-share-close", "galleryList:gallery-list", "keyHelpBody:key-help-body",
+  ];
+  els = {};
+  for (const spec of ids) {
+    const [key, id] = spec.includes(":") ? spec.split(":") : [spec, spec];
+    els[key] = byId(id);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Preferences + storage
+
+const storage = new Storage({
+  onExternalProject: (project) => {
+    // A newer autosave from another tab: adopt it if the user has not diverged locally.
+    loadProjectIntoUI(project, "src");
+    errorBus.notice("storage", "external", "Loaded a newer autosave from another tab.");
+  },
+  onExternalPreferences: (prefs) => applyPreferences(prefs),
+  onQuotaError: (e) => errorBus.error(e.category, e.code, e.message),
+});
+
+function wireStorage() {
+  storage.attach();
+}
+
+function applyPreferences(prefs) {
+  if (prefs.timingProfile) els.selTiming.value = prefs.timingProfile;
+  if (prefs.sidModel) els.selSid.value = prefs.sidModel;
+  if (prefs.joystickPort) els.selJoyport.value = String(prefs.joystickPort);
+  if (typeof prefs.masterVolume === "number") {
+    els.vol.value = String(prefs.masterVolume);
+    audio.setVolume(prefs.masterVolume);
+  }
+}
+
+function savePreferences() {
+  storage.savePreferences({
+    timingProfile: els.selTiming.value,
+    sidModel: els.selSid.value,
+    joystickPort: Number(els.selJoyport.value),
+    masterVolume: Number(els.vol.value),
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Project + editor
+
+function deriveOutputName(name) {
+  let base = String(name).replace(/[^A-Za-z0-9 _-]+/g, "").trim().slice(0, 16);
+  return base.length >= 1 ? base : "program";
+}
+
+function syncProjectFromUI() {
+  state.project = makeProject({
+    name: els.projectName.value || "untitled",
+    source: els.editor.value,
+    timingProfile: els.selTiming.value,
+    outputName: deriveOutputName(els.projectName.value || "program"),
+  });
+  return state.project;
+}
+
+function loadProjectIntoUI(project, _origin) {
+  const v = validateProject(project);
+  const p = v.ok ? v.project : makeProject(project);
+  els.projectName.value = p.name === "untitled" ? "" : p.name;
+  els.editor.value = p.source;
+  els.selTiming.value = p.timingProfile;
+  state.project = p;
+  requestBuild(0);
+}
+
+let buildTimer = 0;
+function requestBuild(delayMs = 300) {
+  if (buildTimer) clearTimeout(buildTimer);
+  buildTimer = setTimeout(() => {
+    const project = syncProjectFromUI();
+    storage.scheduleSave(project);
+    savePreferences();
+    buildClient.build(project);
+  }, delayMs);
+}
+
+function wireEditor() {
+  els.editor.addEventListener("input", () => requestBuild());
+  els.projectName.addEventListener("input", () => requestBuild());
+  els.selTiming.addEventListener("change", () => requestBuild(0));
+  els.btnBuild.addEventListener("click", () => requestBuild(0));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Build worker
+
+function wireBuild() {
+  const worker = createBuildWorker(clientBase);
+  buildClient = new BuildClient(worker, {
+    onStale: onBuildStale,
+    onResult: onBuildResult,
+  });
+}
+
+function onBuildStale() {
+  state.artifactsStale = true;
+  setText(els.artifactStatus, "Rebuilding…");
+  setEnabled(els.btnDlPrg, false);
+  setEnabled(els.btnDlD64, false);
+  updateRunEnabled();
+}
+
+function onBuildResult(data) {
+  const diag = renderDiagnostics(data.diagnostics || []);
+  setText(els.diagSummary, diag.summary);
+  replaceChildren(els.diagList, ...diag.lines.map((line) => makeEl("li", { text: line })));
+
+  if (data.ok) {
+    state.artifactsStale = false;
+    state.lastBuild = {
+      ok: true,
+      buildId: data.buildId,
+      prg: new Uint8Array(data.prg),
+      d64: new Uint8Array(data.d64),
+      prgName: data.prgName,
+      d64Name: data.d64Name,
+      runAddress: data.runAddress,
+      loadAddress: data.loadAddress,
+    };
+    setText(els.buildId, data.buildId);
+    setText(els.artifactStatus, `Built: PRG ${state.lastBuild.prg.length} B, D64 ${state.lastBuild.d64.length} B.`);
+    setEnabled(els.btnDlPrg, true);
+    setEnabled(els.btnDlD64, true);
+  } else {
+    state.lastBuild = null;
+    setText(els.buildId, "—");
+    setText(els.artifactStatus, "Build failed. Fix the diagnostics above.");
+    setEnabled(els.btnDlPrg, false);
+    setEnabled(els.btnDlD64, false);
+    if (data.error) errorBus.error(data.error.category || "build", data.error.code || "error", data.error.message || "Build error.");
+  }
+  updateRunEnabled();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Machine controls (run/stop/reset + config)
+
+function wireMachineControls() {
+  renderer = new CanvasRenderer(els.screen);
+  input = new InputController(els.screenSurface, {
+    onReleaseAll: () => {
+      if (machine && machine.ready) machine.releaseInput();
+    },
+    onFocusChange: (focused) => {
+      els.screenSurface.classList.toggle("focused", focused);
+    },
+  });
+  input.attach();
+
+  els.btnRun.addEventListener("click", () => runProgram());
+  els.btnStop.addEventListener("click", () => stopProgram());
+  els.btnReset.addEventListener("click", () => resetProgram());
+  els.selSid.addEventListener("change", savePreferences);
+  els.selJoyport.addEventListener("change", () => {
+    input.setJoystickPort(Number(els.selJoyport.value));
+    savePreferences();
+  });
+  els.chkGamepad.addEventListener("change", () => input.setGamepadEnabled(els.chkGamepad.checked));
+  els.vol.addEventListener("input", () => {
+    audio.setVolume(Number(els.vol.value));
+    savePreferences();
+  });
+  els.btnAudio.addEventListener("click", () => toggleAudio());
+}
+
+async function ensureMachine() {
+  if (machine) return machine;
+  if (!machineLoadPromise) {
+    const url = new URL(WASM_LOADER_PATH, repoBase).href;
+    machineLoadPromise = MachineController.load(url).then((m) => {
+      machine = m;
+      return m;
+    });
+  }
+  return machineLoadPromise;
+}
+
+function updateRunEnabled() {
+  const canRun = !!(state.lastBuild && state.lastBuild.ok) && !state.artifactsStale && romManager.ready();
+  setEnabled(els.btnRun, canRun && !(pacer && pacer.running));
+}
+
+async function runProgram() {
+  if (!(state.lastBuild && state.lastBuild.ok)) {
+    errorBus.error("build", "no-build", "Build a program before running.");
+    return;
+  }
+  if (!romManager.ready()) {
+    errorBus.error("rom", "rom-set-incomplete", "Load a complete, valid ROM set to enable Run.");
+    return;
+  }
+  let controller;
+  try {
+    controller = await ensureMachine();
+  } catch (err) {
+    errorBus.error("wasm", "load-failed", `The WebAssembly core could not be loaded: ${String(err && err.message ? err.message : err)}. Build the WASM artifact (see SETUP.md).`);
+    return;
+  }
+
+  const romSet = romManager.getRomSet();
+  const cfg = controller.configure({
+    timingProfile: els.selTiming.value,
+    sidModel: els.selSid.value,
+    roms: romSet,
+  });
+  if (!cfg.ok) {
+    errorBus.error(cfg.error.category, cfg.error.code, cfg.error.message);
+    return;
+  }
+
+  if (state.pendingD64) {
+    const mount = controller.mount(state.pendingD64.bytes);
+    if (!mount.ok) errorBus.error(mount.error.category, mount.error.code, mount.error.message);
+    else setText(els.d64Status, `Mounted ${mount.meta.diskName} (${mount.meta.fileCount} file${mount.meta.fileCount === 1 ? "" : "s"}).`);
+  }
+
+  const entered = controller.loadAndEnter(state.lastBuild.prg, {
+    runMode: state.project.runMode,
+    runAddress: state.lastBuild.runAddress,
+  });
+  if (!entered.ok) {
+    errorBus.error(entered.error.category, entered.error.code, entered.error.message);
+    return;
+  }
+
+  input.setJoystickPort(Number(els.selJoyport.value));
+  input.setGamepadEnabled(els.chkGamepad.checked);
+
+  pacer = new Pacer(
+    { machine: controller, renderer, audio, input },
+    {
+      timingProfile: els.selTiming.value,
+      onCrash: onMachineCrash,
+      onStats: () => {},
+    },
+  );
+  pacer.start();
+  setText(els.runStatus, "Running.");
+  els.runStatus.className = "run-status running";
+  setEnabled(els.btnStop, true);
+  setEnabled(els.btnReset, true);
+  updateRunEnabled();
+  els.screenSurface.focus();
+}
+
+function stopProgram() {
+  if (pacer) pacer.stop();
+  if (input) input.releaseAll();
+  if (machine) machine.releaseInput();
+  setText(els.runStatus, "Stopped.");
+  els.runStatus.className = "run-status";
+  setEnabled(els.btnStop, false);
+  updateRunEnabled();
+}
+
+function resetProgram() {
+  if (!machine || !machine.ready) return;
+  if (!(state.lastBuild && state.lastBuild.ok)) {
+    errorBus.error("build", "no-build", "Nothing to reset to — build a program first.");
+    return;
+  }
+  const wasRunning = pacer && pacer.running;
+  if (pacer) pacer.stop();
+  machine.reset("power-on");
+  const entered = machine.loadAndEnter(state.lastBuild.prg, {
+    runMode: state.project.runMode,
+    runAddress: state.lastBuild.runAddress,
+  });
+  if (!entered.ok) {
+    errorBus.error(entered.error.category, entered.error.code, entered.error.message);
+    return;
+  }
+  if (wasRunning) {
+    pacer.start();
+  } else {
+    renderer.clear(0);
+    setText(els.runStatus, "Reset. Press Run.");
+  }
+}
+
+function onMachineCrash() {
+  setText(els.runStatus, "The program stopped on a fault. Reset and Run to restart.");
+  els.runStatus.className = "run-status crashed";
+  setEnabled(els.btnStop, false);
+  if (input) input.releaseAll();
+  errorBus.error("wasm", "fault", "The emulated program hit an illegal instruction (fault). Execution stopped.");
+  updateRunEnabled();
+}
+
+async function toggleAudio() {
+  if (audio.enabled) {
+    await audio.disable();
+    setText(els.audioStatus, "Audio off");
+    return;
+  }
+  const res = await audio.enable(); // within the click gesture
+  if (!res.ok) {
+    errorBus.error(res.error.category, res.error.code, res.error.message);
+    return;
+  }
+  const st = audio.state;
+  setText(els.audioStatus, `Audio ${st.contextState}${st.underruns ? ` · ${st.underruns} underruns` : ""}`);
+}
+
+// ---------------------------------------------------------------------------------------------
+// ROMs
+
+function wireRoms() {
+  renderRomRoles();
+}
+
+function renderRomRoles() {
+  const status = romManager.status();
+  setText(els.romStatus, status.ready ? "ROM set ready. Run is enabled once a build succeeds." : romStatusText(status));
+  els.romStatus.className = status.ready ? "rom-status ready" : "rom-status";
+
+  const nodes = ROM_ROLES.map((role) => {
+    const wrap = makeEl("div", { className: "rom-role" });
+    wrap.appendChild(makeEl("h4", { text: role }));
+    const desc = status.roles[role];
+    const fileLabel = makeEl("label", { className: "field" });
+    fileLabel.appendChild(makeEl("span", { text: `${role} ROM file` }));
+    const fileInput = makeEl("input", { attrs: { type: "file", accept: ".bin,.rom", "data-role": role } });
+    fileInput.addEventListener("change", (e) => onRomFile(role, e.target.files && e.target.files[0]));
+    fileLabel.appendChild(fileInput);
+    wrap.appendChild(fileLabel);
+
+    if (desc) {
+      wrap.appendChild(makeEl("p", { className: "digest", text: `sha256 ${desc.digest}` }));
+      if (desc.requiresConfirmation && !desc.confirmed) {
+        const note = makeEl("p", { className: "state needs-confirm", text: "Unknown ROM — confirm this file really is the " + role + " ROM." });
+        wrap.appendChild(note);
+        const confirm = makeEl("button", { text: `Confirm ${role} ROM`, attrs: { type: "button" } });
+        confirm.addEventListener("click", () => {
+          romManager.confirmRole(role);
+          renderRomRoles();
+          updateRunEnabled();
+        });
+        wrap.appendChild(confirm);
+      } else {
+        wrap.appendChild(makeEl("p", { className: "state ok", text: `Loaded (${desc.size} bytes).` }));
+      }
+    }
+    return wrap;
+  });
+  replaceChildren(els.romRoles, ...nodes);
+}
+
+function romStatusText(status) {
+  if (status.missing.length) return `Run disabled — missing ROM${status.missing.length === 1 ? "" : "s"}: ${status.missing.join(", ")}.`;
+  if (status.unconfirmed.length) return `Run disabled — confirm unknown ROM${status.unconfirmed.length === 1 ? "" : "s"}: ${status.unconfirmed.join(", ")}.`;
+  return "Run is disabled until a valid ROM set is loaded.";
+}
+
+async function onRomFile(role, file) {
+  if (!file) return;
+  const res = await romManager.setRoleFile(role, file);
+  if (!res.ok) errorBus.error(res.error.category, res.error.code, res.error.message);
+  renderRomRoles();
+  updateRunEnabled();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Media (D64 import)
+
+function wireMedia() {
+  els.d64File.addEventListener("change", (e) => onD64File(e.target.files && e.target.files[0]));
+}
+
+async function onD64File(file) {
+  if (!file) return;
+  let bytes;
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    errorBus.error("media", "read", "Could not read the D64 file.");
+    return;
+  }
+  state.pendingD64 = { bytes, label: file.name };
+  if (machine && machine.ready) {
+    const mount = machine.mount(bytes);
+    if (!mount.ok) errorBus.error(mount.error.category, mount.error.code, mount.error.message);
+    else setText(els.d64Status, `Mounted ${mount.meta.diskName} (${mount.meta.fileCount} file${mount.meta.fileCount === 1 ? "" : "s"}).`);
+  } else {
+    setText(els.d64Status, `Selected ${file.name}. It will be mounted (read-only) when you Run.`);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Artifacts + share
+
+function wireArtifacts() {
+  els.btnDlPrg.addEventListener("click", () => {
+    if (state.lastBuild && state.lastBuild.ok) downloadBytes(state.lastBuild.prg, state.project.outputName, "prg");
+  });
+  els.btnDlD64.addEventListener("click", () => {
+    if (state.lastBuild && state.lastBuild.ok) downloadBytes(state.lastBuild.d64, state.project.outputName, "d64");
+  });
+  els.btnDlSrc.addEventListener("click", () => downloadSource(els.editor.value, state.project.name || "program"));
+}
+
+function wireShare() {
+  els.btnShare.addEventListener("click", () => openShare());
+  els.btnShareClose.addEventListener("click", () => setHidden(els.sharePanel, true));
+  els.btnShareCopy.addEventListener("click", async () => {
+    const res = await copyToClipboard(els.shareUrl.value);
+    if (res.ok) errorBus.notice("share", "copied", "Share link copied to the clipboard.");
+    else errorBus.error("share", "copy-failed", "Could not copy automatically — select the link and copy it manually.");
+  });
+}
+
+function openShare() {
+  syncProjectFromUI();
+  const share = computeShare(els.editor.value, appBaseUrl);
+  setHidden(els.sharePanel, false);
+  if (!share.withinLimit) {
+    setText(els.shareWarning, `This program is too large to share as a link (${share.urlLength} chars). Use “Download source” and send the file instead.`);
+    els.shareUrl.value = "";
+    setEnabled(els.btnShareCopy, false);
+    return;
+  }
+  setEnabled(els.btnShareCopy, true);
+  els.shareUrl.value = share.url;
+  setText(
+    els.shareWarning,
+    "Heads up: a share link is public bearer data. Anyone with it can read and copy your source, intermediaries may keep it, it cannot be revoked, and edits are not shared until you Share again.",
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Gallery + initial project
+
+async function loadGalleryList() {
+  const result = await loadGallery(repoBase);
+  state.galleryById = result.byId;
+  if (result.errors.length) {
+    for (const e of result.errors) errorBus.error("gallery", e.reason, `Gallery entry problem: ${e.id ?? "(unknown)"} — ${e.reason}.`);
+  }
+  const nodes = result.entries.map((entry) => {
+    const item = makeEl("li", { className: "gallery-item" });
+    item.appendChild(makeEl("h4", { text: entry.title }));
+    item.appendChild(makeEl("p", { text: entry.description }));
+    const actions = makeEl("div", { className: "actions" });
+    const open = makeEl("button", { text: "Open & remix", attrs: { type: "button" } });
+    open.addEventListener("click", () => openGalleryEntry(entry));
+    actions.appendChild(open);
+    item.appendChild(actions);
+    return item;
+  });
+  replaceChildren(els.galleryList, ...nodes);
+}
+
+async function openGalleryEntry(entry) {
+  const src = await fetchSource(entry, repoBase);
+  if (!src.ok) {
+    errorBus.error(src.error.category, src.error.code, src.error.message);
+    return;
+  }
+  const project = projectFromGalleryEntry(entry, src.source);
+  loadProjectIntoUI(project, "src");
+  if (entry.curatedD64Path) await mountCuratedD64(entry.curatedD64Path);
+}
+
+async function mountCuratedD64(path) {
+  const res = await fetchCuratedD64(path, repoBase);
+  if (!res.ok) {
+    errorBus.error(res.error.category, res.error.code, res.error.message);
+    return;
+  }
+  state.pendingD64 = { bytes: res.bytes, label: path };
+  setText(els.d64Status, "Curated disk selected. It will be mounted (read-only) when you Run.");
+}
+
+async function decideInitialProject() {
+  const resolved = resolveUrlState(location.search, state.galleryById);
+  for (const e of resolved.errors) errorBus.error(e.category, e.code, e.message);
+  for (const n of resolved.notices) errorBus.notice("share", "info", n);
+
+  if (resolved.sourceOrigin === "code") {
+    loadProjectIntoUI(makeProject({ source: resolved.source, name: "shared remix" }), "code");
+  } else if (resolved.sourceOrigin === "src" && resolved.galleryEntry) {
+    await openGalleryEntry(resolved.galleryEntry);
+  } else {
+    const restored = storage.loadProject();
+    if (restored) loadProjectIntoUI(restored, "autosave");
+    else loadProjectIntoUI(makeProject({ source: STARTER_SOURCE, name: "hello" }), "default");
+  }
+
+  if (resolved.d64) await mountCuratedD64(resolved.d64.path);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Rendering helpers
+
+function renderErrors(_item, items) {
+  const nodes = (items || []).slice(-8).map((it) => {
+    const li = makeEl("li", { className: it.severity === "notice" ? "notice" : "" });
+    li.appendChild(makeEl("span", { className: "cat", text: it.category }));
+    li.appendChild(document.createTextNode(it.message));
+    return li;
+  });
+  replaceChildren(els.errorList, ...nodes);
+}
+
+function renderKeyHelp() {
+  const rows = KEY_HELP.map((h) => {
+    const tr = makeEl("tr");
+    tr.appendChild(makeEl("td", { text: h.keys }));
+    tr.appendChild(makeEl("td", { text: h.c64 }));
+    return tr;
+  });
+  replaceChildren(els.keyHelpBody, ...rows);
+}
+
+const STARTER_SOURCE = `; Welcome to the c64 browser IDE.
+; Edit, then press Build. Load ROM files to enable Run.
+
+        * = $0801           ; BASIC start (basic-sys stub is generated for you)
+
+start
+        ldx #$00
+loop    lda message,x
+        sta $0400,x         ; write to screen RAM
+        inx
+        cpx #$0d
+        bne loop
+halt    jmp halt
+
+message .text "HELLO C64"
+        .byte 32, 32, 32, 32
+`;
+
+// ---------------------------------------------------------------------------------------------
+// Test hook (E2E only). Exposes the same public operations the UI uses (no privileged data path);
+// ROM injection here is byte-for-byte equivalent to the file picker and stays memory-only.
+
+window.__c64 = {
+  setRomBytes: (role, bytes) => {
+    const res = romManager.setRoleBytes(role, bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes));
+    if (res.ok) romManager.confirmRole(role);
+    renderRomRoles();
+    updateRunEnabled();
+    return res;
+  },
+  romReady: () => romManager.ready(),
+  runEnabled: () => !els.btnRun.disabled,
+  lastBuild: () => (state.lastBuild ? { buildId: state.lastBuild.buildId, prgLen: state.lastBuild.prg.length, d64Len: state.lastBuild.d64.length } : null),
+  frame: () => (machine && machine.ready ? machine.copyFramebuffer() : null),
+  cpu: () => (machine && machine.ready ? machine.cpuState() : null),
+  peek: (addr) => (machine && machine.ready ? machine.debugReadRam(addr) : null),
+  inputSnapshot: () => (input ? input.snapshot() : null),
+  running: () => !!(pacer && pacer.running),
+  errors: () => errorBus.items(),
+};
+
+init().catch((err) => {
+  const status = document.getElementById("status-line");
+  if (status) setText(status, `Startup failed: ${String(err && err.message ? err.message : err)}`);
+});

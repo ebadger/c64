@@ -1,8 +1,9 @@
 name: core
 
 # Build and test the deterministic machine core: native (CMake/CTest) and the production
-# WebAssembly artifact (pinned Emscripten), plus the milestone-1 Node pipeline, example golden
-# vectors, headless native/WASM parity, and the operating-foundation checks. Fails closed.
+# WebAssembly artifact (pinned Emscripten), plus the milestone-1 Node pipeline, web-client and
+# gallery golden vectors, headless native/WASM parity, a browser E2E pass against the production
+# WASM artifact, and the operating-foundation checks. Fails closed.
 
 on:
   push:
@@ -44,6 +45,17 @@ jobs:
 
       - name: Example golden vectors
         run: node examples/build-example.mjs
+
+      - name: Gallery golden vectors
+        run: node web/client/tools/build-gallery.mjs
+
+      - name: Install Playwright chromium (browser E2E)
+        run: |
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Browser E2E against the production WASM artifact
+        run: node --test tests/e2e/
 
       - name: Operating-foundation checks
         run: |

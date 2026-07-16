@@ -99,5 +99,5 @@ broad-compatibility MVP and are the honestly-labelled unsupported fidelity.
 | CIA2 VIC bank | Implemented | 16 KB bank from CIA2 port A; char-ROM overlay in banks 0/2 |
 | Indexed framebuffer + FrameInfo | Implemented | One 4-bit colour index per byte; stable per-profile dimensions (PAL 384x284, NTSC 384x235) |
 | Pixel-cycle-exact rendering | Not implemented | Line-based renderer; documented above |
-| Browser renderer | Not started | Lives in the web client, not this module |
+| Browser renderer | Implemented | Lives in the web client (`web/client/lib/video.js` + palette), not this module |
 
