@@ -193,6 +193,34 @@ test("index.html has the restrictive CSP and no inline script/style", () => {
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]*\S[^<]*<\/script>/.test(html), "no inline script body");
 });
 
+test("the production shell uses the 3RIC-compatible emulator-first workspace", () => {
+  const html = readFileSync(join(out, "index.html"), "utf8");
+  const css = readFileSync(join(out, "styles.css"), "utf8");
+
+  assert.ok(html.indexOf('id="emulator"') < html.indexOf('id="ide"'), "emulator precedes the editor");
+  for (const id of [
+    "btn-build-run",
+    "btn-build",
+    "btn-run",
+    "btn-boot-basic",
+    "btn-stop",
+    "btn-reset",
+    "btn-audio",
+    "d64-file",
+    "gallery-select",
+  ]) {
+    assert.equal([...html.matchAll(new RegExp(`id="${id}"`, "g"))].length, 1, `${id} appears exactly once`);
+  }
+  assert.match(html, /id="btn-build-run"[\s\S]*aria-keyshortcuts="Control\+Enter Meta\+Enter"/);
+  assert.match(css, /--bg:\s*#0b0e0c;/);
+  assert.match(css, /--fg:\s*#33ff66;/);
+  assert.match(css, /--dim:\s*#1d6b33;/);
+  assert.match(css, /\.workspace\s*\{[^}]*display:\s*flex;/s);
+  assert.match(css, /\.panel-machine\s*\{[^}]*width:\s*640px;/s);
+  assert.match(css, /\.panel-editor\s*\{[^}]*max-width:\s*780px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*480px\)/);
+});
+
 test("third-party notices inventory identifies Pascual redistribution and build-time-only tooling", () => {
   const notices = readFileSync(join(out, "THIRD-PARTY-NOTICES.md"), "utf8");
   assert.match(notices, /Pascual's BASIC\/KERNAL/);

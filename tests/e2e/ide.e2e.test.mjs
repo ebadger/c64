@@ -84,16 +84,19 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     assert.equal(expectedBuild.ok, true, "the observable program must assemble");
     await page.fill("#project-name", "e2etest");
     await page.fill("#editor", OBSERVABLE_PROGRAM);
+    await page.click("#btn-build-run");
     await page.waitForFunction(
       (id) => {
         const b = window.__c64.lastBuild();
-        return b !== null && b.buildId === id;
+        return b !== null && b.buildId === id && window.__c64.running();
       },
       expectedBuild.assembly.buildId,
       { timeout: 8000 },
     );
     const build = await page.evaluate(() => window.__c64.lastBuild());
     assert.ok(build.buildId && build.prgLen > 0 && build.d64Len === 174848, "build produced a PRG and full D64");
+    assert.equal(await page.evaluate(() => window.__c64.peek(0x0400)), 0x07, "Build & Run starts its exact successful result");
+    await page.click("#btn-stop");
 
     // --- Bundled Pascual ROM default + real reset-vector BASIC boot ---------------------------
     assert.equal(await page.evaluate(() => window.__c64.romSource()), "bundled");
@@ -149,13 +152,14 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     assert.equal(storedHasRom, false, "no ROM-sized blob is ever written to storage");
 
     // --- Run + frame progression + observable RAM write -------------------------------------
-    await page.click("#btn-run");
+    await page.focus("#editor");
+    await page.keyboard.press("Control+Enter");
     await page.waitForFunction(() => window.__c64.running() === true, null, { timeout: 5000 });
     const seq1 = await page.evaluate(() => window.__c64.frame().sequence);
     await page.waitForTimeout(250);
     const seq2 = await page.evaluate(() => window.__c64.frame().sequence);
     assert.ok(Number(seq2) > Number(seq1), "frame sequence advances while running");
-    assert.equal(await page.evaluate(() => window.__c64.peek(0x0400)), 0x07, "program wrote $07 to $0400");
+    assert.equal(await page.evaluate(() => window.__c64.peek(0x0400)), 0x07, "Ctrl+Enter builds and runs the current source");
 
     // --- Keyboard release (stuck-key prevention) --------------------------------------------
     await page.focus("#screen-surface");
@@ -374,7 +378,7 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     // --- Gallery load + reproducible buildId ------------------------------------------------
     const expected = JSON.parse(readFileSync(new URL("../../web/client/gallery.json", import.meta.url)));
     await page.waitForFunction(() => document.querySelectorAll("#gallery-list .gallery-item").length >= 1);
-    await page.click("#gallery-list .gallery-item button");
+    await page.selectOption("#gallery-select", expected[0].id);
     await page.waitForFunction(() => document.getElementById("editor").value.includes("border-flash"), null, { timeout: 8000 });
     // Wait for the gallery entry's specific build (not any earlier build) to land.
     await page.waitForFunction(

@@ -89,14 +89,33 @@ intentionally has its own `buildId`; the two golden records do not have to match
 
 ## IDE and emulator behaviour
 
-- Initial UI areas: source editor, diagnostics, Run/Boot BASIC/Stop/Reset, machine profile, video,
-  audio enable, keyboard/joystick help, artifact downloads, share, gallery, ROM status, and
-  D64 import/directory/run/eject.
+- The presentation shell intentionally shares 3RIC Studio's compact terminal visual language:
+  a full-height near-black surface (`#0b0e0c`), bright and dim phosphor greens (`#33ff66` and
+  `#1d6b33`), a dark panel surface (`#11140f`), system monospace text, and one-pixel controls.
+  It loads no external font or style dependency. On wide screens the emulator is the left,
+  screen-first column (up to 640 CSS pixels) and the assembler is the flexible right column
+  (up to 780 CSS pixels), with C64-specific utility panels below. The two columns wrap without
+  horizontal page scrolling, and the narrow layout keeps emulator then editor source order.
+- Initial UI areas: a compact machine toolbar; source editor and diagnostics; Build & Run,
+  build-only, run-last-build, Boot BASIC, Stop, and Reset controls; machine profile; video and
+  audio; keyboard/joystick help; artifact downloads; share; gallery; ROM status; and D64
+  import/directory/run/eject. Reorganization for the sibling-site layout must not hide or remove
+  any C64-specific workflow.
 - Build runs through the dual-use assembler, preferably in a worker. The same-origin,
   manifest-verified Pascual's BASIC/KERNAL set with the MEGA65 PXL chargen loads by default.
   **Boot BASIC** is enabled when the ROM set is ready; source **Run** additionally requires a
   current successful build. An explicit ROM-source control can switch to a complete custom
   local BASIC/KERNAL/CHARGEN trio for the current page session.
+- **Build & Run** is the primary source action. It immediately snapshots the current
+  source/name/timing settings, submits that project to the worker, and runs only the exact newest
+  successful result from that request. A subsequent source/name/timing edit cancels the pending
+  run intent; a failed, superseded, or stale build never starts the machine. **Build** remains
+  available for artifact-only work and **Run** restarts the current non-stale successful build.
+  `Ctrl+Enter` (or `Command+Enter` on macOS) in the source editor invokes the same Build & Run
+  path and suppresses the textarea newline for that chord only.
+- Valid gallery entries populate both the descriptive gallery cards and a compact **Sample**
+  selector in the assembler bar. Choosing a sample follows the same validated source/remix load
+  path as its gallery card and does not auto-run it.
 - Switching ROM source stops execution and replaces the set atomically. Custom mode starts
   empty and cannot inherit individual bundled roles, avoiding unsupported mixed sets.
 - In-app **Run** resets the machine (power-on), loads the PRG, and enters the machine-code entry

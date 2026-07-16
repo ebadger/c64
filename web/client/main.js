@@ -11,6 +11,7 @@ import { makeProject, projectFromGalleryEntry, validateProject, canonicalProject
 import { renderDiagnostics } from "./lib/diagnosticsView.js";
 import { resolveUrlState } from "./lib/urlContract.js";
 import { BuildClient, createBuildWorker } from "./lib/buildClient.js";
+import { BuildRunIntent, isBuildAndRunShortcut } from "./lib/buildActions.js";
 import { MachineController } from "./lib/machine.js";
 import { CanvasRenderer } from "./lib/video.js";
 import { AudioPlayer } from "./lib/audio.js";
@@ -40,6 +41,7 @@ const appBaseUrl = location.origin + location.pathname; // for share links (no q
 const errorBus = new ErrorBus();
 const romManager = new RomManager();
 const audio = new AudioPlayer();
+const buildRunIntent = new BuildRunIntent();
 
 const state = {
   project: makeProject(),
@@ -64,6 +66,7 @@ let lastPersistedCanonical = null; // canonical JSON of the last project we save
 let appInitialized = false; // true once init() (incl. decideInitialProject) has fully completed
 let romLoadGeneration = 0;
 let d64SelectionGeneration = 0;
+let gallerySelectionGeneration = 0;
 const romFileReadGenerations = new Map(ROM_ROLES.map((role) => [role, 0]));
 
 // ---------------------------------------------------------------------------------------------
@@ -86,6 +89,7 @@ async function init() {
   wireMedia();
   wireArtifacts();
   wireShare();
+  wireGallery();
 
   // Optional-capability degradation: the emulator runs without these, but the feature is disabled
   // and honestly labelled rather than silently broken (see specs/WEB-CLIENT.md).
@@ -125,7 +129,8 @@ function showCapabilityError(missing) {
 function cacheElements() {
   const ids = [
     "statusLine:status-line", "errorList:error-list",
-    "projectName:project-name", "editor", "btnBuild:btn-build", "btnRun:btn-run", "btnBootBasic:btn-boot-basic",
+    "projectName:project-name", "editor", "btnBuildRun:btn-build-run", "btnBuild:btn-build",
+    "btnRun:btn-run", "btnBootBasic:btn-boot-basic",
     "btnStop:btn-stop", "btnReset:btn-reset", "diagSummary:diagnostics-summary",
     "diagList:diagnostics-list", "screen", "screenSurface:screen-surface", "runStatus:run-status",
     "selTiming:sel-timing", "selSid:sel-sid", "selJoyport:sel-joyport", "chkGamepad:chk-gamepad",
@@ -141,7 +146,8 @@ function cacheElements() {
     "artifactStatus:artifact-status", "buildId:build-id", "btnDlPrg:btn-dl-prg",
     "btnDlD64:btn-dl-d64", "btnDlSrc:btn-dl-src", "btnShare:btn-share", "sharePanel:share-panel",
     "shareWarning:share-warning", "shareUrl:share-url", "btnShareCopy:btn-share-copy",
-    "btnShareClose:btn-share-close", "galleryList:gallery-list", "keyHelpBody:key-help-body",
+    "btnShareClose:btn-share-close", "gallerySelect:gallery-select",
+    "galleryList:gallery-list", "keyHelpBody:key-help-body",
   ];
   els = {};
   for (const spec of ids) {
@@ -226,29 +232,47 @@ function loadProjectIntoUI(project, _origin) {
 }
 
 let buildTimer = 0;
-function requestBuild(delayMs = 300) {
+function requestBuild(delayMs = 300, runAfterSuccess = false) {
   if (buildTimer) clearTimeout(buildTimer);
   buildTimer = setTimeout(() => {
+    buildTimer = 0;
     const project = syncProjectFromUI();
     storage.scheduleSave(project);
     savePreferences();
     pendingEdit = false; // this build request captures the current source
-    buildClient.build(project);
+    const seq = buildClient.build(project);
+    if (runAfterSuccess) buildRunIntent.arm(seq);
+    else buildRunIntent.cancel();
   }, delayMs);
 }
 
 // An edit invalidates artifacts synchronously (before the debounce) so Run/Download cannot use a
 // stale build, and marks results in flight as stale until the next build request completes.
 function onEdit(delayMs = 300) {
+  buildRunIntent.cancel();
   pendingEdit = true;
   onBuildStale();
   requestBuild(delayMs);
 }
 
+function buildAndRun() {
+  buildRunIntent.cancel();
+  pendingEdit = true;
+  onBuildStale();
+  requestBuild(0, true);
+}
+
 function wireEditor() {
   els.editor.addEventListener("input", () => onEdit());
+  els.editor.addEventListener("keydown", (event) => {
+    if (isBuildAndRunShortcut(event)) {
+      event.preventDefault();
+      buildAndRun();
+    }
+  });
   els.projectName.addEventListener("input", () => onEdit());
   els.selTiming.addEventListener("change", () => onEdit(0));
+  els.btnBuildRun.addEventListener("click", buildAndRun);
   els.btnBuild.addEventListener("click", () => onEdit(0));
 }
 
@@ -272,6 +296,7 @@ function onBuildStale() {
 }
 
 function onBuildResult(data) {
+  const runAfterSuccess = buildRunIntent.consume(data.seq);
   const diag = renderDiagnostics(data.diagnostics || []);
   setText(els.diagSummary, diag.summary);
   replaceChildren(els.diagList, ...diag.lines.map((line) => makeEl("li", { text: line })));
@@ -314,6 +339,7 @@ function onBuildResult(data) {
     if (data.error) errorBus.error(data.error.category || "build", data.error.code || "error", data.error.message || "Build error.");
   }
   updateRunEnabled();
+  if (data.ok && runAfterSuccess) void runProgram();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -885,6 +911,13 @@ function openShare() {
 // ---------------------------------------------------------------------------------------------
 // Gallery + initial project
 
+function wireGallery() {
+  els.gallerySelect.addEventListener("change", () => {
+    const entry = state.galleryById.get(els.gallerySelect.value);
+    if (entry) void openGalleryEntry(entry);
+  });
+}
+
 async function loadGalleryList() {
   const result = await loadGallery(repoBase);
   state.galleryById = result.byId;
@@ -902,17 +935,30 @@ async function loadGalleryList() {
     item.appendChild(actions);
     return item;
   });
+  const options = [
+    makeEl("option", { text: "Choose sample…", attrs: { value: "" } }),
+    ...result.entries.map((entry) => makeEl("option", {
+      text: entry.title,
+      attrs: { value: entry.id },
+    })),
+  ];
+  replaceChildren(els.gallerySelect, ...options);
+  setEnabled(els.gallerySelect, result.entries.length > 0);
   replaceChildren(els.galleryList, ...nodes);
 }
 
 async function openGalleryEntry(entry) {
+  const generation = ++gallerySelectionGeneration;
   const src = await fetchSource(entry, repoBase);
+  if (generation !== gallerySelectionGeneration) return;
   if (!src.ok) {
+    els.gallerySelect.value = "";
     errorBus.error(src.error.category, src.error.code, src.error.message);
     return;
   }
   const project = projectFromGalleryEntry(entry, src.source);
   loadProjectIntoUI(project, "src");
+  els.gallerySelect.value = entry.id;
   if (entry.curatedD64Path) await mountCuratedD64(entry.curatedD64Path);
 }
 
@@ -973,7 +1019,7 @@ function renderKeyHelp() {
 }
 
 const STARTER_SOURCE = `; Welcome to the c64 browser IDE.
-; Edit, then press Build and Run. Bundled Pascual ROMs are loaded by default.
+; Edit, then choose Build & Run (Ctrl+Enter). Bundled Pascual ROMs are loaded by default.
 ;
 ; In basic-sys mode a "10 SYS ..." stub is generated for you, so just start with
 ; code — it is placed immediately after the stub (do NOT set * = $0801 yourself).
