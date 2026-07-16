@@ -39,9 +39,15 @@ contain `..`, an absolute URL, or a leading slash.
 
 ## URL and local-state rules
 
-- `?src=<id>` loads a committed gallery entry.
+- `?src=<id>` loads a committed gallery entry. The client constructs an ephemeral
+  `SourceProject` from the fetched `sourcePath` plus the entry's `timingProfile`; every other
+  field takes its documented `DEFAULT_PROJECT` value (`schema:1`, `runMode:"basic-sys"`,
+  `loadAddress:$0801`, `outputName:"program"`, etc.). The entry's `expectedBuildId` is the
+  build id of exactly that project and is guarded by a headless test so gallery source and its
+  recorded id cannot silently diverge.
 - `?code=<base64url>` decodes UTF-8 edited source into an ephemeral project using explicit
-  documented default settings. Padding is optional; standard base64 `+` and `/` are invalid.
+  documented default settings (the decoded string becomes `source`; all other fields take
+  `DEFAULT_PROJECT` values). Padding is optional; standard base64 `+` and `/` are invalid.
 - `?d64=<id>` may load only the curated same-origin D64 declared by that gallery entry.
 - Precedence is `code` over `src` for source content. `d64` is independent but must resolve
   through a valid gallery ID. Unknown, duplicate, or malformed values produce a visible
@@ -78,12 +84,66 @@ contain `..`, an absolute URL, or a leading slash.
 - Assembly errors, missing ROMs, unsupported browsers, WASM startup errors, and invalid
   media render explicit states. The client never fabricates successful output.
 
-## Browser and security boundaries
+## Emulator bridge contract
+
+The web client integrates the deterministic C64 core (owned by [`EMULATOR.md`](./EMULATOR.md))
+only through a single documented bridge module. The bridge binds to the embind **v0 WebAssembly
+boundary** finalized in [`EMULATOR.md`](./EMULATOR.md) "v0 WebAssembly boundary" — the shared,
+authoritative contract. Any change to it is coordinated with the emulator-core owner.
+
+```text
+// Loader: c64core.js exposes a DEFAULT-export Emscripten factory.
+import createC64Core from "<path>/c64core.js";
+const mod = await createC64Core();
+const m = new mod.Machine(timingProfile);   // "pal-6569" | "ntsc-6567r8"
+
+Machine {
+  reset(): void
+  setPC(addr: uint16): void
+  loadPrg(prg: Uint8Array): { ok, loadAddress, endAddress, error }
+  runCycles(cycles: uint32): uint32                       // cycles actually executed
+  runFrame(): { cyclesRun, frameSequence, stopped }
+  framebuffer(): Uint8Array   // FRESH COPY, "c64-indexed-8": 1 byte/pixel, 4-bit index 0..15
+  frameWidth(): 384
+  frameHeight(): 272
+  readMem(addr: uint16): uint8
+  writeMem(addr: uint16, value: uint8): void
+  delete(): void
+}
+```
+
+- The bridge exposes an async `createMachine({ createCore, timingProfile })` that resolves the
+  factory and constructs `new Machine(timingProfile)`. The requested profile is passed through
+  unchanged (not silently coerced); the core reports an invalid configuration via
+  `ok()`/`configError()`, which the bridge surfaces as unavailable. A constructed instance is
+  `delete()`d on any failure path so a native object never leaks. Until the `c64core.js`/
+  `c64core.wasm` artifact is present in the deployment the bridge resolves to an explicit
+  **unavailable** result with a stable reason; the Run control renders that state and the client
+  never fabricates a framebuffer, cycle count, or memory read. The artifact is built separately
+  and published as `core/build-wasm/c64core.js` (+ `.wasm`).
+- **v0 ROM policy.** The v0 core runs **direct-mode** PRGs with no ROM: `loadPrg(prg)` loads at
+  the header address but does **not** set the PC, so the client sequences
+  `loadPrg -> setPC(runAddress) -> runFrame`/`runCycles -> framebuffer`. **basic-sys** boot needs
+  KERNAL/CHARGEN ROMs and stays gated (`rom-set-missing`) until a ROM decision lands; that
+  per-project gate is the client's Run logic, not the core factory.
+- The framebuffer is **indexed** (`c64-indexed-8`), not RGBA: 384x272 with the 320x200 active
+  window at offset (32, 36). The client owns the 16-colour C64 palette (index -> RGBA) and the
+  canvas draw; it must not assume RGBA bytes.
+- All wall-clock pacing (`requestAnimationFrame`, Web Audio scheduling, input polling) lives in
+  the client. The bridge only advances the core through bounded `runCycles`/`runFrame` calls; it
+  never changes the selected machine clock to match display refresh.
+- Not in v0 (tracked with the emulator-core owner): D64 mounting, keyboard/joystick input,
+  audio drain (SID is a register stub), and save states.
+
+
 
 - Target current evergreen browsers with WebAssembly, ES modules, workers, Web Audio, and
   typed arrays. Missing capabilities are reported before initialization.
 - The site uses a restrictive static Content Security Policy compatible with same-origin
-  workers/WASM and no third-party scripts.
+  workers/WASM and no third-party scripts. `frame-ancestors` is declared in the meta CSP as
+  intent, but browsers ignore it there; anti-framing must be delivered as an HTTP response
+  header (or `X-Frame-Options`) by the GitHub Pages deployment. Tracked as a deployment-milestone
+  gap in `status/SYSTEM-STATUS.md`.
 - Source is treated as data, never inserted as HTML or evaluated as JavaScript.
 - No analytics, ads, accounts, uploads, remote code execution, cross-origin source fetches,
   or runtime write endpoints exist in the initial architecture.
@@ -114,9 +174,12 @@ not continue showing a running state.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Static IDE shell | Not started | Vanilla client planned |
-| Worker assembler integration | Not started | Same module as Node tests |
-| WASM video/audio/input bridge | Not started | Browser pacing outside core |
-| URL share/remix and autosave | Not started | Public bearer-data warning required |
-| Gallery and canonical PR flow | Not started | `gallery.json` not yet created |
+| Static IDE shell | Implemented | Vanilla `web/` client, restrictive CSP, source treated as data |
+| Worker assembler integration | Implemented | Module worker imports the same `src/` pipeline as Node tests |
+| Diagnostics panel | Implemented | Renders stable diagnostic codes/positions from `AssemblyResult` |
+| PRG/D64 downloads | Implemented | Client-side `Blob` + pipeline `downloadFilename`; URLs revoked after use |
+| URL share/remix and autosave | Implemented | `?code`/`?src`, 256 KiB decoded cap, public bearer-data Share warning, `c64.dev.v1.*` autosave |
+| Gallery and canonical PR flow | Implemented (minimal) | `web/gallery.json` with the `border-flash` `?src` entry; build-id guarded by a test |
+| Capability detection | Implemented | WASM, module workers, typed arrays, Blob/URL, storage; explicit unsupported state |
+| WASM video/audio/input bridge | Documented stub | `emulatorBridge.v1.js` binds the embind v0 boundary; Run renders **emulator unavailable** until the `c64core.wasm` artifact is bundled. v0 runs direct-mode PRGs with no ROM; basic-sys Run stays ROM-gated |
 | GitHub Pages deployment | Planned | No workflow or live site yet |
