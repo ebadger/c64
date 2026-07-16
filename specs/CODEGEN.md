@@ -195,4 +195,8 @@ converted to empty successful artifacts.
 | Multi-pass symbol resolution | Implemented | Grow-only zero-page/absolute fixpoint; stable sorted diagnostics |
 | PRG serializer and BASIC SYS stub | Implemented | Byte-exact stub and gap/overlap/range handling under golden vectors |
 | Browser/Node dual-use packaging | Implemented | Single ES module in `src/`; no runtime deps or environment globals |
+<<<<<<< HEAD
 | Worker integration and UI wiring | Implemented | The `web/client/` module worker imports these same `src/` modules; see `WEB-CLIENT.md` |
+=======
+| Worker integration and UI wiring | Implemented | `web/` client runs `assemble`/`buildArtifacts` in a module worker importing this `src/` module unchanged |
+>>>>>>> origin/main

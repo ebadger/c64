@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!--
+    Restrictive static Content Security Policy (specs/WEB-CLIENT.md):
+    same-origin scripts/workers/styles/media only, no third-party origins, no inline scripts,
+    and no eval. 'wasm-unsafe-eval' permits WebAssembly compilation for the future emulator core
+    without allowing JavaScript eval.
+    NOTE: browsers ignore 'frame-ancestors' when CSP is delivered via <meta>; anti-framing must
+    be sent as an HTTP response header at deploy time (tracked for the GitHub Pages milestone).
+    It is retained here as declared intent and is harmless.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; manifest-src 'self'">
+  <title>c64 — browser IDE</title>
+  <link rel="stylesheet" href="styles/app.v1.css">
+</head>
+<body>
+  <a class="skip-link" href="#source">Skip to editor</a>
+
+  <!-- Shown only when core capabilities are missing; hides the app. -->
+  <div id="unsupported" class="overlay" hidden>
+    <div class="overlay-card">
+      <h1>Unsupported browser</h1>
+      <p id="unsupported-detail">This browser is missing capabilities the IDE requires.</p>
+      <p>Please use a current version of Chrome, Firefox, Edge, or Safari.</p>
+    </div>
+  </div>
+
+  <header class="app-header">
+    <h1 class="app-title">c64 <span class="app-subtitle">browser IDE</span></h1>
+    <div id="global-status" class="global-status" role="status" aria-live="polite"></div>
+  </header>
+
+  <main id="app" class="app-grid">
+    <section class="panel editor-panel" aria-labelledby="editor-heading">
+      <h2 id="editor-heading" class="panel-heading">Source</h2>
+      <textarea id="source" class="source-editor" spellcheck="false" autocomplete="off"
+        autocapitalize="off" wrap="off" aria-label="6510 assembly source"></textarea>
+
+      <fieldset class="settings">
+        <legend>Project</legend>
+        <label>Name <input id="opt-name" type="text" maxlength="64" autocomplete="off"></label>
+        <label>Output name <input id="opt-outputName" type="text" maxlength="16" autocomplete="off"></label>
+        <label>Run mode
+          <select id="opt-runMode">
+            <option value="basic-sys">basic-sys</option>
+            <option value="direct">direct</option>
+          </select>
+        </label>
+        <label>Timing
+          <select id="opt-timingProfile">
+            <option value="pal-6569">PAL (6569)</option>
+            <option value="ntsc-6567r8">NTSC (6567R8)</option>
+          </select>
+        </label>
+        <label>Load address <input id="opt-loadAddress" type="text" inputmode="text" autocomplete="off" placeholder="$0801"></label>
+        <label>Run address <input id="opt-runAddress" type="text" inputmode="text" autocomplete="off" placeholder="$0801"></label>
+        <label>Disk name <input id="opt-diskName" type="text" maxlength="16" autocomplete="off"></label>
+        <label>Disk id <input id="opt-diskId" type="text" maxlength="2" autocomplete="off"></label>
+      </fieldset>
+    </section>
+
+    <section class="panel side-panel">
+      <div class="toolbar">
+        <button id="btn-build" type="button" class="primary">Build</button>
+        <button id="btn-download-prg" type="button" disabled>Download PRG</button>
+        <button id="btn-download-d64" type="button" disabled>Download D64</button>
+        <button id="btn-share" type="button">Share…</button>
+      </div>
+
+      <div class="gallery-row">
+        <label for="gallery-select">Examples</label>
+        <select id="gallery-select"><option value="">Loading…</option></select>
+        <button id="btn-gallery-load" type="button">Load</button>
+      </div>
+
+      <div id="share-panel" class="share-panel" hidden>
+        <p class="share-warning">
+          A share link is <strong>public bearer data</strong>: anyone with it can read and copy
+          your source, intermediaries may retain it, there is no revocation, and long source
+          makes long URLs. For large programs, download the source instead.
+        </p>
+        <input id="share-url" class="share-url" type="text" readonly aria-label="Share URL">
+        <div class="share-actions">
+          <button id="btn-share-copy" type="button" class="primary">Copy link</button>
+          <button id="btn-share-close" type="button">Close</button>
+        </div>
+      </div>
+
+      <div class="build-info" aria-live="polite">
+        <h2 class="panel-heading">Build</h2>
+        <dl id="build-meta" class="build-meta">
+          <div><dt>Status</dt><dd id="build-status">Not built</dd></div>
+          <div><dt>Build id</dt><dd id="build-id">—</dd></div>
+          <div><dt>Load</dt><dd id="build-load">—</dd></div>
+          <div><dt>Run</dt><dd id="build-run">—</dd></div>
+        </dl>
+        <div id="diagnostics" class="diagnostics"><p class="diag-empty">No diagnostics.</p></div>
+      </div>
+
+      <div class="emulator" aria-labelledby="emulator-heading">
+        <h2 id="emulator-heading" class="panel-heading">Emulator</h2>
+        <canvas id="screen" class="screen" width="384" height="272"
+          aria-label="C64 display (emulator unavailable)"></canvas>
+        <div class="emulator-controls">
+          <button id="btn-run" type="button" disabled>Run</button>
+          <button id="btn-reset" type="button" disabled>Reset</button>
+        </div>
+        <p id="emulator-status" class="emulator-status" role="status" aria-live="polite">Checking…</p>
+        <p id="rom-status" class="rom-status">ROM set: none installed.</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="modules/main.v1.js"></script>
+</body>
+</html>
