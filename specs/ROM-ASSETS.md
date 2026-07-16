@@ -93,6 +93,8 @@ system functions as incomplete.
   ROM files** clears the bundled set and requires a complete BASIC/KERNAL/CHARGEN trio; it
   never silently mixes a custom role with roles from the bundled set. Switching back reloads
   and revalidates the bundled set.
+- If multiple file reads overlap for the same custom role, only the most recent picker
+  selection may update that role; stale completions and stale read errors are ignored.
 - ROM-source selection and custom bytes are session-only. Reloading the page returns to the
   bundled default; no ROM bytes or custom-selection state enter local storage.
 - Initial implementation does not persist user ROM bytes. A future opt-in persistent cache

@@ -16,6 +16,7 @@ import { wasmArtifactExists, tryLoadPlaywright, syntheticRomArrays, buildTempDis
 import { encodeSourceToCode } from "../../web/client/lib/base64url.js";
 import { buildD64 } from "../../src/d64.js";
 import { buildArtifacts } from "../../src/index.js";
+import { sha256Hex } from "../../src/hash.js";
 import { makeProject } from "../../web/client/lib/projectModel.js";
 
 // basic-sys is the default project mode: the assembler emits the BASIC stub at $0801 and places the
@@ -133,7 +134,60 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     assert.equal(await page.locator("#rom-custom").isVisible(), true);
 
     const customRoms = syntheticRomArrays();
-    for (const role of ["basic", "kernal", "chargen"]) {
+    const staleBasic = [...customRoms.basic];
+    staleBasic[0] ^= 0xff;
+    const staleBasicPath = join(workDir, "stale-basic.rom");
+    const currentBasicPath = join(workDir, "current-basic.rom");
+    writeFileSync(staleBasicPath, Buffer.from(staleBasic));
+    writeFileSync(currentBasicPath, Buffer.from(customRoms.basic));
+    const currentBasicDigest = sha256Hex(Uint8Array.from(customRoms.basic));
+
+    // A delayed earlier read must not replace the user's newer selection for the same role.
+    await page.evaluate(() => {
+      const originalArrayBuffer = File.prototype.arrayBuffer;
+      let markStarted;
+      let releaseSlowRead;
+      const started = new Promise((resolve) => {
+        markStarted = resolve;
+      });
+      File.prototype.arrayBuffer = function arrayBuffer() {
+        if (this.name !== "stale-basic.rom") return originalArrayBuffer.call(this);
+        markStarted();
+        return new Promise((resolve, reject) => {
+          releaseSlowRead = () => originalArrayBuffer.call(this).then(resolve, reject);
+        }).finally(() => {
+          window.__romReadRace.delivered = true;
+        });
+      };
+      window.__romReadRace = {
+        delivered: false,
+        waitForStart: () => started,
+        release: () => releaseSlowRead(),
+        restore: () => {
+          File.prototype.arrayBuffer = originalArrayBuffer;
+          delete window.__romReadRace;
+        },
+      };
+    });
+    await page.setInputFiles('input[data-role="basic"]', staleBasicPath);
+    await page.evaluate(() => window.__romReadRace.waitForStart());
+    await page.setInputFiles('input[data-role="basic"]', currentBasicPath);
+    await page.waitForFunction(
+      (digest) => document.querySelector('input[data-role="basic"]')?.closest(".rom-role")?.querySelector(".digest")?.textContent.includes(digest),
+      currentBasicDigest,
+    );
+    await page.evaluate(() => window.__romReadRace.release());
+    await page.waitForFunction(() => window.__romReadRace.delivered);
+    await page.waitForTimeout(0);
+    assert.match(
+      await page.locator('input[data-role="basic"]').locator("xpath=ancestor::div[contains(@class,'rom-role')]").locator(".digest").textContent(),
+      new RegExp(currentBasicDigest),
+      "the latest same-role custom ROM selection wins",
+    );
+    await page.evaluate(() => window.__romReadRace.restore());
+    await page.getByRole("button", { name: "Confirm basic ROM" }).click();
+
+    for (const role of ["kernal", "chargen"]) {
       const path = join(workDir, `${role}.rom`);
       writeFileSync(path, Buffer.from(customRoms[role]));
       await page.setInputFiles(`input[data-role="${role}"]`, path);

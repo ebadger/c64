@@ -54,6 +54,7 @@ let pendingEdit = false; // an edit happened since the last build() request -> r
 let lastPersistedCanonical = null; // canonical JSON of the last project we saved or loaded
 let appInitialized = false; // true once init() (incl. decideInitialProject) has fully completed
 let romLoadGeneration = 0;
+const romFileReadGenerations = new Map(ROM_ROLES.map((role) => [role, 0]));
 
 // ---------------------------------------------------------------------------------------------
 // Startup
@@ -604,16 +605,23 @@ function romStatusText(status) {
 async function onRomFile(role, file) {
   if (!file) return;
   const selectedRomGeneration = romLoadGeneration;
+  const selectedRoleGeneration = (romFileReadGenerations.get(role) || 0) + 1;
+  romFileReadGenerations.set(role, selectedRoleGeneration);
+  const isCurrentSelection = () =>
+    selectedRomGeneration === romLoadGeneration &&
+    selectedRoleGeneration === romFileReadGenerations.get(role) &&
+    state.romSource === "custom";
   if (pacer && pacer.running) stopProgram();
   setEnabled(els.btnReset, false);
   let bytes;
   try {
     bytes = new Uint8Array(await file.arrayBuffer());
   } catch {
+    if (!isCurrentSelection()) return;
     errorBus.error("rom", "read", `Could not read the ${role} ROM file.`);
     return;
   }
-  if (selectedRomGeneration !== romLoadGeneration || state.romSource !== "custom") return;
+  if (!isCurrentSelection()) return;
   const res = romManager.setRoleBytes(role, bytes);
   if (!res.ok) errorBus.error(res.error.category, res.error.code, res.error.message);
   renderRomRoles();
