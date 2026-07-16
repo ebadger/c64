@@ -33,7 +33,7 @@ toolchain commands (including the Windows Visual Studio path and the pinned Emsc
 install). In short:
 
 ```sh
-sh scripts/build/build-native.sh        # native CMake build + CTest (14 suites)
+sh scripts/build/build-native.sh        # native CMake build + CTest (15 suites)
 sh scripts/build/build-wasm.sh          # production build/wasm/c64core.mjs + c64core.wasm
 node --test tests/wasm/                  # headless native/WASM byte-identical parity + smoke
 ```
@@ -76,7 +76,7 @@ above and in `SETUP.md`) or a web client (which does not exist).
 | Step | State |
 |------|-------|
 | Install pinned Emscripten (3.1.74) | Implemented — `scripts/build/emscripten-version.txt`; commands in `SETUP.md` |
-| Native CMake build + CTest | Implemented — `core/` project, `scripts/build/build-native.sh`, 14 test suites |
+| Native CMake build + CTest | Implemented — `core/` project, `scripts/build/build-native.sh`, 15 test suites |
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
 | CI workflow | Implemented — `.github/workflows/core.yml` builds native + WASM and runs all suites |
