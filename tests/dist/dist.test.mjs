@@ -2,7 +2,7 @@
 // contract from specs/WEB-CLIENT.md and the milestone-5 release requirements: base-path-independent
 // (no absolute/external/escaping references), every referenced asset present, a content-derived
 // sha256 manifest with correct MIME types, byte-identical repeated builds, no source maps/private
-// inputs/ROM bytes, a restrictive CSP with no inline script/style, and a fail-not-skip WASM gate.
+// inputs/unapproved ROMs, a restrictive CSP with no inline script/style, and a fail-not-skip WASM gate.
 //
 // These run under `node --test tests/` with no toolchain: the dist assembler is pure Node and the
 // production WASM artifact is optional here (its presence/absence is asserted, its bytes are
@@ -11,12 +11,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, extname, join, relative, resolve } from "node:path";
 
-import { buildDist, contentTypeFor, CONTENT_TYPES } from "../../scripts/build/build-dist.mjs";
+import { buildDist, contentTypeFor, CONTENT_TYPES, verifyOpenRomAssets } from "../../scripts/build/build-dist.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -42,6 +42,8 @@ function isText(p) {
 // Build once for the reference/manifest/MIME tests (WASM optional in this environment).
 const out = freshOut("c64-dist-a-");
 const { manifest, wasmIncluded } = buildDist({ repoRoot, outDir: out, requireWasm: false });
+const openRoms = verifyOpenRomAssets(out, "roms");
+const approvedRomPaths = new Set(Object.values(openRoms.manifest.roles).map((entry) => `roms/${entry.path}`));
 
 test.after(() => rmSync(out, { recursive: true, force: true }));
 
@@ -57,15 +59,22 @@ test("dist contains the required app-rooted layout and nothing private", () => {
     "lib/machine.js",
     "pipeline/index.js",
     "emulator/c64.mjs",
+    "roms/manifest.json",
+    "roms/LICENSE.txt",
+    "roms/COPYING",
+    "roms/COPYING.LESSER",
+    "roms/PROVENANCE.md",
+    `roms/${openRoms.manifest.sourceArchive.path}`,
     "asset-manifest.json",
     "THIRD-PARTY-NOTICES.md",
   ]) {
     assert.ok(files.has(required), `dist is missing required asset ${required}`);
   }
-  // No source maps, ROM/binary blobs, package manifests, node_modules, or test files leak in.
+  // No source maps, unapproved ROM/binary blobs, package manifests, node_modules, or tests leak in.
   for (const p of files) {
     assert.ok(!p.endsWith(".map"), `source map must not ship: ${p}`);
-    assert.ok(!/\.(rom|bin)$/i.test(p), `ROM/binary blob must not ship: ${p}`);
+    if (/\.rom$/i.test(p)) assert.ok(approvedRomPaths.has(p), `unapproved ROM must not ship: ${p}`);
+    assert.ok(!/\.bin$/i.test(p), `unapproved binary blob must not ship: ${p}`);
     assert.ok(p !== "package.json" && !p.endsWith("/package.json"), `package.json must not ship: ${p}`);
     assert.ok(!p.includes("node_modules/"), `node_modules must not ship: ${p}`);
     assert.ok(!/(^|\/)tests?\//.test(p), `test files must not ship: ${p}`);
@@ -128,6 +137,7 @@ test("config path constants point at files that exist in dist", () => {
   for (const [name, expectPresent] of [
     ["gallery.json", true],
     ["emulator/c64.mjs", true],
+    ["roms/manifest.json", true],
     ["wasm/c64core.mjs", wasmIncluded],
   ]) {
     assert.ok(cfg.includes(`"${name}"`), `config.js should reference '${name}'`);
@@ -139,6 +149,7 @@ test("asset manifest is content-accurate with correct MIME types", () => {
   const parsed = JSON.parse(readFileSync(join(out, "asset-manifest.json"), "utf8"));
   assert.equal(parsed.manifestVersion, 1);
   assert.equal(parsed.wasmIncluded, wasmIncluded);
+  assert.equal(parsed.openRomsIncluded, true);
   const onDisk = listFiles(out).filter((p) => p !== "asset-manifest.json");
   assert.equal(parsed.fileCount, onDisk.length, "manifest fileCount matches files on disk");
   assert.deepEqual(
@@ -164,6 +175,8 @@ test("MIME expectations match the served content types", () => {
   assert.equal(CONTENT_TYPES[".html"], "text/html; charset=utf-8");
   assert.equal(CONTENT_TYPES[".json"], "application/json; charset=utf-8");
   assert.equal(CONTENT_TYPES[".css"], "text/css; charset=utf-8");
+  assert.equal(CONTENT_TYPES[".rom"], "application/octet-stream");
+  assert.equal(CONTENT_TYPES[".gz"], "application/gzip");
 });
 
 test("index.html has the restrictive CSP and no inline script/style", () => {
@@ -177,12 +190,48 @@ test("index.html has the restrictive CSP and no inline script/style", () => {
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]*\S[^<]*<\/script>/.test(html), "no inline script body");
 });
 
-test("third-party notices inventory excludes ROMs and names build-time-only tooling", () => {
+test("third-party notices inventory identifies OpenROMs redistribution and build-time-only tooling", () => {
   const notices = readFileSync(join(out, "THIRD-PARTY-NOTICES.md"), "utf8");
-  assert.match(notices, /copyrighted Commodore ROM bytes are ever/i);
+  assert.match(notices, /MEGA65 OpenROMs/);
+  assert.match(notices, /corresponding source/);
+  assert.match(notices, /No proprietary Commodore ROM dump/i);
   assert.match(notices, /Emscripten/);
   assert.match(notices, /Playwright/);
   assert.match(notices, /NOT shipped/);
+});
+
+test("dist contains exactly the reviewed OpenROMs files, images, licenses, and corresponding source", () => {
+  const source = verifyOpenRomAssets(repoRoot);
+  assert.deepEqual(openRoms.manifest, source.manifest);
+  assert.deepEqual(
+    listFiles(join(out, "roms"), out),
+    source.files.map((path) => `roms/${path}`).sort(),
+  );
+  for (const path of source.files) {
+    const expected = readFileSync(join(repoRoot, "third_party", "open-roms", path));
+    const actual = readFileSync(join(out, "roms", path));
+    assert.equal(
+      createHash("sha256").update(actual).digest("hex"),
+      createHash("sha256").update(expected).digest("hex"),
+      path,
+    );
+  }
+});
+
+test("OpenROMs production verification rejects a changed role image", () => {
+  const root = freshOut("c64-open-roms-tamper-");
+  try {
+    const target = join(root, "third_party", "open-roms");
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(join(repoRoot, "third_party", "open-roms"), target, { recursive: true });
+    const basicPath = join(target, openRoms.manifest.roles.basic.path);
+    const changed = readFileSync(basicPath);
+    changed[0] ^= 0xff;
+    writeFileSync(basicPath, changed);
+    assert.throws(() => verifyOpenRomAssets(root), /failed size\/sha256 verification/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("repeated clean builds from the same tree are byte-identical", () => {

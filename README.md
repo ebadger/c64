@@ -15,11 +15,11 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 > once to a production WebAssembly artifact and proven by native and byte-identical headless
 > WASM parity tests; the **static browser IDE** (`web/client/`) that integrates the production
 > assembler in a worker and the production WASM machine into an editor, build, run/stop/reset,
-> presentation, input, ROM/media handling, sharing, gallery, and downloads; and the **release
+> presentation, input, bundled OpenROMs/custom-ROM handling, sharing, gallery, and downloads; and the **release
 > pipeline** — a deterministic `dist/` build, external D64 interoperability verification (VICE
 > `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and a GitHub Pages deploy workflow.
-> The Pages site is **deployable/pending** — it deploys the gated `dist/` on merged `main` and is
-> **not** live while this work is unmerged; run the IDE locally with the dev server below.
+> The Pages site is live at [`https://ebadger.github.io/c64/`](https://ebadger.github.io/c64/);
+> merged `main` updates deploy only after the complete release gate passes.
 > Device/media fidelity is honestly labelled (line-based VIC renderer, approximate SID filter,
 > high-level rather than cycle-level 1541 drive); in-app Run resets and enters the SYS target
 > rather than running the ROM's BASIC startup (the downloaded PRG still autostarts via BASIC `RUN`
@@ -52,17 +52,16 @@ source produces long URLs.
   import.
 - **Client:** implemented static HTML/CSS/ES-module IDE (`web/client/`) with the build worker
   and browser pacing kept outside the deterministic core.
-- **Hosting:** static GitHub Pages at `https://ebadger.github.io/c64/`. The deterministic `dist/`
-  build and `release.yml` deploy the gated artifact on merged `main`; it is deployable/pending and
-  not live while this work is unmerged.
+- **Hosting:** live static GitHub Pages at `https://ebadger.github.io/c64/`. The deterministic
+  `dist/` build and `release.yml` deploy the gated artifact on merged `main`.
 
 Start with [`specs/SYSTEM.md`](./specs/SYSTEM.md) for the full layer map and data flows.
 
 ## ROM and hardware boundary
 
-Copyrighted Commodore BASIC, KERNAL, and character ROMs are not committed or distributed.
-The application may ship only redistributable replacements and may accept user-supplied ROM
-files locally.
+Proprietary Commodore BASIC, KERNAL, and character ROM dumps are not committed or distributed.
+The application ships a pinned redistributable MEGA65 OpenROMs set with licenses and corresponding
+source, and accepts a complete user-supplied ROM set locally for the current page session.
 
 This project ends at software emulation and standard PRG/D64 interoperability. It does not
 include custom transfer devices, firmware, PCBs, HDL, KiCad, GAL/address-decode logic, or
@@ -107,9 +106,10 @@ node scripts/dev/serve.mjs            # http://127.0.0.1:8080/web/client/
 ```
 
 Build the production WebAssembly artifact first (see [`SETUP.md`](./SETUP.md)) so **Run** works;
-without it you can still edit, build, and download PRG/D64. Because no redistributable ROM set
-ships yet, Run also requires you to select local BASIC/KERNAL/character ROM files — they stay in
-memory on your machine and are never uploaded, stored, or logged.
+without it you can still edit, build, and download PRG/D64. Run uses the pinned, redistributable
+MEGA65 OpenROMs generic set by default. The ROM panel can replace it with a complete local
+BASIC/KERNAL/character set for the current page session; custom bytes are never uploaded, stored,
+or logged.
 
 ## Build and test
 

@@ -6,7 +6,7 @@
 import { byId, setText, setHidden, setEnabled, makeEl, replaceChildren } from "./lib/dom.js";
 import { detectCapabilities } from "./lib/capabilities.js";
 import { ErrorBus } from "./lib/errors.js";
-import { WASM_LOADER_PATH } from "./lib/config.js";
+import { BUNDLED_ROM_MANIFEST_PATH, WASM_LOADER_PATH } from "./lib/config.js";
 import { makeProject, projectFromGalleryEntry, validateProject, canonicalProjectJson } from "./lib/projectModel.js";
 import { renderDiagnostics } from "./lib/diagnosticsView.js";
 import { resolveUrlState } from "./lib/urlContract.js";
@@ -18,6 +18,7 @@ import { InputController } from "./lib/input.js";
 import { Pacer } from "./lib/pacing.js";
 import { Storage } from "./lib/storage.js";
 import { RomManager } from "./lib/roms.js";
+import { loadBundledRomSet } from "./lib/bundledRoms.js";
 import { loadGallery, fetchSource, fetchCuratedD64 } from "./lib/gallery.js";
 import { downloadBytes, downloadSource } from "./lib/downloads.js";
 import { computeShare, copyToClipboard } from "./lib/share.js";
@@ -38,6 +39,8 @@ const state = {
   artifactsStale: false,
   pendingD64: null, // { bytes, label } to mount on next Run
   galleryById: new Map(),
+  romSource: "bundled",
+  romLoading: false,
 };
 
 let els = {};
@@ -50,6 +53,7 @@ let machineLoadPromise = null;
 let pendingEdit = false; // an edit happened since the last build() request -> results are stale
 let lastPersistedCanonical = null; // canonical JSON of the last project we saved or loaded
 let appInitialized = false; // true once init() (incl. decideInitialProject) has fully completed
+let romLoadGeneration = 0;
 
 // ---------------------------------------------------------------------------------------------
 // Startup
@@ -78,10 +82,12 @@ async function init() {
 
   // Restore preferences, then decide the initial project from URL, autosave, or default.
   applyPreferences(storage.loadPreferences());
+  const romLoad = selectRomSource("bundled");
   await loadGalleryList();
   await decideInitialProject();
+  await romLoad;
 
-  setText(els.statusLine, "Ready. Load ROM files to enable Run.");
+  setText(els.statusLine, romManager.ready() ? "Ready. Bundled OpenROMs loaded." : "Ready. Choose custom ROM files to enable Run.");
   appInitialized = true; // decideInitialProject has run; the editor will not be overwritten
 }
 
@@ -112,8 +118,11 @@ function cacheElements() {
     "btnStop:btn-stop", "btnReset:btn-reset", "diagSummary:diagnostics-summary",
     "diagList:diagnostics-list", "screen", "screenSurface:screen-surface", "runStatus:run-status",
     "selTiming:sel-timing", "selSid:sel-sid", "selJoyport:sel-joyport", "chkGamepad:chk-gamepad",
-    "btnAudio:btn-audio", "audioStatus:audio-status", "vol", "romStatus:rom-status",
-    "romRoles:rom-roles", "d64File:d64-file", "d64Status:d64-status",
+    "btnAudio:btn-audio", "audioStatus:audio-status", "vol", "selRomSource:sel-rom-source",
+    "romStatus:rom-status", "romLegal:rom-legal", "romProvenanceLink:rom-provenance-link",
+    "romLicenseLink:rom-license-link", "romLgplLink:rom-lgpl-link", "romGplLink:rom-gpl-link",
+    "romSourceLink:rom-source-link", "romCustom:rom-custom", "romRoles:rom-roles",
+    "d64File:d64-file", "d64Status:d64-status",
     "artifactStatus:artifact-status", "buildId:build-id", "btnDlPrg:btn-dl-prg",
     "btnDlD64:btn-dl-d64", "btnDlSrc:btn-dl-src", "btnShare:btn-share", "sharePanel:share-panel",
     "shareWarning:share-warning", "shareUrl:share-url", "btnShareCopy:btn-share-copy",
@@ -349,6 +358,7 @@ async function runProgram() {
     errorBus.error("rom", "rom-set-incomplete", "Load a complete, valid ROM set to enable Run.");
     return;
   }
+  const selectedRomGeneration = romLoadGeneration;
   let controller;
   try {
     controller = await ensureMachine();
@@ -356,6 +366,7 @@ async function runProgram() {
     errorBus.error("wasm", "load-failed", `The WebAssembly core could not be loaded: ${String(err && err.message ? err.message : err)}. Build the WASM artifact (see SETUP.md).`);
     return;
   }
+  if (selectedRomGeneration !== romLoadGeneration || !romManager.ready()) return;
 
   const romSet = romManager.getRomSet();
   const cfg = controller.configure({
@@ -482,13 +493,30 @@ async function toggleAudio() {
 // ROMs
 
 function wireRoms() {
+  els.selRomSource.addEventListener("change", () => {
+    void selectRomSource(els.selRomSource.value);
+  });
   renderRomRoles();
 }
 
 function renderRomRoles() {
   const status = romManager.status();
-  setText(els.romStatus, status.ready ? "ROM set ready. Run is enabled once a build succeeds." : romStatusText(status));
-  els.romStatus.className = status.ready ? "rom-status ready" : "rom-status";
+  const bundled = state.romSource === "bundled";
+  setHidden(els.romCustom, bundled);
+
+  if (state.romLoading) {
+    setText(els.romStatus, "Loading and verifying bundled MEGA65 OpenROMs…");
+    els.romStatus.className = "rom-status";
+  } else if (bundled && status.ready) {
+    setText(els.romStatus, "Bundled MEGA65 OpenROMs verified. Run is enabled once a build succeeds.");
+    els.romStatus.className = "rom-status ready";
+  } else if (bundled) {
+    setText(els.romStatus, "Bundled OpenROMs are unavailable. Switch to custom ROMs and back to retry, or load a complete custom set.");
+    els.romStatus.className = "rom-status error";
+  } else {
+    setText(els.romStatus, status.ready ? "Custom ROM set ready. Run is enabled once a build succeeds." : romStatusText(status));
+    els.romStatus.className = status.ready ? "rom-status ready" : "rom-status";
+  }
 
   const nodes = ROM_ROLES.map((role) => {
     const wrap = makeEl("div", { className: "rom-role" });
@@ -522,6 +550,51 @@ function renderRomRoles() {
   replaceChildren(els.romRoles, ...nodes);
 }
 
+async function selectRomSource(source) {
+  if (source !== "bundled" && source !== "custom") return;
+  const generation = beginRomSourceSelection(source);
+
+  if (source === "custom") return;
+
+  const manifestUrl = new URL(BUNDLED_ROM_MANIFEST_PATH, repoBase);
+  const loaded = await loadBundledRomSet(manifestUrl);
+  if (generation !== romLoadGeneration || state.romSource !== "bundled") return;
+  state.romLoading = false;
+  if (!loaded.ok) {
+    errorBus.error(loaded.error.category, loaded.error.code, loaded.error.message);
+    renderRomRoles();
+    updateRunEnabled();
+    return;
+  }
+  const applied = romManager.setBundledSet(loaded.set);
+  if (!applied.ok) {
+    errorBus.error(applied.error.category, applied.error.code, applied.error.message);
+  } else {
+    els.romProvenanceLink.href = loaded.set.provenanceUrl;
+    els.romLicenseLink.href = loaded.set.licenseUrl;
+    els.romLgplLink.href = loaded.set.lgplUrl;
+    els.romGplLink.href = loaded.set.gplUrl;
+    els.romSourceLink.href = loaded.set.sourceArchiveUrl;
+    setHidden(els.romLegal, false);
+  }
+  renderRomRoles();
+  updateRunEnabled();
+}
+
+function beginRomSourceSelection(source) {
+  const generation = ++romLoadGeneration;
+  state.romSource = source;
+  state.romLoading = source === "bundled";
+  els.selRomSource.value = source;
+  setHidden(els.romLegal, true);
+  if (pacer && pacer.running) stopProgram();
+  setEnabled(els.btnReset, false);
+  romManager.clear();
+  renderRomRoles();
+  updateRunEnabled();
+  return generation;
+}
+
 function romStatusText(status) {
   if (status.missing.length) return `Run disabled — missing ROM${status.missing.length === 1 ? "" : "s"}: ${status.missing.join(", ")}.`;
   if (status.unconfirmed.length) return `Run disabled — confirm unknown ROM${status.unconfirmed.length === 1 ? "" : "s"}: ${status.unconfirmed.join(", ")}.`;
@@ -530,7 +603,18 @@ function romStatusText(status) {
 
 async function onRomFile(role, file) {
   if (!file) return;
-  const res = await romManager.setRoleFile(role, file);
+  const selectedRomGeneration = romLoadGeneration;
+  if (pacer && pacer.running) stopProgram();
+  setEnabled(els.btnReset, false);
+  let bytes;
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    errorBus.error("rom", "read", `Could not read the ${role} ROM file.`);
+    return;
+  }
+  if (selectedRomGeneration !== romLoadGeneration || state.romSource !== "custom") return;
+  const res = romManager.setRoleBytes(role, bytes);
   if (!res.ok) errorBus.error(res.error.category, res.error.code, res.error.message);
   renderRomRoles();
   updateRunEnabled();
@@ -693,7 +777,7 @@ function renderKeyHelp() {
 }
 
 const STARTER_SOURCE = `; Welcome to the c64 browser IDE.
-; Edit, then press Build. Load ROM files to enable Run.
+; Edit, then press Build and Run. Bundled OpenROMs are loaded by default.
 ;
 ; In basic-sys mode a "10 SYS ..." stub is generated for you, so just start with
 ; code — it is placed immediately after the stub (do NOT set * = $0801 yourself).
@@ -717,12 +801,17 @@ message .text "HELLO C64"
 
 window.__c64 = {
   setRomBytes: (role, bytes) => {
+    if (state.romSource !== "custom") {
+      beginRomSourceSelection("custom");
+    }
     const res = romManager.setRoleBytes(role, bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes));
     if (res.ok) romManager.confirmRole(role);
     renderRomRoles();
     updateRunEnabled();
     return res;
   },
+  selectRomSource: (source) => selectRomSource(source),
+  romSource: () => state.romSource,
   romReady: () => romManager.ready(),
   runEnabled: () => !els.btnRun.disabled,
   lastBuild: () => (state.lastBuild ? { buildId: state.lastBuild.buildId, prgLen: state.lastBuild.prg.length, d64Len: state.lastBuild.d64.length } : null),

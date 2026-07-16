@@ -2,13 +2,13 @@
 // drives the real user journey with PRODUCTION bytes across the pinned Playwright browser matrix
 // (Chromium, Firefox, WebKit) at BOTH the localhost root ("/") and a GitHub Pages project base
 // ("/c64/"), proving base-path independence. Covers: page load + capability init, gallery presence,
-// edit/build via the worker, synthetic memory-only ROM selection + Run gating, run + frame
+// edit/build via the worker, bundled OpenROMs default, run + frame
 // progression + observable RAM write, keyboard release on blur, PRG download byte-equality, and a
 // malformed ?code error.
 //
 // Local developer convenience: missing browsers or a missing WASM artifact SKIP cleanly. The
 // release gate sets C64_E2E_REQUIRE (e.g. "1") so a missing artifact or required browser FAILS
-// instead of skipping. No test depends on copyrighted ROMs or any network service.
+// instead of skipping. No test depends on proprietary Commodore ROMs or any network service.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -23,7 +23,6 @@ import {
   tryLoadBrowser,
   buildTempDist,
   stageDistBasePaths,
-  syntheticRomArrays,
   safeRm,
 } from "./helpers.mjs";
 import { buildArtifacts } from "../../src/index.js";
@@ -97,16 +96,11 @@ async function runJourney(browser, base, url, expectedPrgLen) {
     );
     const build = await page.evaluate(() => window.__c64.lastBuild());
     assert.ok(build.buildId && build.prgLen > 0 && build.d64Len === 174848, `${base}: build produced PRG + full D64`);
-    assert.equal(await page.evaluate(() => window.__c64.runEnabled()), false, `${base}: Run gated until ROMs`);
+    assert.equal(await page.evaluate(() => window.__c64.romSource()), "bundled", `${base}: bundled OpenROMs selected`);
+    assert.equal(await page.evaluate(() => window.__c64.romReady()), true, `${base}: bundled OpenROMs verified`);
+    assert.equal(await page.evaluate(() => window.__c64.runEnabled()), true, `${base}: Run enabled by default`);
 
-    // Memory-only synthetic ROM selection enables Run; ROM bytes never touch storage.
-    const roms = syntheticRomArrays();
-    await page.evaluate((r) => {
-      window.__c64.setRomBytes("basic", r.basic);
-      window.__c64.setRomBytes("kernal", r.kernal);
-      window.__c64.setRomBytes("chargen", r.chargen);
-    }, roms);
-    assert.equal(await page.evaluate(() => window.__c64.runEnabled()), true, `${base}: Run enabled after ROMs`);
+    // Bundled and custom ROM bytes never touch browser storage.
     const storedHasRom = await page.evaluate(() => {
       for (let i = 0; i < localStorage.length; i++) {
         if ((localStorage.getItem(localStorage.key(i)) || "").length > 4096) return true;

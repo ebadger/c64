@@ -1,26 +1,22 @@
 // ROM validation and set identity. Environment-free and memory-only (see specs/ROM-ASSETS.md).
 // Copyrighted Commodore ROMs are never committed, fetched, logged, or persisted. This module
-// validates locally selected bytes by size and digest and exposes only a digest + role for
-// diagnostics; the raw bytes stay in caller-held memory and never enter storage/URLs/logs.
+// validates approved bundled replacements and locally selected bytes by size and digest and
+// exposes only a digest + role for diagnostics.
 
 import { sha256Hex } from "../../../src/hash.js";
 import { ROM_SIZES } from "./config.js";
 
 export const ROM_ROLES = Object.freeze(["basic", "kernal", "chargen"]);
 
-// Digests of approved, redistributable replacement ROMs, per role. Empty until a set is legally
-// reviewed and bundled (none is in this milestone), so every user-supplied ROM is treated as an
-// unknown digest that requires the user to confirm the role.
-const KNOWN_ROM_DIGESTS = Object.freeze({ basic: new Set(), kernal: new Set(), chargen: new Set() });
-
 /**
  * Validate a single ROM role's bytes. Never returns or logs the bytes themselves.
  * @param {"basic"|"kernal"|"chargen"} role
  * @param {Uint8Array} bytes
+ * @param {{ expectedDigest?: string|null }} options
  * @returns {{ ok: boolean, role: string, size: number, digest: string|null,
  *            known: boolean, requiresConfirmation: boolean, error: object|null }}
  */
-export function validateRomRole(role, bytes) {
+export function validateRomRole(role, bytes, { expectedDigest = null } = {}) {
   if (!ROM_ROLES.includes(role)) {
     return { ok: false, role, size: 0, digest: null, known: false, requiresConfirmation: false, error: romErr("rom-role", `Unknown ROM role '${role}'.`) };
   }
@@ -40,7 +36,18 @@ export function validateRomRole(role, bytes) {
     };
   }
   const digest = sha256Hex(bytes);
-  const known = KNOWN_ROM_DIGESTS[role].has(digest);
+  if (expectedDigest !== null && digest !== expectedDigest) {
+    return {
+      ok: false,
+      role,
+      size: bytes.length,
+      digest,
+      known: false,
+      requiresConfirmation: false,
+      error: romErr("rom-integrity", `The bundled ${role} ROM failed its SHA-256 integrity check.`),
+    };
+  }
+  const known = expectedDigest !== null;
   return { ok: true, role, size: bytes.length, digest, known, requiresConfirmation: !known, error: null };
 }
 

@@ -20,7 +20,7 @@ execution — compiled once to a production WebAssembly artifact and exercised b
 headless WASM parity tests. The static browser IDE (`web/client/`) integrates the production
 assembler worker and production WASM machine with a validated examples gallery, and a deterministic
 `dist/` build plus a GitHub Actions release pipeline deploy the gated bundle to GitHub Pages on
-merged `main` (deployable/pending; not live while unmerged). Device and media fidelity is honestly
+merged `main`; the Pages site is live at `https://ebadger.github.io/c64/`. Device and media fidelity is honestly
 labelled in the layer specs (line-based VIC renderer, approximate SID filter, high-level
 rather than cycle-level 1541 drive).
 
@@ -28,6 +28,7 @@ rather than cycle-level 1541 drive).
 
 ```text
 Committed examples / ?src / ?code / localStorage
+Bundled OpenROMs / local custom ROM selection
                        |
                        v
           Static browser client on GitHub Pages
@@ -88,7 +89,8 @@ There is no runtime API, account system, database, or secret.
 ## Primary data flows
 
 1. **Edit and run:** user edit -> normalized source project -> assembler -> PRG bytes ->
-   emulator load -> deterministic cycles -> framebuffer/audio -> browser presentation.
+   selected manifest-verified bundled or complete custom RomSet -> emulator load ->
+   deterministic cycles -> framebuffer/audio -> browser presentation.
 2. **Download:** assembly result -> PRG serializer and D64 builder -> browser `Blob` ->
    user-controlled file download.
 3. **Share/remix:** source -> base64url UTF-8 `?code` URL -> recipient decode -> editable
@@ -108,7 +110,7 @@ There is no runtime API, account system, database, or secret.
 | VIC-II, SID/CIA/input | Implemented — cycle-integrated devices (line-based VIC renderer, approximate SID filter); honestly-labelled fidelity in the layer specs |
 | Mounted D64 execution | Implemented — read-only, via a high-level KERNAL LOAD/IEC trap (drive 8); not a cycle-level 1541 GCR drive |
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
-| ROM asset handling | Implemented in the core (validation, digests, memory-only); `web/client/` role picker with unknown-digest confirmation; no redistributable set selected |
+| ROM asset handling | Implemented — pinned generic MEGA65 OpenROMs default with exact integrity/provenance/source gate; explicit complete custom-set override remains memory-only with unknown-digest confirmation |
 | Web client, examples, and gallery | Implemented — static `web/client/` IDE (build worker, machine, presentation, input, sharing, downloads) and a validated `gallery.json`; the milestone-1 example is a runnable gallery entry |
 | Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and CI workflows |
-| Production dist build + GitHub Pages deployment | Implemented (deployable/pending) — deterministic `dist/` build (`scripts/build/build-dist.mjs`), dist reference/integrity tests, external D64 interoperability (VICE `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and `.github/workflows/release.yml` deploying the gated artifact on merged `main`; live only after a `main` deploy |
+| Production dist build + GitHub Pages deployment | Implemented and live — deterministic `dist/` build (`scripts/build/build-dist.mjs`), dist reference/integrity tests, external D64 interoperability (VICE `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and `.github/workflows/release.yml` deploying the gated artifact on merged `main` |
