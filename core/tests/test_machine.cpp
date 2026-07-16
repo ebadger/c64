@@ -172,6 +172,19 @@ TEST(machine_unmount_d64_is_idempotent_and_preserves_machine_state) {
   CHECK(!m.diskMounted());
 }
 
+TEST(machine_reset_preserves_mounted_d64) {
+  Machine m;
+  boot(m);
+  MediaResult mounted = m.mountD64(makeD64("PROG", {0x01, 0x08, 0x11}), 8);
+  CHECK(mounted.ok);
+  CHECK(m.diskMounted());
+
+  CHECK(m.reset(ResetKind::Warm).ok());
+  CHECK(m.diskMounted());
+  CHECK(m.reset(ResetKind::PowerOn).ok());
+  CHECK(m.diskMounted());
+}
+
 TEST(machine_frame_sequence) {
   Machine m;
   boot(m);

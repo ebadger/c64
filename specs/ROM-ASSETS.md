@@ -31,19 +31,27 @@ RomSet {
 }
 
 BundledRomManifest {
-  schema: 1
+  schema: 2
   id: string
   title: string
   upstreamRepository: string
   revision: string
-  licenseId: string
-  licensePath: string
   sourceUrl: string
   sourceArchive: { path: string, bytes: uint32, sha256: string }
+  licenses: {
+    package: { id: "MIT", path: string }
+    basic: { id: "MIT", path: string }
+    chargen: {
+      id: "LGPL-3.0-or-later"
+      path: string
+      companionPaths: string[]
+    }
+  }
+  redistributionFiles: { path: string, bytes: uint32, sha256: string }[]
   roles: {
-    basic:   { path: string, bytes: 8192, sha256: string }
-    kernal:  { path: string, bytes: 8192, sha256: string }
-    chargen: { path: string, bytes: 4096, sha256: string }
+    basic:   { path: string, upstreamPath: string, bytes: 8192, sha256: string }
+    kernal:  { path: string, upstreamPath: string, bytes: 8192, sha256: string }
+    chargen: { path: string, upstreamPath: string, bytes: 4096, sha256: string }
   }
 }
 ```
@@ -60,25 +68,34 @@ Bundled replacement metadata includes source repository/version, license text, b
 provenance, corresponding source, and immutable digests. The legal right to redistribute
 must be reviewed before the bytes enter the repository.
 
-The default set is the generic C64 build from
-[`MEGA65/open-roms`](https://github.com/MEGA65/open-roms), pinned to revision
-`ad178dbe4d48cd6a317737a8e0e7e662f7e33d32` and distributed under
-`LGPL-3.0-or-later` (with the upstream package's noted MIT-licensed BASIC portions). The
-approved role files and SHA-256 digests are:
+The default set is
+[`Pascual-Candel-Palazon/Pascuals-BASIC`](https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC),
+pinned to revision `45da60da4d39f9f3950cdf957996c1743c53bb6e`. Its KERNAL and
+project-owned build/test sources are MIT-licensed, its BASIC is mechanically derived from
+Microsoft's MIT-licensed `BASIC-M6502` source, and its character generator is the MEGA65
+OpenROMs PXL font redistributed under `LGPL-3.0-or-later`. The approved role files and
+SHA-256 digests are:
 
 | Role | Upstream file | Bytes | SHA-256 |
 |------|---------------|------:|---------|
-| BASIC | `bin/basic_generic.rom` | 8192 | `54a1464b4b27c9dc61bbd62a818fdd12ec99af9089111005a5add0ad0e6bd5ec` |
-| KERNAL | `bin/kernal_generic.rom` | 8192 | `88e86ed3d0c710edab8f90ad146faa8de1ead11f43494b176c7b54724ca721c6` |
-| CHARGEN | `bin/chargen_openroms.rom` | 4096 | `5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7` |
+| BASIC | `bin/basic_c64.bin` | 8192 | `06480f4be4b62b545bbc4185c22befa8cc3b958fa15db31d74f82ffc03fec2e5` |
+| KERNAL | `bin/kernal_c64.bin` | 8192 | `5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414` |
+| CHARGEN | `bin/chargen.bin` | 4096 | `5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7` |
 
-The bundle also carries the complete pinned upstream source archive (SHA-256
-`7e7fb6e775a0d820e8605107fec168e17ab232ad1172bc788bbc492996fcf229`) and the upstream
-license texts beside the ROM images.
+The bundle also carries the exact GitHub source archive for that revision (165027 bytes,
+SHA-256 `8cab283a172f3eb1473320e4be65894ec43d68ef0ff29c68c486f2d98ad665b2`)
+and the complete applicable redistribution materials beside the ROM images: the package
+MIT license, Microsoft's BASIC MIT license, the GPLv3/LGPLv3 texts required by the
+chargen component, the MEGA65 notice, the chargen-specific notice, and c64's pinned
+provenance record. Production assembly permits exactly the manifest-addressed images,
+archive, and redistribution files; missing, extra, unsafe, or integrity-mismatched assets
+fail the build.
 
-The set is suitable for the assembly-first in-app execution path. It is not represented as a
-complete replacement for original BASIC: upstream still lists most BASIC commands and some
-system functions as incomplete.
+Upstream describes this revision as a full Microsoft 6502 BASIC-derived interpreter with a
+screen editor and IEC `LOAD`/`SAVE`/`VERIFY`. c64 treats those as upstream claims and asserts
+only the supported paths it tests locally: reset-vector startup reaches the Pascual banner
+and `READY.`, direct-entry assembly execution remains deterministic, and standard drive-8
+loads use the high-level KERNAL LOAD boundary in [`MEDIA.md`](./MEDIA.md).
 
 ## Behaviour / Rules
 
@@ -86,10 +103,11 @@ system functions as incomplete.
   generated assets, embedded in tests, copied into issues/PRs, or fetched by the app.
 - User-supplied ROMs enter through local file selection or drag/drop, are size checked,
   hashed locally, and remain in browser memory for the session.
-- The client loads the bundled manifest and all three role files from the same static app
-  origin at startup. It validates manifest shape, role sizes, and exact SHA-256 values before
-  replacing the active set. A partial or mismatched download is rejected atomically.
-- The ROM-source control defaults to **Bundled MEGA65 OpenROMs**. Choosing **Custom local
+- The client loads the bundled manifest, all three role files, corresponding source archive, and
+  every redistribution file from the same static app origin at startup. It validates manifest
+  shape plus every byte count and exact SHA-256 before replacing the active set. A partial or
+  mismatched package is rejected atomically.
+- The ROM-source control defaults to **Bundled Pascual's BASIC/KERNAL**. Choosing **Custom local
   ROM files** clears the bundled set and requires a complete BASIC/KERNAL/CHARGEN trio; it
   never silently mixes a custom role with roles from the bundled set. Switching back reloads
   and revalidates the bundled set.
@@ -141,6 +159,6 @@ or source-sharing state.
 |------|--------|-------|
 | ROM manifest and validation | Implemented | Same-origin manifest loader; exact size/SHA-256 checks; atomic activation; deterministic set id; explicit manifest/fetch/integrity errors |
 | Synthetic test fixtures | Implemented | Legally-clean generated ROMs (with valid vectors) drive native/WASM tests; no Commodore bytes |
-| Redistributable default set | Implemented | Pinned generic MEGA65 OpenROMs set; exact role/archive integrity gate; complete licenses, provenance, and corresponding source |
+| Redistributable default set | Implemented | Pinned Pascual's BASIC/KERNAL + MEGA65 PXL chargen; exact role/archive integrity gate; complete per-component licenses, notices, provenance, and corresponding source |
 | User file picker | Implemented | Explicit custom source mode requires all three roles; size/digest validation, unknown-digest confirmation, memory-only |
 | Persistent user-ROM cache | Deferred | Requires explicit privacy/storage design |

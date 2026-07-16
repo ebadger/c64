@@ -122,8 +122,9 @@ node scripts/dev/serve.mjs            # open http://127.0.0.1:8080/web/client/
 node scripts/dev/serve.mjs --port 5173
 ```
 
-Build the production WebAssembly artifact first (see the section above) so **Run** works. The app
-loads and verifies the pinned MEGA65 OpenROMs generic set by default. Use the ROM-source selector
+Build the production WebAssembly artifact first (see the section above) so **Boot BASIC** and
+**Run** work. The app loads and verifies the pinned Pascual BASIC/KERNAL set plus MEGA65 PXL
+chargen by default. Use the ROM-source selector
 for a complete local BASIC/KERNAL/character override; custom files stay in memory and are never
 uploaded, stored, or logged.
 
@@ -166,8 +167,9 @@ node scripts/build/build-dist.mjs --allow-missing-wasm   # inspection-only dev b
 `dist/` is base-path independent: the same bytes serve unchanged at `/` and under `/c64/`. Repeated
 clean builds from the same commit and pinned toolchain are byte-identical; `dist/asset-manifest.json`
 records a sha256 + byte size + MIME per file. No source maps, private inputs, proprietary Commodore
-ROMs, or user-supplied bytes are emitted. The only ROM images are the manifest-allowlisted MEGA65
-OpenROMs files, shipped with complete license texts, provenance, and pinned corresponding source.
+ROMs, or user-supplied bytes are emitted. The only ROM images are the manifest-allowlisted Pascual
+BASIC/KERNAL and MEGA65 PXL chargen files, shipped with complete per-component license/notices, provenance, and pinned
+corresponding source.
 
 ## External D64 interoperability (VICE `c1541`)
 

@@ -26,8 +26,9 @@ node scripts/dev/serve.mjs         # serve the static browser IDE at http://127.
 
 The static browser IDE in `web/client/` runs the production assembler in a module worker and the
 production WASM machine through `web/emulator/c64.mjs`. Edit/build/download work without the WASM
-artifact; **Run** additionally requires the built WASM core. The pinned generic MEGA65 OpenROMs
-set loads by default, with an explicit complete custom local-set override that remains memory-only.
+artifact; **Boot BASIC** and **Run** additionally require the built WASM core. The pinned Pascual
+BASIC/KERNAL set with MEGA65 PXL chargen loads by default, with an explicit complete custom
+local-set override that remains memory-only.
 A valid local or curated D64 immediately exposes its directory; a selected PRG runs at a detected
 first-line BASIC `SYS` target or a user-supplied entry address, and **Eject** removes drive-8 media
 without stopping or resetting the CPU.
@@ -89,8 +90,8 @@ in `SETUP.md`).
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
 | CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + full browser matrix + external interop + dist build/integrity + Pages deploy on main) and `.github/workflows/core.yml` (fast per-branch feedback) |
-| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned OpenROMs, and complete memory-only custom-set override |
-| Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and exact OpenROMs/license/source allowlist; WASM required (fail-not-skip) |
+| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, Boot BASIC, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned Pascual ROMs, and complete memory-only custom-set override |
+| Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and the exact Pascual binary/license/notice/source allowlist; WASM required (fail-not-skip) |
 | Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI) |
 | External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
 | GitHub Pages deploy | Implemented and live — `release.yml` deploys the gated `dist/` on merged `main` via official Pages actions |
@@ -118,14 +119,14 @@ repository or CI data.
 
 ## Current known gaps
 
-- In-app **Run** resets, loads the PRG, and enters the assembled machine code at the SYS target
-  (`runAddress`); it does **not** run the ROM's BASIC cold-start or tokenize/`RUN` the stub
-  in-process. The *downloaded* PRG still autostarts via BASIC `RUN` on a stock machine per
-  `specs/CODEGEN.md`. This is the reconciled, honestly-labelled boundary — an in-process BASIC
-  `RUN` path is outside the supported contract because the bundled OpenROMs BASIC remains incomplete.
-- The pinned generic MEGA65 OpenROMs set is the default and is shipped with full license texts,
-  provenance, and corresponding source. A complete custom BASIC/KERNAL/character set can replace
-  it for one page session; custom bytes and source selection are never persisted.
+- **Boot BASIC** configures/powers on at the ROM reset vector and optionally mounts the selected
+  D64 first. In-app source/disk **Run** remains distinct: it resets, loads the PRG, and enters the
+  selected machine-code target directly. Reset restarts the last BASIC/program mode and preserves
+  mounted media; Stop changes browser pacing only.
+- The pinned Pascual BASIC/KERNAL set plus MEGA65 PXL chargen is the default and is shipped with
+  complete per-component license texts/notices, provenance, and corresponding source. A complete
+  custom BASIC/KERNAL/character set can replace it for one page session; custom bytes and source
+  selection are never persisted.
 - **Web Audio is optional.** When a browser provides no Web Audio (e.g. headless WebKit), the
   emulator still loads, builds, runs video, accepts input, and downloads artifacts, but sound is
   unavailable and the audio control is disabled and labelled.

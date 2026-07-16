@@ -17,7 +17,8 @@ Static assets include:
 - `index.html` and versioned CSS/ES modules
 - the production emulator `.wasm` and generated embind loader
 - `gallery.json` plus committed example source and optional curated media
-- the pinned MEGA65 OpenROMs generic C64 set, its manifest, licenses, provenance, and corresponding source
+- the pinned Pascual's BASIC/KERNAL set plus MEGA65 PXL chargen, its manifest,
+  per-component licenses/notices, provenance, and corresponding source
 
 `gallery.json` entries use a versioned shape:
 
@@ -88,28 +89,33 @@ intentionally has its own `buildId`; the two golden records do not have to match
 
 ## IDE and emulator behaviour
 
-- Initial UI areas: source editor, diagnostics, Run/Stop/Reset, machine profile, video,
+- Initial UI areas: source editor, diagnostics, Run/Boot BASIC/Stop/Reset, machine profile, video,
   audio enable, keyboard/joystick help, artifact downloads, share, gallery, ROM status, and
   D64 import/directory/run/eject.
 - Build runs through the dual-use assembler, preferably in a worker. The same-origin,
-  manifest-verified MEGA65 OpenROMs generic set loads by default, so Run is enabled once the
-  latest build succeeds. An explicit ROM-source control can switch to a complete custom local
-  BASIC/KERNAL/CHARGEN trio for the current page session.
+  manifest-verified Pascual's BASIC/KERNAL set with the MEGA65 PXL chargen loads by default.
+  **Boot BASIC** is enabled when the ROM set is ready; source **Run** additionally requires a
+  current successful build. An explicit ROM-source control can switch to a complete custom
+  local BASIC/KERNAL/CHARGEN trio for the current page session.
 - Switching ROM source stops execution and replaces the set atomically. Custom mode starts
   empty and cannot inherit individual bundled roles, avoiding unsupported mixed sets.
 - In-app **Run** resets the machine (power-on), loads the PRG, and enters the machine-code entry
   at `runAddress` (for `basic-sys` this is the SYS target the generated stub jumps to). It does
   not run the ROM's BASIC cold-start or tokenize and `RUN` the stub in-process; the *downloaded*
   PRG still autostarts via BASIC `RUN` on a stock machine per [`CODEGEN.md`](./CODEGEN.md). This
-  keeps Run deterministic and ROM-agnostic and is the honestly-labelled in-app boundary: because
-  the bundled OpenROMs BASIC remains incomplete upstream and the release gate also retains
-  synthetic fixtures, an in-process BASIC `RUN` path is outside the supported contract.
+  keeps source Run deterministic and ROM-agnostic. It is distinct from Boot BASIC and the UI
+  must never label a directly entered PRG as a BASIC boot.
+- **Boot BASIC** configures/powers on with the active ROM set, mounts a selected valid D64 on
+  drive 8 when present, and starts pacing from the ROM reset vector without loading a PRG or
+  overriding PC. The run status identifies this as BASIC, not as a started program. Stop stops
+  pacing only and preserves the booted machine. Reset performs another power-on reset into BASIC,
+  preserving the core's mounted-media state; if a disk has been ejected, Reset does not remount it.
 - D64 selection validates media immediately and renders every directory entry, with the first
   PRG preselected. It never auto-runs a file. **Run selected PRG** extracts the selected PRG,
   uses a structurally detected first-line tokenized BASIC `SYS` target when present, otherwise
   requires an explicit hexadecimal (`$C000`/`0xC000`) or decimal (`49152`) uint16 entry address,
-  then follows the same configure/mount/load/set-PC path as source Run. Reset reloads whichever
-  source-build or disk PRG was most recently started.
+  then follows the same configure/mount/load/set-PC path as source Run. Reset restarts whichever
+  mode was most recently started: reset-vector BASIC boot, source build, or disk PRG.
 - **Eject** clears the file input, directory, entry address, and in-memory selected bytes, and
   unmounts drive 8 from an already configured machine without stopping or resetting execution.
   Invalid replacement media reports a `media` error and preserves the prior valid disk.
@@ -218,8 +224,8 @@ not continue showing a running state.
 files the deployed site needs: `index.html`, `main.js`, `styles.css`, `buildWorker.js`, `lib/`, the
 shared assembler `pipeline/` (from `src/`), the `emulator/` wrapper, the production
 `wasm/c64core.{mjs,wasm}`, `gallery.json` and its referenced example sources, a
-manifest-verified `roms/` subtree containing only the approved OpenROMs set and its
-licenses/provenance/corresponding source, a `THIRD-PARTY-NOTICES.md` inventory, and a content-derived
+manifest-verified `roms/` subtree containing only the approved Pascual ROM set and its
+per-component licenses/notices/provenance/corresponding source, a `THIRD-PARTY-NOTICES.md` inventory, and a content-derived
 `asset-manifest.json` (sha256 + byte size + MIME per file). It emits no source maps, private
 inputs, Commodore ROM dumps, or user-supplied bytes.
 
@@ -259,6 +265,7 @@ commands live in `SETUP.md`.
 | WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core |
 | URL share/remix and autosave | Implemented | `?code`/`?src`/`?d64`, bearer-data warning, namespaced autosave/preferences |
 | Gallery and canonical PR flow | Implemented | `web/client/gallery.json` with a validated, reproducible border-flash entry |
-| Default and custom ROM selection | Implemented | Bundled, pinned OpenROMs generic set loads and verifies by default; explicit memory-only complete custom-set override |
-| D64 import controls | Implemented | Immediate directory validation, selected-PRG run with explicit/detected entry, reset continuity, and live drive-8 eject |
+| Default and custom ROM selection | Implemented | Bundled, pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen loads and verifies by default; explicit memory-only complete custom-set override |
+| BASIC boot and direct-entry execution | Implemented | Reset-vector Boot BASIC is distinct from deterministic source/disk PRG entry; Stop preserves machine state and Reset restarts the active mode |
+| D64 import controls | Implemented | Immediate directory validation, BASIC boot with selected media, selected-PRG run with explicit/detected entry, reset continuity, and live drive-8 eject |
 | GitHub Pages deployment | Implemented and live | Deterministic `dist/` build (`scripts/build/build-dist.mjs`) + release workflow (`.github/workflows/release.yml`) deploy the gated artifact to Pages on merged `main` |

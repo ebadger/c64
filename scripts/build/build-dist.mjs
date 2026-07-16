@@ -3,7 +3,7 @@
 // Assembles a clean, flattened `dist/` containing only the files the deployed site needs:
 // the HTML/CSS/ES-module client, the module worker, the shared assembler pipeline, the thin
 // emulator wrapper, the production Emscripten loader + WASM, the validated gallery and its
-// referenced example sources, the allowlisted OpenROMs set with license/corresponding source,
+// referenced example sources, the allowlisted bundled ROM set with licenses/corresponding source,
 // a license inventory, and a sha256 asset manifest. It emits no source maps, private inputs,
 // proprietary Commodore ROMs, or user-supplied bytes.
 //
@@ -109,19 +109,25 @@ const REWRITES = {
   "web/client/lib/romValidate.js": [
     { find: 'import { sha256Hex } from "../../../src/hash.js";', replace: 'import { sha256Hex } from "../pipeline/hash.js";' },
   ],
+  "web/client/lib/bundledRoms.js": [
+    { find: 'import { sha256Hex } from "../../../src/hash.js";', replace: 'import { sha256Hex } from "../pipeline/hash.js";' },
+  ],
   "web/client/lib/config.js": [
     { find: 'export const WASM_LOADER_PATH = "build/wasm/c64core.mjs";', replace: 'export const WASM_LOADER_PATH = "wasm/c64core.mjs";' },
     { find: 'export const EMULATOR_WRAPPER_PATH = "web/emulator/c64.mjs";', replace: 'export const EMULATOR_WRAPPER_PATH = "emulator/c64.mjs";' },
     { find: 'export const GALLERY_PATH = "web/client/gallery.json";', replace: 'export const GALLERY_PATH = "gallery.json";' },
-    { find: 'export const BUNDLED_ROM_MANIFEST_PATH = "third_party/open-roms/manifest.json";', replace: 'export const BUNDLED_ROM_MANIFEST_PATH = "roms/manifest.json";' },
+    { find: 'export const BUNDLED_ROM_MANIFEST_PATH = "third_party/pascual-roms/manifest.json";', replace: 'export const BUNDLED_ROM_MANIFEST_PATH = "roms/manifest.json";' },
     { find: '  return new URL("../../../", moduleUrl);', replace: '  return new URL("../", moduleUrl);' },
   ],
 };
 
-const OPEN_ROM_SOURCE_DIR = "third_party/open-roms";
-const OPEN_ROM_DIST_DIR = "roms";
-const OPEN_ROM_ROLES = Object.freeze({ basic: 8192, kernal: 8192, chargen: 4096 });
-const OPEN_ROM_REDISTRIBUTION_FILES = Object.freeze(["LICENSE.txt", "COPYING", "COPYING.LESSER", "PROVENANCE.md"]);
+const BUNDLED_ROM_SOURCE_DIR = "third_party/pascual-roms";
+const BUNDLED_ROM_DIST_DIR = "roms";
+const BUNDLED_ROM_ROLES = Object.freeze({
+  basic: { bytes: 8192, upstreamPath: "bin/basic_c64.bin" },
+  kernal: { bytes: 8192, upstreamPath: "bin/kernal_c64.bin" },
+  chargen: { bytes: 4096, upstreamPath: "bin/chargen.bin" },
+});
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -132,66 +138,106 @@ function safeSingleFilename(path) {
 }
 
 /**
- * Validate the allowlisted OpenROMs manifest and every integrity-addressed binary in a tree.
+ * Validate the allowlisted bundled-ROM manifest and every integrity-addressed file in a tree.
  * The returned file list is the complete subtree the production build may copy.
  */
-export function verifyOpenRomAssets(root, baseDir = OPEN_ROM_SOURCE_DIR) {
+export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
   const base = join(resolve(root), baseDir);
   let manifest;
   try {
     manifest = JSON.parse(readFileSync(join(base, "manifest.json"), "utf8"));
   } catch (err) {
-    throw new Error(`build-dist: invalid OpenROMs manifest: ${String(err && err.message ? err.message : err)}`);
+    throw new Error(`build-dist: invalid bundled ROM manifest: ${String(err && err.message ? err.message : err)}`);
   }
   if (
-    !manifest || manifest.schema !== 1 || typeof manifest.id !== "string" ||
+    !manifest || manifest.schema !== 2 || manifest.id !== "pascuals-basic-c64" ||
+    manifest.upstreamRepository !== "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC" ||
     typeof manifest.title !== "string" || !/^[0-9a-f]{40}$/.test(manifest.revision || "") ||
-    manifest.licenseId !== "LGPL-3.0-or-later" || manifest.licensePath !== "LICENSE.txt" ||
     typeof manifest.upstreamRepository !== "string" || typeof manifest.sourceUrl !== "string" ||
-    !manifest.roles || !manifest.sourceArchive
+    !manifest.roles || !manifest.sourceArchive || !manifest.licenses ||
+    !Array.isArray(manifest.redistributionFiles)
   ) {
-    throw new Error("build-dist: malformed OpenROMs manifest metadata");
+    throw new Error("build-dist: malformed bundled ROM manifest metadata");
+  }
+  const expectedSourceUrl = `${manifest.upstreamRepository}/tree/${manifest.revision}`;
+  if (manifest.sourceUrl !== expectedSourceUrl) {
+    throw new Error("build-dist: bundled ROM source URL does not match the pinned revision");
   }
   const roleNames = Object.keys(manifest.roles).sort();
-  if (JSON.stringify(roleNames) !== JSON.stringify(Object.keys(OPEN_ROM_ROLES).sort())) {
-    throw new Error(`build-dist: OpenROMs manifest roles must be exactly ${Object.keys(OPEN_ROM_ROLES).join(", ")}`);
+  if (JSON.stringify(roleNames) !== JSON.stringify(Object.keys(BUNDLED_ROM_ROLES).sort())) {
+    throw new Error(`build-dist: bundled ROM manifest roles must be exactly ${Object.keys(BUNDLED_ROM_ROLES).join(", ")}`);
   }
 
   const integrityFiles = [];
-  for (const [role, expectedBytes] of Object.entries(OPEN_ROM_ROLES)) {
+  for (const [role, expected] of Object.entries(BUNDLED_ROM_ROLES)) {
     const entry = manifest.roles[role];
     if (
-      !entry || !safeSingleFilename(entry.path) || entry.bytes !== expectedBytes ||
+      !entry || !safeSingleFilename(entry.path) || entry.bytes !== expected.bytes ||
+      entry.upstreamPath !== expected.upstreamPath ||
       !/^[0-9a-f]{64}$/.test(entry.sha256 || "")
     ) {
-      throw new Error(`build-dist: invalid OpenROMs ${role} manifest entry`);
+      throw new Error(`build-dist: invalid bundled ROM ${role} manifest entry`);
     }
     integrityFiles.push({ label: `${role} ROM`, ...entry });
   }
   const sourceArchive = manifest.sourceArchive;
   if (
     !safeSingleFilename(sourceArchive.path) || !sourceArchive.path.endsWith(".tar.gz") ||
-    sourceArchive.path !== `open-roms-${manifest.revision}.tar.gz` ||
+    sourceArchive.path !== `pascuals-basic-${manifest.revision}.tar.gz` ||
     !Number.isSafeInteger(sourceArchive.bytes) || sourceArchive.bytes <= 0 ||
     !/^[0-9a-f]{64}$/.test(sourceArchive.sha256 || "")
   ) {
-    throw new Error("build-dist: invalid OpenROMs sourceArchive manifest entry");
+    throw new Error("build-dist: invalid bundled ROM sourceArchive manifest entry");
   }
   integrityFiles.push({ label: "source archive", ...sourceArchive });
+  const expectedLicenses = {
+    package: { id: "MIT", path: "LICENSE.txt" },
+    basic: { id: "MIT", path: "LICENSE-microsoft.txt" },
+    chargen: {
+      id: "LGPL-3.0-or-later",
+      path: "COPYING.LESSER",
+      companionPaths: ["COPYING", "LICENSE-megabase-notice.txt", "NOTICE.md"],
+    },
+  };
+  if (JSON.stringify(manifest.licenses) !== JSON.stringify(expectedLicenses)) {
+    throw new Error("build-dist: bundled ROM license map is incomplete or unexpected");
+  }
+  const expectedRedistributionPaths = [
+    "LICENSE.txt",
+    "LICENSE-microsoft.txt",
+    "COPYING",
+    "COPYING.LESSER",
+    "LICENSE-megabase-notice.txt",
+    "NOTICE.md",
+    "PROVENANCE.md",
+  ].sort();
+  const redistributionPaths = [];
+  for (const entry of manifest.redistributionFiles) {
+    if (
+      !entry || !safeSingleFilename(entry.path) ||
+      !Number.isSafeInteger(entry.bytes) || entry.bytes <= 0 ||
+      !/^[0-9a-f]{64}$/.test(entry.sha256 || "")
+    ) {
+      throw new Error("build-dist: invalid bundled ROM redistribution file entry");
+    }
+    redistributionPaths.push(entry.path);
+    integrityFiles.push({ label: `redistribution file ${entry.path}`, ...entry });
+  }
+  if (
+    new Set(redistributionPaths).size !== redistributionPaths.length ||
+    JSON.stringify(redistributionPaths.sort()) !== JSON.stringify(expectedRedistributionPaths)
+  ) {
+    throw new Error("build-dist: bundled ROM redistribution file list is incomplete or contains extras");
+  }
 
   for (const entry of integrityFiles) {
     const path = join(base, entry.path);
     if (!existsSync(path) || !statSync(path).isFile()) {
-      throw new Error(`build-dist: OpenROMs ${entry.label} is missing: ${entry.path}`);
+      throw new Error(`build-dist: bundled ROM ${entry.label} is missing: ${entry.path}`);
     }
     const bytes = readFileSync(path);
     if (bytes.length !== entry.bytes || sha256(bytes) !== entry.sha256) {
-      throw new Error(`build-dist: OpenROMs ${entry.label} failed size/sha256 verification: ${entry.path}`);
-    }
-  }
-  for (const path of OPEN_ROM_REDISTRIBUTION_FILES) {
-    if (!existsSync(join(base, path)) || !statSync(join(base, path)).isFile()) {
-      throw new Error(`build-dist: OpenROMs redistribution file is missing: ${path}`);
+      throw new Error(`build-dist: bundled ROM ${entry.label} failed size/sha256 verification: ${entry.path}`);
     }
   }
 
@@ -199,10 +245,10 @@ export function verifyOpenRomAssets(root, baseDir = OPEN_ROM_SOURCE_DIR) {
     "manifest.json",
     ...Object.values(manifest.roles).map((entry) => entry.path),
     sourceArchive.path,
-    ...OPEN_ROM_REDISTRIBUTION_FILES,
+    ...manifest.redistributionFiles.map((entry) => entry.path),
   ];
   if (new Set(files).size !== files.length || files.some((path) => !safeSingleFilename(path))) {
-    throw new Error("build-dist: OpenROMs manifest contains duplicate or unsafe file paths");
+    throw new Error("build-dist: bundled ROM manifest contains duplicate or unsafe file paths");
   }
   return { manifest, files };
 }
@@ -317,10 +363,10 @@ export function buildDist({ repoRoot = defaultRepoRoot, outDir, requireWasm = tr
     }
   }
 
-  // Only the reviewed, manifest-addressed OpenROMs set and its redistribution materials.
-  const openRoms = verifyOpenRomAssets(root);
-  for (const path of openRoms.files) {
-    copies.push({ src: `${OPEN_ROM_SOURCE_DIR}/${path}`, dest: `${OPEN_ROM_DIST_DIR}/${path}` });
+  // Only the reviewed, manifest-addressed ROM set and its redistribution materials.
+  const bundledRoms = verifyBundledRomAssets(root);
+  for (const path of bundledRoms.files) {
+    copies.push({ src: `${BUNDLED_ROM_SOURCE_DIR}/${path}`, dest: `${BUNDLED_ROM_DIST_DIR}/${path}` });
   }
 
   // Perform copies + rewrites.
@@ -347,7 +393,7 @@ export function buildDist({ repoRoot = defaultRepoRoot, outDir, requireWasm = tr
     app: "c64",
     basePathIndependent: true,
     wasmIncluded: wasmPresent,
-    openRomsIncluded: true,
+    bundledRomsIncluded: true,
     fileCount: files.length,
     files,
   };
@@ -365,7 +411,7 @@ function writeOut(root, out, src, dest, textOrNull) {
 
 function thirdPartyNotices() {
   // The runtime client and pipeline are first-party and dependency-free. Shipped third-party
-  // components are OpenROMs and Emscripten-generated loader support. No npm runtime dependencies
+  // components are the bundled ROM set and Emscripten-generated loader support. No npm runtime dependencies
   // are bundled. Playwright and the emsdk toolchain are build-time only and are never shipped.
   return [
     "# Third-party notices — c64 production bundle",
@@ -380,7 +426,7 @@ function thirdPartyNotices() {
     "|-----------|--------|---------|-----------|",
     "| `wasm/c64core.mjs` (loader glue) | Emscripten-generated | MIT / University of Illinois/NCSA | Yes |",
     "| `wasm/c64core.wasm` | Compiled from first-party `core/` C++17 | Repository license (see CONTRIBUTING.md) | Yes |",
-    "| `roms/` MEGA65 OpenROMs generic C64 set | MEGA65/open-roms, pinned revision | LGPL-3.0-or-later; identified BASIC portions MIT | Yes — unmodified images, license texts, provenance, corresponding source |",
+    "| `roms/` Pascual's BASIC/KERNAL + MEGA65 PXL chargen | Pascual-Candel-Palazon/Pascuals-BASIC, pinned revision | MIT (project KERNAL/tooling); Microsoft MIT (BASIC); LGPL-3.0-or-later (chargen) | Yes — unmodified images, complete license/notices, provenance, corresponding source |",
     "| Web client, `lib/`, `pipeline/`, `emulator/` | First-party (this repository) | Repository license | Yes |",
     "",
     "## Build-time only (NOT shipped)",

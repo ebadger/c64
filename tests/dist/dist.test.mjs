@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, extname, join, relative, resolve } from "node:path";
 
-import { buildDist, contentTypeFor, CONTENT_TYPES, verifyOpenRomAssets } from "../../scripts/build/build-dist.mjs";
+import { buildDist, contentTypeFor, CONTENT_TYPES, verifyBundledRomAssets } from "../../scripts/build/build-dist.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -42,8 +42,8 @@ function isText(p) {
 // Build once for the reference/manifest/MIME tests (WASM optional in this environment).
 const out = freshOut("c64-dist-a-");
 const { manifest, wasmIncluded } = buildDist({ repoRoot, outDir: out, requireWasm: false });
-const openRoms = verifyOpenRomAssets(out, "roms");
-const approvedRomPaths = new Set(Object.values(openRoms.manifest.roles).map((entry) => `roms/${entry.path}`));
+const bundledRoms = verifyBundledRomAssets(out, "roms");
+const approvedRomPaths = new Set(Object.values(bundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`));
 
 test.after(() => rmSync(out, { recursive: true, force: true }));
 
@@ -61,10 +61,13 @@ test("dist contains the required app-rooted layout and nothing private", () => {
     "emulator/c64.mjs",
     "roms/manifest.json",
     "roms/LICENSE.txt",
+    "roms/LICENSE-microsoft.txt",
     "roms/COPYING",
     "roms/COPYING.LESSER",
+    "roms/LICENSE-megabase-notice.txt",
+    "roms/NOTICE.md",
     "roms/PROVENANCE.md",
-    `roms/${openRoms.manifest.sourceArchive.path}`,
+    `roms/${bundledRoms.manifest.sourceArchive.path}`,
     "asset-manifest.json",
     "THIRD-PARTY-NOTICES.md",
   ]) {
@@ -149,7 +152,7 @@ test("asset manifest is content-accurate with correct MIME types", () => {
   const parsed = JSON.parse(readFileSync(join(out, "asset-manifest.json"), "utf8"));
   assert.equal(parsed.manifestVersion, 1);
   assert.equal(parsed.wasmIncluded, wasmIncluded);
-  assert.equal(parsed.openRomsIncluded, true);
+  assert.equal(parsed.bundledRomsIncluded, true);
   const onDisk = listFiles(out).filter((p) => p !== "asset-manifest.json");
   assert.equal(parsed.fileCount, onDisk.length, "manifest fileCount matches files on disk");
   assert.deepEqual(
@@ -190,9 +193,11 @@ test("index.html has the restrictive CSP and no inline script/style", () => {
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]*\S[^<]*<\/script>/.test(html), "no inline script body");
 });
 
-test("third-party notices inventory identifies OpenROMs redistribution and build-time-only tooling", () => {
+test("third-party notices inventory identifies Pascual redistribution and build-time-only tooling", () => {
   const notices = readFileSync(join(out, "THIRD-PARTY-NOTICES.md"), "utf8");
-  assert.match(notices, /MEGA65 OpenROMs/);
+  assert.match(notices, /Pascual's BASIC\/KERNAL/);
+  assert.match(notices, /Microsoft MIT/);
+  assert.match(notices, /LGPL-3.0-or-later/);
   assert.match(notices, /corresponding source/);
   assert.match(notices, /No proprietary Commodore ROM dump/i);
   assert.match(notices, /Emscripten/);
@@ -200,15 +205,15 @@ test("third-party notices inventory identifies OpenROMs redistribution and build
   assert.match(notices, /NOT shipped/);
 });
 
-test("dist contains exactly the reviewed OpenROMs files, images, licenses, and corresponding source", () => {
-  const source = verifyOpenRomAssets(repoRoot);
-  assert.deepEqual(openRoms.manifest, source.manifest);
+test("dist contains exactly the reviewed bundled ROM files, images, licenses, notices, and source", () => {
+  const source = verifyBundledRomAssets(repoRoot);
+  assert.deepEqual(bundledRoms.manifest, source.manifest);
   assert.deepEqual(
     listFiles(join(out, "roms"), out),
     source.files.map((path) => `roms/${path}`).sort(),
   );
   for (const path of source.files) {
-    const expected = readFileSync(join(repoRoot, "third_party", "open-roms", path));
+    const expected = readFileSync(join(repoRoot, "third_party", "pascual-roms", path));
     const actual = readFileSync(join(out, "roms", path));
     assert.equal(
       createHash("sha256").update(actual).digest("hex"),
@@ -218,17 +223,17 @@ test("dist contains exactly the reviewed OpenROMs files, images, licenses, and c
   }
 });
 
-test("OpenROMs production verification rejects a changed role image", () => {
-  const root = freshOut("c64-open-roms-tamper-");
+test("bundled ROM production verification rejects a changed role image", () => {
+  const root = freshOut("c64-bundled-roms-tamper-");
   try {
-    const target = join(root, "third_party", "open-roms");
+    const target = join(root, "third_party", "pascual-roms");
     mkdirSync(dirname(target), { recursive: true });
-    cpSync(join(repoRoot, "third_party", "open-roms"), target, { recursive: true });
-    const basicPath = join(target, openRoms.manifest.roles.basic.path);
+    cpSync(join(repoRoot, "third_party", "pascual-roms"), target, { recursive: true });
+    const basicPath = join(target, bundledRoms.manifest.roles.basic.path);
     const changed = readFileSync(basicPath);
     changed[0] ^= 0xff;
     writeFileSync(basicPath, changed);
-    assert.throws(() => verifyOpenRomAssets(root), /failed size\/sha256 verification/);
+    assert.throws(() => verifyBundledRomAssets(root), /failed size\/sha256 verification/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

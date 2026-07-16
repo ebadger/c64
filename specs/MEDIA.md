@@ -109,6 +109,11 @@ error-byte table:
   enters at either a structurally detected first-line BASIC `SYS` target or a valid user-supplied
   uint16 entry address. When no target is detected, the control remains disabled until an address
   is entered; the client never substitutes the load address as a success-shaped guess.
+- **Boot BASIC** does not require or extract a directory entry. When a valid D64 is selected it
+  configures the machine, mounts that immutable image on drive 8, and starts the ROM cold-start
+  path at the reset vector. A subsequent Reset power-on-resets back into BASIC while preserving
+  the mounted image; Stop changes browser pacing only. Eject still removes the image immediately,
+  including while BASIC is running.
 - **Eject** clears the selected bytes and directory controls and calls `unmountD64(8)` when a
   machine exists. It does not stop or reset an otherwise running program. Selecting malformed
   replacement media leaves any prior valid selection and mount intact.
@@ -148,8 +153,9 @@ error-byte table:
 ## Data flow
 
 `AssemblyResult PRG -> deterministic D64 builder -> ArtifactBundle -> Blob downloads and
-emulated media`; or `local/curated D64 bytes -> validator -> directory -> selected PRG
-extraction + explicit/detected entry -> immutable drive media + emulator load`.
+emulated media`; or `local/curated D64 bytes -> validator -> immutable drive-8 media ->
+reset-vector BASIC boot`; or `validated directory -> selected PRG extraction +
+explicit/detected entry -> immutable drive media + emulator load`.
 
 ## Error handling
 
@@ -180,7 +186,7 @@ visible but marks them stale.
 | Deterministic 35-track D64 builder | Implemented | Byte-exact BAM/directory/chain construction under tests |
 | D64 parser/import | Implemented (limited) | `parseD64`/`extractPrg` (JS) and the C++ core `parseD64`/`extractFile` validate geometry, directory chain, and file chains; full BAM-consistency validation is deferred to ebadger/c64#2 |
 | 1541 drive behavior | Implemented (high-level trap) | Read-only KERNAL LOAD/IEC file-service trap for drive 8 (see the fidelity section above); no cycle-level GCR drive |
-| Browser directory/run/eject workflow | Implemented | Immediate validation, explicit PRG selection and entry, direct exact-byte load, and idempotent drive-8 eject |
+| Browser directory/boot/run/eject workflow | Implemented | Immediate validation, BASIC boot with mounted-media reset continuity, explicit PRG selection and entry, direct exact-byte load, and idempotent drive-8 eject |
 | Curated D64 routes | Implemented | Same-origin gallery IDs only (`?d64` resolves through a valid gallery entry); owned by `WEB-CLIENT.md` |
 | External-tool interoperability | Implemented (software) | `tests/interop/` round-trips a generated D64 through VICE `c1541` (provisioned reproducibly, no committed binary) and asserts 35-track directory metadata plus byte-exact extracted PRG (`tests/interop/PROVENANCE.md`) |
 

@@ -1,0 +1,89 @@
+{
+  "schema": 2,
+  "id": "pascuals-basic-c64",
+  "title": "Pascual's BASIC/KERNAL with MEGA65 PXL chargen",
+  "upstreamRepository": "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC",
+  "revision": "45da60da4d39f9f3950cdf957996c1743c53bb6e",
+  "sourceUrl": "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC/tree/45da60da4d39f9f3950cdf957996c1743c53bb6e",
+  "sourceArchive": {
+    "path": "pascuals-basic-45da60da4d39f9f3950cdf957996c1743c53bb6e.tar.gz",
+    "bytes": 165027,
+    "sha256": "8cab283a172f3eb1473320e4be65894ec43d68ef0ff29c68c486f2d98ad665b2"
+  },
+  "licenses": {
+    "package": {
+      "id": "MIT",
+      "path": "LICENSE.txt"
+    },
+    "basic": {
+      "id": "MIT",
+      "path": "LICENSE-microsoft.txt"
+    },
+    "chargen": {
+      "id": "LGPL-3.0-or-later",
+      "path": "COPYING.LESSER",
+      "companionPaths": [
+        "COPYING",
+        "LICENSE-megabase-notice.txt",
+        "NOTICE.md"
+      ]
+    }
+  },
+  "redistributionFiles": [
+    {
+      "path": "LICENSE.txt",
+      "bytes": 1081,
+      "sha256": "51fd03770723656523a3fe7e3fdaa403b6a7912009c7af671201b80fa80c185e"
+    },
+    {
+      "path": "LICENSE-microsoft.txt",
+      "bytes": 1138,
+      "sha256": "561ee3b30fa5ad0b65e542e85212960769eb9b26d68dca285b739486fa2ce10a"
+    },
+    {
+      "path": "COPYING",
+      "bytes": 35150,
+      "sha256": "e57f1c320b8cf8798a7d2ff83a6f9e06a33a03585f6e065fea97f1d86db84052"
+    },
+    {
+      "path": "COPYING.LESSER",
+      "bytes": 7653,
+      "sha256": "1a45b1d0a8603dfe2cfc644f9dab970b1762f92babe2aac6eb2f5d4572c4a680"
+    },
+    {
+      "path": "LICENSE-megabase-notice.txt",
+      "bytes": 2162,
+      "sha256": "74f574b1ba42475929d9dec376d1c513eb14b237939474edcf1c48ef2d7faab2"
+    },
+    {
+      "path": "NOTICE.md",
+      "bytes": 1389,
+      "sha256": "fcd8aa331820f53930e46d927486a0f61737878b3d4aebcba0381b3a8a75fa97"
+    },
+    {
+      "path": "PROVENANCE.md",
+      "bytes": 2364,
+      "sha256": "3443e4f7f2786226f9609acee603669d35b285be085f50f4332e4d93f58d85a4"
+    }
+  ],
+  "roles": {
+    "basic": {
+      "path": "basic.rom",
+      "upstreamPath": "bin/basic_c64.bin",
+      "bytes": 8192,
+      "sha256": "06480f4be4b62b545bbc4185c22befa8cc3b958fa15db31d74f82ffc03fec2e5"
+    },
+    "kernal": {
+      "path": "kernal.rom",
+      "upstreamPath": "bin/kernal_c64.bin",
+      "bytes": 8192,
+      "sha256": "5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414"
+    },
+    "chargen": {
+      "path": "chargen.rom",
+      "upstreamPath": "bin/chargen.bin",
+      "bytes": 4096,
+      "sha256": "5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7"
+    }
+  }
+}
