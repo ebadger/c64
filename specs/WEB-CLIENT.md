@@ -139,7 +139,10 @@ holds focus, and every blur/visibility-loss path calls release-all so no key can
   ```
 
   `'wasm-unsafe-eval'` is the minimum needed to compile the same-origin WebAssembly module; no
-  `'unsafe-inline'`/`'unsafe-eval'` is used. There are no inline scripts or inline styles.
+  `'unsafe-inline'`/`'unsafe-eval'` is used. There are no inline scripts or inline styles. The
+  production WASM artifact is built with `-sDYNAMIC_EXECUTION=0` so embind generates no runtime
+  JavaScript (`new Function`/`eval`), keeping it compatible with this policy (see
+  `core/CMakeLists.txt` and [`EMULATOR.md`](./EMULATOR.md)).
 - Source is treated as data, never inserted as HTML or evaluated as JavaScript.
 - No analytics, ads, accounts, uploads, remote code execution, cross-origin source fetches,
   or runtime write endpoints exist in the initial architecture.

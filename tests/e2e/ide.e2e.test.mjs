@@ -14,9 +14,11 @@ import { startServer } from "../../scripts/dev/serve.mjs";
 import { wasmArtifactExists, tryLoadPlaywright, syntheticRomArrays } from "./helpers.mjs";
 import { encodeSourceToCode } from "../../web/client/lib/base64url.js";
 import { buildD64 } from "../../src/d64.js";
+import { buildArtifacts } from "../../src/index.js";
 
-const OBSERVABLE_PROGRAM = `* = $0801
-start
+// A valid basic-sys program: no explicit origin, so the assembler places the machine code right
+// after the generated SYS stub. It writes an observable byte to $0400 and loops on the border.
+const OBSERVABLE_PROGRAM = `start
         lda #$07
         sta $0400
 loop
@@ -45,10 +47,25 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
 
     await page.goto(`${url}/web/client/`);
     await page.waitForFunction(() => typeof window.__c64 === "object");
+    // Wait until init() (including decideInitialProject) has fully run, so the starter project can
+    // never overwrite the source we fill below.
+    await page.waitForFunction(() => window.__c64.initialized && window.__c64.initialized() === true, null, { timeout: 8000 });
 
     // --- Build via the worker ---------------------------------------------------------------
+    // The app auto-builds its starter program on load (which also sets the name field), so set a
+    // known name + source and wait for the specific build that matches OURS (by buildId).
+    const expectedBuild = buildArtifacts({ name: "e2etest", source: OBSERVABLE_PROGRAM, timingProfile: "pal-6569", outputName: "e2etest" });
+    assert.equal(expectedBuild.ok, true, "the observable program must assemble");
+    await page.fill("#project-name", "e2etest");
     await page.fill("#editor", OBSERVABLE_PROGRAM);
-    await page.waitForFunction(() => window.__c64.lastBuild() !== null, null, { timeout: 5000 });
+    await page.waitForFunction(
+      (id) => {
+        const b = window.__c64.lastBuild();
+        return b !== null && b.buildId === id;
+      },
+      expectedBuild.assembly.buildId,
+      { timeout: 8000 },
+    );
     const build = await page.evaluate(() => window.__c64.lastBuild());
     assert.ok(build.buildId && build.prgLen > 0 && build.d64Len === 174848, "build produced a PRG and full D64");
 
@@ -111,12 +128,20 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     await page.waitForFunction(() => /Selected|Mounted/.test(document.getElementById("d64-status").textContent));
 
     // --- Gallery load + reproducible buildId ------------------------------------------------
+    const expected = JSON.parse(readFileSync(new URL("../../web/client/gallery.json", import.meta.url)));
     await page.waitForFunction(() => document.querySelectorAll("#gallery-list .gallery-item").length >= 1);
     await page.click("#gallery-list .gallery-item button");
-    await page.waitForFunction(() => document.getElementById("editor").value.includes("border-flash"), null, { timeout: 5000 });
-    await page.waitForFunction(() => window.__c64.lastBuild() !== null);
+    await page.waitForFunction(() => document.getElementById("editor").value.includes("border-flash"), null, { timeout: 8000 });
+    // Wait for the gallery entry's specific build (not any earlier build) to land.
+    await page.waitForFunction(
+      (id) => {
+        const b = window.__c64.lastBuild();
+        return b !== null && b.buildId === id;
+      },
+      expected[0].expectedBuildId,
+      { timeout: 8000 },
+    );
     const galleryBuild = await page.evaluate(() => window.__c64.lastBuild());
-    const expected = JSON.parse(readFileSync(new URL("../../web/client/gallery.json", import.meta.url)));
     assert.equal(galleryBuild.buildId, expected[0].expectedBuildId, "gallery entry reproduces its buildId in-browser");
 
     // --- URL share/remix round-trip (Unicode) -----------------------------------------------

@@ -18,8 +18,10 @@ export class RomManager {
     if (!result.ok) {
       return { ok: false, error: result.error };
     }
-    // Keep only role/size/digest/known publicly; bytes stay private and memory-only.
+    // Keep only role/size/digest/known publicly; bytes stay private and memory-only. `ok: true`
+    // marks this role as a valid loaded descriptor for romSetStatus.
     this._descriptors[role] = {
+      ok: true,
       role,
       size: result.size,
       digest: result.digest,

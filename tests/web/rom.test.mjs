@@ -61,3 +61,33 @@ test("computeRomSetId is deterministic and content-sensitive", () => {
   const changed = computeRomSetId({ ...set, chargen: rom("chargen", 4) });
   assert.notEqual(id1, changed);
 });
+
+test("RomManager integrates validation, confirmation, and set readiness (memory-only)", async () => {
+  const { RomManager } = await import("../../web/client/lib/roms.js");
+  const mgr = new RomManager();
+  assert.equal(mgr.ready(), false);
+  assert.equal(mgr.getRomSet(), null);
+
+  // Load all three roles from raw bytes (as the file picker / test hook do).
+  for (const role of ROM_ROLES) {
+    const res = mgr.setRoleBytes(role, rom(role, 0x11));
+    assert.equal(res.ok, true, role);
+    // The returned descriptor must never carry the raw bytes.
+    assert.equal("bytes" in res.descriptor, false);
+  }
+  // Unknown digests require confirmation, so the set is complete but not ready yet.
+  const before = mgr.status();
+  assert.equal(before.complete, true);
+  assert.equal(before.ready, false);
+  assert.deepEqual(before.unconfirmed, ["basic", "kernal", "chargen"]);
+
+  for (const role of ROM_ROLES) mgr.confirmRole(role);
+  assert.equal(mgr.ready(), true);
+
+  const set = mgr.getRomSet();
+  assert.ok(set && set.basic.length === 8192 && set.kernal.length === 8192 && set.chargen.length === 4096);
+  assert.match(set.id, /^[0-9a-f]{64}$/);
+
+  // A wrong-sized role is rejected and does not corrupt the ready set.
+  assert.equal(mgr.setRoleBytes("basic", new Uint8Array(10)).ok, false);
+});

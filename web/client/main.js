@@ -49,6 +49,7 @@ let pacer = null;
 let machineLoadPromise = null;
 let pendingEdit = false; // an edit happened since the last build() request -> results are stale
 let lastPersistedCanonical = null; // canonical JSON of the last project we saved or loaded
+let appInitialized = false; // true once init() (incl. decideInitialProject) has fully completed
 
 // ---------------------------------------------------------------------------------------------
 // Startup
@@ -77,6 +78,7 @@ async function init() {
   await decideInitialProject();
 
   setText(els.statusLine, "Ready. Load ROM files to enable Run.");
+  appInitialized = true; // decideInitialProject has run; the editor will not be overwritten
 }
 
 function showCapabilityError(missing) {
@@ -673,8 +675,9 @@ function renderKeyHelp() {
 
 const STARTER_SOURCE = `; Welcome to the c64 browser IDE.
 ; Edit, then press Build. Load ROM files to enable Run.
-
-        * = $0801           ; BASIC start (basic-sys stub is generated for you)
+;
+; In basic-sys mode a "10 SYS ..." stub is generated for you, so just start with
+; code — it is placed immediately after the stub (do NOT set * = $0801 yourself).
 
 start
         ldx #$00
@@ -710,6 +713,7 @@ window.__c64 = {
   inputSnapshot: () => (input ? input.snapshot() : null),
   running: () => !!(pacer && pacer.running),
   errors: () => errorBus.items(),
+  initialized: () => appInitialized,
 };
 
 init().catch((err) => {
