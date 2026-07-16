@@ -92,6 +92,9 @@ configuration and never repository or CI data.
   sub-instruction cycle budgeting. The web client and GitHub Pages deployment are not started.
 - No redistributable replacement ROM set has been selected or legally reviewed. The current
   runnable target needs no ROMs; a ROM strategy decision is pending with ebadger.
+- Template/operating-file reconciliation with upstream `ebadger/AIProjectTemplate` (through commit
+  `0dda330`) is deferred to a dedicated PR and tracked in ebadger/c64#4; feature PRs do not fold
+  it in and intentionally do not advance `.template-source`.
 - Generated D64 images are covered by byte-exact Node tests but have not been independently
   verified against external 1541 tooling or physical hardware.
 - D64 import (`parseD64`/`mountD64`) validates geometry, the directory chain, and file chains,

@@ -81,11 +81,13 @@ deterministically.
 
 > v0 subset: the model tracks the raster position deterministically and renders an indexed
 > framebuffer of `384x272` (a fixed border frame around the `320x200` display) using the border
-> (`$D020`) and background-0 (`$D021`) registers. Colours are sampled at frame completion, so a
-> direct-mode PRG that writes those registers yields visible, deterministic output. `$D011`
-> bit 7 / `$D012` expose the live raster line and the colour registers read back with the
-> hardware's high-nibble-set behaviour. Character/bitmap fetches, per-raster mid-frame splits,
-> sprites, bad lines, and video interrupts are not implemented and are tracked below.
+> (`$D020`) and background-0 (`$D021`) registers. Colours are sampled when `framebuffer()` is
+> called; because this subset has no mid-frame raster effects, calling it after `runFrame()`
+> reflects the completed frame, so a direct-mode PRG that writes those registers yields visible,
+> deterministic output. `$D011` bit 7 / `$D012` expose the live raster line and the colour
+> registers read back with the hardware's high-nibble-set behaviour. Character/bitmap fetches,
+> per-raster mid-frame splits, sprites, bad lines, and video interrupts are not implemented and
+> are tracked below.
 
 | Item | Status | Notes |
 |------|--------|-------|

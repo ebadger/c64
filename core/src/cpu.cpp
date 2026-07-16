@@ -29,12 +29,19 @@ constexpr u8 kBaseCycles[256] = {
 
 } // namespace
 
-void Cpu::reset() {
-  a = 0;
-  x = 0;
-  y = 0;
-  s = 0xFD;
-  p = flag::U | flag::I;
+void Cpu::reset(ResetKind kind) {
+  if (kind == ResetKind::PowerOn) {
+    a = 0;
+    x = 0;
+    y = 0;
+    s = 0xFD;
+    p = flag::U | flag::I;
+  } else {
+    // Warm reset preserves the register file; the reset micro-sequence performs three
+    // suppressed stack accesses, leaving the stack pointer three lower, and sets I.
+    s = static_cast<u8>(s - 3);
+    p = static_cast<u8>(p | flag::U | flag::I);
+  }
   pc = bus_.read16(0xFFFC);
   faulted_ = false;
 }
@@ -333,40 +340,42 @@ u8 Cpu::step() {
     case 0xCC: doCompare(y, rd(amAbs())); break;
 
     // ---- increment / decrement ----
-    case 0xE6: { const u16 ad = amZp(); u8 v = static_cast<u8>(rd(ad) + 1); wr(ad, v); setZN(v); break; }  // INC zp
-    case 0xF6: { const u16 ad = amZpX(); u8 v = static_cast<u8>(rd(ad) + 1); wr(ad, v); setZN(v); break; }
-    case 0xEE: { const u16 ad = amAbs(); u8 v = static_cast<u8>(rd(ad) + 1); wr(ad, v); setZN(v); break; }
-    case 0xFE: { const u16 ad = amAbsX(false); u8 v = static_cast<u8>(rd(ad) + 1); wr(ad, v); setZN(v); break; }
-    case 0xC6: { const u16 ad = amZp(); u8 v = static_cast<u8>(rd(ad) - 1); wr(ad, v); setZN(v); break; }  // DEC zp
-    case 0xD6: { const u16 ad = amZpX(); u8 v = static_cast<u8>(rd(ad) - 1); wr(ad, v); setZN(v); break; }
-    case 0xCE: { const u16 ad = amAbs(); u8 v = static_cast<u8>(rd(ad) - 1); wr(ad, v); setZN(v); break; }
-    case 0xDE: { const u16 ad = amAbsX(false); u8 v = static_cast<u8>(rd(ad) - 1); wr(ad, v); setZN(v); break; }
+    // NMOS read-modify-write writes the unmodified value back (dummy write) before the final
+    // value; on side-effecting I/O this second-write timing is observable.
+    case 0xE6: { const u16 ad = amZp(); const u8 o = rd(ad); wr(ad, o); const u8 v = static_cast<u8>(o + 1); wr(ad, v); setZN(v); break; }  // INC zp
+    case 0xF6: { const u16 ad = amZpX(); const u8 o = rd(ad); wr(ad, o); const u8 v = static_cast<u8>(o + 1); wr(ad, v); setZN(v); break; }
+    case 0xEE: { const u16 ad = amAbs(); const u8 o = rd(ad); wr(ad, o); const u8 v = static_cast<u8>(o + 1); wr(ad, v); setZN(v); break; }
+    case 0xFE: { const u16 ad = amAbsX(false); const u8 o = rd(ad); wr(ad, o); const u8 v = static_cast<u8>(o + 1); wr(ad, v); setZN(v); break; }
+    case 0xC6: { const u16 ad = amZp(); const u8 o = rd(ad); wr(ad, o); const u8 v = static_cast<u8>(o - 1); wr(ad, v); setZN(v); break; }  // DEC zp
+    case 0xD6: { const u16 ad = amZpX(); const u8 o = rd(ad); wr(ad, o); const u8 v = static_cast<u8>(o - 1); wr(ad, v); setZN(v); break; }
+    case 0xCE: { const u16 ad = amAbs(); const u8 o = rd(ad); wr(ad, o); const u8 v = static_cast<u8>(o - 1); wr(ad, v); setZN(v); break; }
+    case 0xDE: { const u16 ad = amAbsX(false); const u8 o = rd(ad); wr(ad, o); const u8 v = static_cast<u8>(o - 1); wr(ad, v); setZN(v); break; }
     case 0xE8: ++x; setZN(x); break;                        // INX
     case 0xC8: ++y; setZN(y); break;                        // INY
     case 0xCA: --x; setZN(x); break;                        // DEX
     case 0x88: --y; setZN(y); break;                        // DEY
 
-    // ---- shifts / rotates ----
+    // ---- shifts / rotates (memory forms perform the NMOS dummy write) ----
     case 0x0A: a = doASL(a); break;                         // ASL A
-    case 0x06: { const u16 ad = amZp(); wr(ad, doASL(rd(ad))); break; }
-    case 0x16: { const u16 ad = amZpX(); wr(ad, doASL(rd(ad))); break; }
-    case 0x0E: { const u16 ad = amAbs(); wr(ad, doASL(rd(ad))); break; }
-    case 0x1E: { const u16 ad = amAbsX(false); wr(ad, doASL(rd(ad))); break; }
+    case 0x06: { const u16 ad = amZp(); const u8 o = rd(ad); wr(ad, o); wr(ad, doASL(o)); break; }
+    case 0x16: { const u16 ad = amZpX(); const u8 o = rd(ad); wr(ad, o); wr(ad, doASL(o)); break; }
+    case 0x0E: { const u16 ad = amAbs(); const u8 o = rd(ad); wr(ad, o); wr(ad, doASL(o)); break; }
+    case 0x1E: { const u16 ad = amAbsX(false); const u8 o = rd(ad); wr(ad, o); wr(ad, doASL(o)); break; }
     case 0x4A: a = doLSR(a); break;                         // LSR A
-    case 0x46: { const u16 ad = amZp(); wr(ad, doLSR(rd(ad))); break; }
-    case 0x56: { const u16 ad = amZpX(); wr(ad, doLSR(rd(ad))); break; }
-    case 0x4E: { const u16 ad = amAbs(); wr(ad, doLSR(rd(ad))); break; }
-    case 0x5E: { const u16 ad = amAbsX(false); wr(ad, doLSR(rd(ad))); break; }
+    case 0x46: { const u16 ad = amZp(); const u8 o = rd(ad); wr(ad, o); wr(ad, doLSR(o)); break; }
+    case 0x56: { const u16 ad = amZpX(); const u8 o = rd(ad); wr(ad, o); wr(ad, doLSR(o)); break; }
+    case 0x4E: { const u16 ad = amAbs(); const u8 o = rd(ad); wr(ad, o); wr(ad, doLSR(o)); break; }
+    case 0x5E: { const u16 ad = amAbsX(false); const u8 o = rd(ad); wr(ad, o); wr(ad, doLSR(o)); break; }
     case 0x2A: a = doROL(a); break;                         // ROL A
-    case 0x26: { const u16 ad = amZp(); wr(ad, doROL(rd(ad))); break; }
-    case 0x36: { const u16 ad = amZpX(); wr(ad, doROL(rd(ad))); break; }
-    case 0x2E: { const u16 ad = amAbs(); wr(ad, doROL(rd(ad))); break; }
-    case 0x3E: { const u16 ad = amAbsX(false); wr(ad, doROL(rd(ad))); break; }
+    case 0x26: { const u16 ad = amZp(); const u8 o = rd(ad); wr(ad, o); wr(ad, doROL(o)); break; }
+    case 0x36: { const u16 ad = amZpX(); const u8 o = rd(ad); wr(ad, o); wr(ad, doROL(o)); break; }
+    case 0x2E: { const u16 ad = amAbs(); const u8 o = rd(ad); wr(ad, o); wr(ad, doROL(o)); break; }
+    case 0x3E: { const u16 ad = amAbsX(false); const u8 o = rd(ad); wr(ad, o); wr(ad, doROL(o)); break; }
     case 0x6A: a = doROR(a); break;                         // ROR A
-    case 0x66: { const u16 ad = amZp(); wr(ad, doROR(rd(ad))); break; }
-    case 0x76: { const u16 ad = amZpX(); wr(ad, doROR(rd(ad))); break; }
-    case 0x6E: { const u16 ad = amAbs(); wr(ad, doROR(rd(ad))); break; }
-    case 0x7E: { const u16 ad = amAbsX(false); wr(ad, doROR(rd(ad))); break; }
+    case 0x66: { const u16 ad = amZp(); const u8 o = rd(ad); wr(ad, o); wr(ad, doROR(o)); break; }
+    case 0x76: { const u16 ad = amZpX(); const u8 o = rd(ad); wr(ad, o); wr(ad, doROR(o)); break; }
+    case 0x6E: { const u16 ad = amAbs(); const u8 o = rd(ad); wr(ad, o); wr(ad, doROR(o)); break; }
+    case 0x7E: { const u16 ad = amAbsX(false); const u8 o = rd(ad); wr(ad, o); wr(ad, doROR(o)); break; }
 
     // ---- jumps / subroutines ----
     case 0x4C: pc = fetch16(); break;                       // JMP abs

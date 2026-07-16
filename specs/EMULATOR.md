@@ -64,6 +64,8 @@ projected 1:1 from the native `c64::Machine`; native and WASM builds share the s
 ```text
 class Machine {
   constructor(timingProfile: "pal-6569" | "ntsc-6567r8")
+  ok() -> boolean                          // false when the timing profile was invalid
+  configError() -> string                   // "" or "invalid-config"
   reset()                                  // power-on reset
   setPC(address: uint16)                   // direct-mode entry
   loadPrg(bytes: Uint8Array) -> { ok, loadAddress, endAddress, error }
@@ -78,6 +80,9 @@ class Machine {
 }
 ```
 
+An unsupported timing profile is not silently accepted: `ok()` returns `false`, `configError()`
+returns `"invalid-config"`, and `loadPrg`/`runCycles`/`runFrame` become inert rather than
+returning success-shaped defaults. The bridge never throws a C++ exception across embind.
 `framebuffer()` returns a newly allocated `Uint8Array` copied out of WASM memory, so no writable
 view outlives a memory growth. `create/mountD64/setInput/copyFramebuffer/drainAudio/saveState`
 from the full contract are not part of v0 and are tracked below. This boundary is expected to

@@ -10,7 +10,7 @@ Machine::Machine(const MachineConfig& config) : config_(config), vic_(config.pro
 void Machine::reset(ResetKind kind) {
   bus_.reset(kind, config_.ramPattern);
   vic_.reset();
-  cpu_.reset(); // reads the $FFFC vector (RAM without a KERNAL ROM); callers use setPc for direct mode
+  cpu_.reset(kind); // reads the $FFFC vector (RAM without a KERNAL ROM); callers use setPc for direct mode
   frameSequence_ = 0;
 }
 

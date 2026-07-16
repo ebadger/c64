@@ -81,3 +81,33 @@ TEST(runframe_advances_frame_sequence) {
   m.runFrame();
   REQUIRE(m.frameInfo().sequence >= 1);
 }
+
+TEST(warm_reset_preserves_registers_and_resets_devices) {
+  Machine m;
+  m.cpu().a = 0x12;
+  m.cpu().x = 0x34;
+  m.cpu().y = 0x56;
+  m.cpu().s = 0x80;
+  m.writeMem(0xD400, 0xAA);       // SID register shadow (I/O banked in by default)
+  m.bus().loadRam(0xFFFC, 0x00);  // reset vector -> $C000
+  m.bus().loadRam(0xFFFD, 0xC0);
+  m.reset(ResetKind::Warm);
+  REQUIRE_EQ(m.cpu().a, 0x12);    // register file preserved
+  REQUIRE_EQ(m.cpu().x, 0x34);
+  REQUIRE_EQ(m.cpu().y, 0x56);
+  REQUIRE_EQ(m.cpu().s, 0x7D);    // stack pointer decremented by three
+  REQUIRE(m.cpu().p & flag::I);
+  REQUIRE_EQ(m.readMem(0xD400), 0x00); // device latch reset
+  REQUIRE_EQ(m.cpu().pc, 0xC000);
+}
+
+TEST(ddr_input_lines_bank_io_via_pullups) {
+  Machine m;
+  // Make the banking lines inputs (DDR bits 0-2 = 0); their pull-ups drive them high, so I/O is
+  // banked in even though the port latch is all-low. Banking must use effective pins, not latch.
+  m.writeMem(0x0000, 0x00); // DDR: all inputs
+  m.writeMem(0x0001, 0x00); // latch low
+  REQUIRE_EQ(m.readMem(0x0001) & 0x07, 0x07); // pull-ups read high
+  m.writeMem(0xD020, 0x07);
+  REQUIRE_EQ(m.vic().borderColor(), 0x07); // routed to the VIC because I/O is banked in
+}

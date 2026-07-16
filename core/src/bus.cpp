@@ -20,25 +20,29 @@ void Bus::reset(ResetKind kind, RamPattern pattern) {
         }
         break;
     }
+    // Colour RAM is static RAM; a reset does not clear it, so only the power-on fill does.
     colorRam_.fill(0x00);
-    sid_.fill(0x00);
-    cia1_.fill(0x00);
-    cia2_.fill(0x00);
-    // Undriven keyboard/joystick data ports read as all-high (no key/direction asserted).
-    cia1_[0x00] = 0xFF;
-    cia1_[0x01] = 0xFF;
-    cia2_[0x00] = 0xFF;
-    cia2_[0x01] = 0xFF;
   }
+  // The SID and both CIAs have reset inputs, so their register latches clear on every reset
+  // (power-on and warm) while RAM is preserved on a warm reset.
+  sid_.fill(0x00);
+  cia1_.fill(0x00);
+  cia2_.fill(0x00);
+  // Undriven keyboard/joystick data ports read as all-high (no key/direction asserted).
+  cia1_[0x00] = 0xFF;
+  cia1_[0x01] = 0xFF;
+  cia2_[0x00] = 0xFF;
+  cia2_[0x01] = 0xFF;
   // Processor port power-on/reset values: I/O, BASIC, and KERNAL banked in.
   ddr_ = 0x2F;
   port_ = 0x37;
 }
 
 bool Bus::ioVisible() const {
-  const bool loram = (port_ & 0x01) != 0;
-  const bool hiram = (port_ & 0x02) != 0;
-  const bool charen = (port_ & 0x04) != 0;
+  const u8 pins = effectivePort();
+  const bool loram = (pins & 0x01) != 0;
+  const bool hiram = (pins & 0x02) != 0;
+  const bool charen = (pins & 0x04) != 0;
   return charen && (loram || hiram);
 }
 
@@ -50,7 +54,7 @@ u8 Bus::peek8(u16 addr) const {
   }
   if (addr == 0x0001) {
     // Output bits reflect the latch; input bits read high through their pull-ups.
-    return static_cast<u8>((port_ & ddr_) | (~ddr_ & 0xFF & 0x17) | 0x00);
+    return effectivePort();
   }
   if (addr >= 0xD000 && addr <= 0xDFFF && ioVisible()) {
     return readIo(addr);

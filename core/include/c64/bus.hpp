@@ -62,6 +62,11 @@ public:
   u8 processorPort() const { return port_; }
 
 private:
+  // Effective processor-port pin levels: output bits reflect the latch, input bits read their
+  // pull-ups (banking lines and cassette sense pull high). Both the `$01` readback and the I/O
+  // banking decision derive from this same value so they can never disagree.
+  u8 effectivePort() const { return static_cast<u8>((port_ & ddr_) | (~ddr_ & 0x17)); }
+
   u8 readIo(u16 addr) const;
   void writeIo(u16 addr, u8 value);
 

@@ -23,20 +23,31 @@ c64::TimingProfile parseProfile(const std::string& id) {
   if (id == "ntsc-6567r8") {
     return c64::TimingProfile::Ntsc6567R8;
   }
-  return c64::TimingProfile::Pal6569; // default; the client passes a validated profile id
+  return c64::TimingProfile::Pal6569; // default; validity is tracked separately by isSupportedProfile
 }
+
+bool isSupportedProfile(const std::string& id) { return id == "pal-6569" || id == "ntsc-6567r8"; }
 
 // Thin JS-facing wrapper around c64::Machine implementing the coordinated v0 contract.
 class WasmMachine {
 public:
   explicit WasmMachine(const std::string& profile)
-      : machine_(c64::MachineConfig{parseProfile(profile), c64::RamPattern::Zero}) {}
+      : configError_(isSupportedProfile(profile) ? std::string() : std::string("invalid-config")),
+        machine_(c64::MachineConfig{parseProfile(profile), c64::RamPattern::Zero}) {}
+
+  // An unsupported timing profile is reported through these accessors rather than a silent PAL
+  // default; the client must check ok() after construction. Structured, non-throwing.
+  bool ok() const { return configError_.empty(); }
+  std::string configError() const { return configError_; }
 
   void reset() { machine_.reset(c64::ResetKind::PowerOn); }
   void setPC(unsigned address) { machine_.setPc(static_cast<c64::u16>(address & 0xFFFF)); }
 
   // Accepts a Uint8Array (or number[]) holding the PRG image: 2-byte load address + data.
   val loadPrg(val bytes) {
+    if (!ok()) {
+      return errorResult(configError_);
+    }
     std::vector<c64::u8> buffer = emscripten::convertJSArrayToNumberVector<c64::u8>(bytes);
     const c64::LoadResult r = machine_.loadPrg(buffer.data(), buffer.size());
     val out = val::object();
@@ -49,15 +60,24 @@ public:
   }
 
   // Runs whole instructions until at least `maxCycles` cycles have executed; returns the exact
-  // number of cycles run.
+  // number of cycles run. A misconfigured machine runs nothing.
   double runCycles(unsigned maxCycles) {
+    if (!ok()) {
+      return 0.0;
+    }
     const c64::RunResult r = machine_.runCycles(static_cast<c64::u32>(maxCycles));
     return static_cast<double>(r.cyclesExecuted);
   }
 
   val runFrame() {
-    const c64::RunResult r = machine_.runFrame();
     val out = val::object();
+    if (!ok()) {
+      out.set("cyclesRun", 0.0);
+      out.set("frameSequence", 0.0);
+      out.set("stopped", true);
+      return out;
+    }
+    const c64::RunResult r = machine_.runFrame();
     out.set("cyclesRun", static_cast<double>(r.cyclesExecuted));
     out.set("frameSequence", static_cast<double>(r.frameSequence));
     out.set("stopped", r.stopped);
@@ -82,6 +102,16 @@ public:
   }
 
 private:
+  static val errorResult(const std::string& code) {
+    val out = val::object();
+    out.set("ok", false);
+    out.set("loadAddress", 0u);
+    out.set("endAddress", 0.0);
+    out.set("error", val(code));
+    return out;
+  }
+
+  std::string configError_; // declared before machine_ so the constructor init order is stable
   c64::Machine machine_;
 };
 
@@ -90,6 +120,8 @@ private:
 EMSCRIPTEN_BINDINGS(c64_core) {
   emscripten::class_<WasmMachine>("Machine")
       .constructor<std::string>()
+      .function("ok", &WasmMachine::ok)
+      .function("configError", &WasmMachine::configError)
       .function("reset", &WasmMachine::reset)
       .function("setPC", &WasmMachine::setPC)
       .function("loadPrg", &WasmMachine::loadPrg)

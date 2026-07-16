@@ -51,3 +51,18 @@ test("headless WASM core renders the border/background fixture", { skip }, async
     machine.delete(); // free the embind-owned C++ instance
   }
 });
+
+test("an invalid timing profile is rejected, not silently defaulted", { skip }, async () => {
+  const createC64Core = (await import(pathToFileURL(loaderPath).href)).default;
+  const mod = await createC64Core();
+  const machine = new mod.Machine("bogus-profile");
+  try {
+    assert.equal(machine.ok(), false);
+    assert.equal(machine.configError(), "invalid-config");
+    const load = machine.loadPrg(Uint8Array.from([0x00, 0xc0, 0xea]));
+    assert.equal(load.ok, false);
+    assert.equal(load.error, "invalid-config");
+  } finally {
+    machine.delete();
+  }
+});

@@ -27,8 +27,10 @@ class Cpu {
 public:
   explicit Cpu(Bus& bus) : bus_(bus) {}
 
-  // Power-on/warm reset sequence: I set, S decremented to $FD, PC loaded from the $FFFC vector.
-  void reset();
+  // Power-on/warm reset sequence. Power-on installs a clean known state (A/X/Y=0, S=$FD).
+  // A warm reset preserves A/X/Y and, like the real reset micro-sequence, decrements the stack
+  // pointer by three; both set the interrupt-disable flag and load PC from the $FFFC vector.
+  void reset(ResetKind kind = ResetKind::PowerOn);
 
   // Execute exactly one instruction. Returns the number of CPU cycles it consumed. On an
   // unsupported (undocumented) opcode the CPU sets the fault flag and consumes the fetch cycle
