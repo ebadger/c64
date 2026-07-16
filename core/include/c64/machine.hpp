@@ -141,7 +141,8 @@ class Machine {
  private:
   Error requireReady() const;
   // High-level LOAD trap: services a JSR to the KERNAL LOAD vector ($FFD5) from mounted media.
-  bool serviceLoadTrap();
+  // Returns the deterministic cycle cost charged for the operation (always >= 1).
+  u32 serviceLoadTrap();
   void rtsFromTrap(CpuState& st);
   bool findFile(const std::vector<u8>& petsciiName, size_t& outIndex) const;
   std::vector<u8> buildDirectoryListing() const;

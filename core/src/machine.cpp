@@ -111,7 +111,13 @@ RunResult Machine::runCycles(u64 maxCycles) {
   while (consumed < maxCycles) {
     // High-level LOAD trap: intercept a JSR to the KERNAL LOAD vector when media is mounted.
     if (disk_.loaded && cpu_.pc() == 0xFFD5) {
-      serviceLoadTrap();
+      const u32 trapCycles = serviceLoadTrap();
+      // Charge a deterministic cost so the cycle budget always progresses; this both models the
+      // (large) real LOAD time by advancing the devices and guarantees runCycles terminates even
+      // if a crafted stack resolves the trap return back to $FFD5.
+      bus_.idleCycles(trapCycles);
+      consumed += trapCycles;
+      totalCycles_ += trapCycles;
       continue;
     }
     if (!breakpoints_.empty() && breakpoints_.count(cpu_.pc()) != 0) {
@@ -326,14 +332,17 @@ std::vector<u8> Machine::buildDirectoryListing() const {
   return prg;
 }
 
-bool Machine::serviceLoadTrap() {
+u32 Machine::serviceLoadTrap() {
+  // A fixed nominal cost representing the KERNAL LOAD/serial overhead. It guarantees the cycle
+  // budget advances (so runCycles always terminates) and advances the devices during a load.
+  constexpr u32 kLoadTrapCycles = 4096;
   CpuState st = cpu_.state();
   const u8 device = bus_.rawRamRead(0xBA);
   if (device != 8 || !disk_.loaded) {
     st.p = static_cast<u8>(st.p | FlagC);  // carry set = error
     st.a = 5;                              // KERNAL "device not present"
     rtsFromTrap(st);
-    return true;
+    return kLoadTrapCycles;
   }
   const u8 sa = bus_.rawRamRead(0xB9);
   const u8 nameLen = bus_.rawRamRead(0xB7);
@@ -350,31 +359,34 @@ bool Machine::serviceLoadTrap() {
       st.p = static_cast<u8>(st.p | FlagC);
       st.a = 4;  // KERNAL "file not found"
       rtsFromTrap(st);
-      return true;
+      return kLoadTrapCycles;
     }
     Error err = Error::none();
     if (!extractFile(disk_, index, prg, err)) {
       st.p = static_cast<u8>(st.p | FlagC);
       st.a = 4;
       rtsFromTrap(st);
-      return true;
+      return kLoadTrapCycles;
     }
   }
 
-  // Load address: secondary address != 0 uses the file's 2-byte header; SA==0 uses X/Y.
+  // Load address: secondary address != 0 uses the file's 2-byte header; SA==0 uses X/Y. All RAM
+  // writes are masked to 16 bits, so a crafted load address or oversized file wraps within RAM
+  // (as hardware would) and can never write out of bounds.
   const u16 loadAddr = (sa != 0) ? static_cast<u16>(prg[0] | (prg[1] << 8))
                                  : static_cast<u16>(st.x | (st.y << 8));
-  u32 end = loadAddr;
+  u16 end = loadAddr;
   for (size_t i = 2; i < prg.size(); ++i) {
-    bus_.rawRamWrite(static_cast<u16>(loadAddr + (i - 2)), prg[i]);
-    end = loadAddr + static_cast<u32>(i - 1);
+    const u16 target = static_cast<u16>(loadAddr + (i - 2));
+    bus_.rawRamWrite(target, prg[i]);
+    end = static_cast<u16>(target + 1);
   }
   st.x = static_cast<u8>(end & 0xFF);
   st.y = static_cast<u8>((end >> 8) & 0xFF);
   st.p = static_cast<u8>(st.p & ~FlagC);  // carry clear = success
   st.a = 0;
   rtsFromTrap(st);
-  return true;
+  return kLoadTrapCycles;
 }
 
 }  // namespace c64

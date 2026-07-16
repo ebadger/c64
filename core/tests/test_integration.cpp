@@ -143,6 +143,23 @@ TEST(integration_load_missing_file_reports_error) {
   CHECK_EQ(m.cpuState().a, 0x04u);     // "file not found"
 }
 
+TEST(integration_load_trap_always_terminates) {
+  // A hostile setup where the JSR return address resolves back to $FFD5 must not hang runCycles:
+  // the trap charges a deterministic cycle cost so the budget always advances.
+  Machine m;
+  boot(m);
+  m.mountD64(makeD64("PROG", {0x01, 0x08, 0x11}), 8);
+  m.debugWriteRam(0xBA, 0x08);  // device 8
+  // Fill the stack so every RTS pull yields lo=$D4, hi=$FF -> pc=($FFD4)+1=$FFD5 again.
+  for (int i = 0x0100; i <= 0x01FF; ++i) m.debugWriteRam(static_cast<u16>(i), (i & 1) ? 0xD4 : 0xFF);
+  CpuState s = m.cpuState();
+  s.pc = 0xFFD5;
+  s.sp = 0xF0;
+  m.setCpuState(s);
+  RunResult r = m.runCycles(20000);  // must return (not hang)
+  CHECK(r.cyclesExecuted >= 20000u);
+}
+
 TEST(integration_long_run_determinism) {
   // The same program from a fresh power-on must produce identical state after a long run.
   auto runOnce = [](CpuState& out, u8& fbSample) {
