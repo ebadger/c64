@@ -3,23 +3,14 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-<<<<<<< HEAD
 _Last verified: 2026-07-15 — Copilot milestone-4 browser-IDE session_
-=======
-_Last verified: 2026-07-15 — Copilot milestone-2b web-client session_
->>>>>>> origin/main
 
 ## Environments
 
 | Environment | Current location | URL | State |
 |-------------|------------------|-----|-------|
-<<<<<<< HEAD
 | Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker and production WASM machine; served locally, no deployment |
 | Production | Planned GitHub Pages | `https://ebadger.github.io/c64/` | Not deployed; no workflow or site assets exist (milestone 5) |
-=======
-| Development | Repository checkout | None | Deterministic pipeline + static `web/` IDE run locally; Build/Download/Share work, Run renders an explicit emulator-unavailable state; no WASM core |
-| Production | Planned GitHub Pages | `https://ebadger.github.io/c64/` | Not deployed; no workflow or site assets exist |
->>>>>>> origin/main
 
 ## Run locally
 
@@ -27,7 +18,6 @@ The deterministic source-to-artifact pipeline (assembler → PRG → D64) runs u
 with no dependency install. From the repository root:
 
 ```sh
-<<<<<<< HEAD
 node --test tests/                 # full pipeline + web-client tests (uses production modules in src/ and web/client/lib/)
 node examples/build-example.mjs    # verify example golden vectors
 node web/client/tools/build-gallery.mjs  # verify gallery.json golden vectors
@@ -63,23 +53,6 @@ static browser IDE (`web/client/`) is implemented on top of these; the GitHub Pa
 a later milestone and is not live. Device and media fidelity is honestly
 labelled (line-based VIC renderer, approximate SID filter, high-level rather than cycle-level
 1541 drive); see the layer specs.
-=======
-node --test tests/                 # full pipeline + web-client smoke tests (production modules in src/ and web/)
-node examples/build-example.mjs    # verify committed example golden vectors
-```
-
-The static browser IDE lives in `web/` and needs no build step. Serve the repository root over
-HTTP and open `web/` (see `SETUP.md` for the exact commands and the manual browser smoke test):
-
-```sh
-python3 -m http.server 8080        # then open http://localhost:8080/web/
-```
-
-Build (assemble → PRG/D64), diagnostics, downloads, `?code`/`?src` share/remix, autosave, and
-the `border-flash` gallery entry work today. Run is intentionally unavailable: there is no
-WebAssembly emulator core or ROM set yet, so the client shows an explicit unavailable state and
-never fabricates execution.
->>>>>>> origin/main
 
 ## Verify the files that exist
 
@@ -100,14 +73,8 @@ node examples/build-example.mjs
 Expected result: template lineage is current, the learnings digest is under budget, shell
 syntax checks pass, all compliance policy tests pass, the pipeline test suite passes, and the
 committed example rebuilds to its recorded golden `buildId`/PRG/D64. These checks validate the
-<<<<<<< HEAD
 milestone-1 pipeline; they do not validate the machine core (see the core build/test commands
 above and in `SETUP.md`) or a web client (which does not exist).
-=======
-pipeline and the web client's headless smoke tests; they do not validate an emulator because the
-WebAssembly core does not exist yet. The `web/` IDE itself is verified manually in a browser
-(see `SETUP.md`).
->>>>>>> origin/main
 
 ## Build and deployment status
 
@@ -142,7 +109,6 @@ configuration and never repository or CI data.
 
 ## Current known gaps
 
-<<<<<<< HEAD
 - The static browser IDE (`web/client/`) is implemented, but the GitHub Pages deployment is a
   later milestone (no workflow or live site yet). In-app **Run** enters the machine-code entry at
   the SYS target rather than tokenizing and running BASIC in-process; the downloaded PRG still
@@ -173,31 +139,3 @@ configuration and never repository or CI data.
   capabilities before init, and the browser E2E pins Chromium. The GitHub Pages workflow does not
   exist yet (milestone 5).
 
-=======
-- The emulator core, VIC-II, SID/CIA/input, WebAssembly build, ROM handling, and GitHub Pages
-  deployment described by the layer specs are not started here. The `web/` IDE ships Build/
-  Download/Share/gallery/autosave, but its Run control stays in an explicit unavailable state
-  because the `c64core.wasm` artifact is not present in this deployment. The emulator bridge
-  (`web/modules/emulatorBridge.v1.js`) binds the finalized embind v0 boundary; once the artifact
-  is bundled, **direct-mode** Run can be enabled with no ROM (loadPrg → setPC → runFrame), while
-  **basic-sys** Run remains gated on the pending ROM decision. Wiring the live run loop (palette,
-  canvas blit, rAF pacing) is a tracked follow-up.
-- No redistributable replacement ROM set has been selected or legally reviewed.
-- Generated D64 images are covered by byte-exact Node tests but have not been independently
-  verified against external 1541 tooling or physical hardware.
-- The `web/` client is covered by headless smoke tests for its pure modules; end-to-end browser
-  behavior (worker build, downloads, canvas) is verified manually per `SETUP.md`, not in CI.
-- Anti-framing is not yet enforced: the meta CSP `frame-ancestors` is ignored by browsers, so
-  the GitHub Pages deployment must send `frame-ancestors 'none'` (or `X-Frame-Options`) as an
-  HTTP header. Low risk today (static, no accounts/privileged actions); tracked for the
-  deployment milestone.
-- Upstream template drift is pending reconciliation (`node scripts/dev/review-template-updates.mjs
-  check` reports changes beyond the seed commit). This milestone-2b PR does not reconcile it and
-  does not advance `.template-source`; full template reconciliation is tracked in ebadger/c64#4.
-- D64 import (`parseD64`/`mountD64`) validates geometry, the directory chain, and file chains,
-  but does not yet validate full BAM consistency (DOS version, free-count/bitmap agreement,
-  allocation conflicts); an image whose only defect is an inconsistent BAM is currently
-  accepted. Tracked in ebadger/c64#2.
-- No native/WASM golden vectors, browser compatibility matrix, or GitHub Pages workflow
-  exist.
->>>>>>> origin/main
