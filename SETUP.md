@@ -101,6 +101,10 @@ emcmake cmake -S core -B core/build-wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build core/build-wasm
 ```
 
+With `cmake`, `ninja`, and the emsdk environment already on `PATH`, the same two commands are
+available as a convenience alias: `npm run build:wasm`. (`npm run test:wasm` runs just the
+headless smoke test below.)
+
 Run the headless smoke test against the freshly built artifact (it exercises the same assembler
 output and the same `.wasm` the browser uses):
 
