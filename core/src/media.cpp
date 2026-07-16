@@ -190,6 +190,14 @@ bool extractFile(const Disk& disk, size_t fileIndex, std::vector<u8>& outPrg, Er
     err = Error::make(ErrorCode::InvalidPrg, "Extracted PRG is too short.");
     return false;
   }
+  // A PRG's load address plus its data length must not wrap past $FFFF (matches specs/MEDIA.md
+  // and the JS extractPrg/parsePrg). This keeps the C++ drive path consistent with the pipeline.
+  const u16 loadAddr = static_cast<u16>(outPrg[0] | (outPrg[1] << 8));
+  const u32 endExclusive = static_cast<u32>(loadAddr) + static_cast<u32>(outPrg.size() - 2);
+  if (endExclusive > 0x10000u) {
+    err = Error::make(ErrorCode::InvalidPrg, "Extracted PRG data wraps past $FFFF.");
+    return false;
+  }
   return true;
 }
 

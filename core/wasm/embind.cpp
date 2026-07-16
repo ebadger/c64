@@ -161,7 +161,10 @@ class MachineHandle {
   }
 
   val drainAudio(int maxFrames) {
-    const u32 n = static_cast<u32>(maxFrames < 0 ? 0 : maxFrames);
+    // Cap the allocation so a pathological request cannot exhaust memory; the SID buffer holds
+    // at most ~one second of samples, so this never truncates a legitimate drain.
+    u32 n = static_cast<u32>(maxFrames < 0 ? 0 : maxFrames);
+    if (n > (1u << 20)) n = 1u << 20;
     audioBuffer_.assign(n, 0.0f);
     AudioInfo info = m_.drainAudio(audioBuffer_.data(), n);
     val o = val::object();

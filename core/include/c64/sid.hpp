@@ -56,7 +56,6 @@ class Sid {
     u8 ad = 0;        // attack/decay
     u8 sr = 0;        // sustain/release
     u32 noiseLfsr = 0x7FFFFF;
-    bool accMsbPrev = false;   // for sync source detection
     // Envelope.
     EnvState state = EnvState::Release;
     u8 envelope = 0;
@@ -66,7 +65,7 @@ class Sid {
     bool gatePrev = false;
   };
 
-  void clockOscillator(int i, const Voice& syncSource);
+  void advanceOscillator(int i);   // advance one voice's accumulator + noise (no sync)
   void clockEnvelope(int i);
   u16 waveformOutput(int i) const;  // 12-bit oscillator output
   float mixSample();

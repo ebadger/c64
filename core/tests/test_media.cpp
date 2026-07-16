@@ -137,6 +137,20 @@ TEST(media_reject_file_chain_out_of_bounds) {
   CHECK_EQ(static_cast<int>(r.error.code), static_cast<int>(ErrorCode::InvalidTrackSector));
 }
 
+TEST(media_reject_prg_address_overflow) {
+  // A file whose load address + data length wraps past $FFFF must be rejected on extract, matching
+  // specs/MEDIA.md and the JS extractPrg (the drive must not wrap RAM writes and report success).
+  std::vector<u8> prg = {0xFF, 0xFF};  // load address $FFFF
+  for (int i = 0; i < 300; ++i) prg.push_back(static_cast<u8>(i & 0xFF));  // wraps past $FFFF
+  const std::vector<u8> img = makeD64("PROG", prg);
+  Disk disk;
+  CHECK(parseD64(img, disk).ok);  // geometry/chains are valid
+  std::vector<u8> out;
+  Error err = Error::none();
+  CHECK(!extractFile(disk, 0, out, err));  // but extraction rejects the overflowing PRG
+  CHECK_EQ(static_cast<int>(err.code), static_cast<int>(ErrorCode::InvalidPrg));
+}
+
 TEST(media_error_table_image_warns) {
   std::vector<u8> img = makeD64("PROG", {0x01, 0x08, 0x11});
   img.resize(175531, 0);  // append a 683-byte error table

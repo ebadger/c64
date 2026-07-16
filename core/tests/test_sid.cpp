@@ -123,6 +123,32 @@ TEST(sid_slowest_envelope_rate_progresses) {
   CHECK(sid.read(0x1C, true) >= 2u);  // the envelope advanced
 }
 
+TEST(sid_hard_sync_has_effect) {
+  // Regression: hard sync must actually reset the synced voice's oscillator (previously a no-op).
+  // Voice 3 (OSC3-readable) syncs from voice 2 (its source, n-1). With a fast source, OSC3's
+  // trace differs from the un-synced case.
+  auto trace = [](bool syncOn, std::vector<u8>& out) {
+    Sid sid;
+    sid.configure(Sid::Model::Mos6581, kPhi2, kRate);
+    // Voice 2 (source) high frequency so it overflows frequently.
+    sid.write(7 + 0, 0xFF);
+    sid.write(7 + 1, 0xFF);
+    sid.write(7 + 4, 0x11);  // triangle + gate (any running waveform)
+    // Voice 3 sawtooth, mid frequency, optional sync.
+    sid.write(14 + 0, 0x00);
+    sid.write(14 + 1, 0x08);
+    sid.write(14 + 4, static_cast<u8>(0x21 | (syncOn ? 0x02 : 0x00)));  // sawtooth + gate (+sync)
+    for (int i = 0; i < 4000; ++i) {
+      sid.tickCycle();
+      out.push_back(sid.read(0x1B, true));  // OSC3
+    }
+  };
+  std::vector<u8> withSync, withoutSync;
+  trace(true, withSync);
+  trace(false, withoutSync);
+  CHECK(withSync != withoutSync);  // sync changed the oscillator output
+}
+
 TEST(sid_test_bit_holds_oscillator) {
   Sid sid;
   sid.configure(Sid::Model::Mos6581, kPhi2, kRate);

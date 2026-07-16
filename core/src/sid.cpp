@@ -46,7 +46,7 @@ void Sid::reset() {
   std::fill(buffer_.begin(), buffer_.end(), 0.0f);
 }
 
-void Sid::clockOscillator(int i, const Voice& syncSource) {
+void Sid::advanceOscillator(int i) {
   Voice& voice = v_[i];
   if (voice.ctrl & 0x08) {  // test bit: hold accumulator and reload noise
     voice.acc = 0;
@@ -54,21 +54,12 @@ void Sid::clockOscillator(int i, const Voice& syncSource) {
     return;
   }
   const u32 prev = voice.acc;
-  // Hard sync: reset this accumulator when the sync source overflows (bit23 rising).
-  bool doAdvance = true;
-  if ((voice.ctrl & 0x02) && syncSource.accMsbPrev == false &&
-      ((syncSource.acc & 0x800000) != 0)) {
-    // Sync handled by the source's overflow flag; approximate by resetting on source MSB rise.
-    voice.acc = 0;
-    doAdvance = false;
-  }
-  if (doAdvance) voice.acc = (voice.acc + voice.freq) & 0xFFFFFF;
+  voice.acc = (voice.acc + voice.freq) & 0xFFFFFF;
   // Noise LFSR clocks on bit19 rising edge of the accumulator.
   if (((prev & 0x080000) == 0) && ((voice.acc & 0x080000) != 0)) {
     const u32 bit0 = ((voice.noiseLfsr >> 22) ^ (voice.noiseLfsr >> 17)) & 1;
     voice.noiseLfsr = ((voice.noiseLfsr << 1) | bit0) & 0x7FFFFF;
   }
-  voice.accMsbPrev = (voice.acc & 0x800000) != 0;
 }
 
 u16 Sid::waveformOutput(int i) const {
@@ -209,13 +200,17 @@ void Sid::emitSampleIfDue() {
 }
 
 void Sid::tickCycle() {
-  // Sync source for each voice is the previous voice (voice n synced from voice n-1).
-  const Voice src0 = v_[2];
-  const Voice src1 = v_[0];
-  const Voice src2 = v_[1];
-  clockOscillator(0, src0);
-  clockOscillator(1, src1);
-  clockOscillator(2, src2);
+  // Advance all three accumulators, then apply hard sync: voice n resets when its sync source
+  // (voice n-1) overflows this cycle (accumulator bit23 rising 0->1). Edge detection uses each
+  // source's pre-advance MSB, so sync is correctly triggered (not a no-op).
+  bool oldMsb[3];
+  for (int i = 0; i < 3; ++i) oldMsb[i] = (v_[i].acc & 0x800000) != 0;
+  for (int i = 0; i < 3; ++i) advanceOscillator(i);
+  bool overflow[3];
+  for (int i = 0; i < 3; ++i) overflow[i] = !oldMsb[i] && ((v_[i].acc & 0x800000) != 0);
+  for (int i = 0; i < 3; ++i) {
+    if ((v_[i].ctrl & 0x02) && overflow[(i + 2) % 3]) v_[i].acc = 0;  // hard sync reset
+  }
   clockEnvelope(0);
   clockEnvelope(1);
   clockEnvelope(2);
