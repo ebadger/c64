@@ -141,6 +141,8 @@ function cacheElements() {
     "romLgplLink:rom-lgpl-link", "romGplLink:rom-gpl-link",
     "romChargenNoticeLink:rom-chargen-notice-link",
     "romSourceLink:rom-source-link", "romCustom:rom-custom", "romRoles:rom-roles",
+    "driveLicenseLink:drive-license-link", "driveProvenanceLink:drive-provenance-link",
+    "driveSourceLink:drive-source-link",
     "d64File:d64-file", "d64Status:d64-status", "d64Controls:d64-controls",
     "d64Program:d64-program", "d64Entry:d64-entry", "d64EntryStatus:d64-entry-status",
     "btnRunD64:btn-run-d64", "btnEjectD64:btn-eject-d64",
@@ -657,6 +659,9 @@ async function selectRomSource(source) {
     els.romGplLink.href = loaded.set.gplUrl;
     els.romChargenNoticeLink.href = loaded.set.chargenNoticeUrl;
     els.romSourceLink.href = loaded.set.sourceArchiveUrl;
+    els.driveLicenseLink.href = loaded.set.driveLicenseUrl;
+    els.driveProvenanceLink.href = loaded.set.driveProvenanceUrl;
+    els.driveSourceLink.href = loaded.set.driveSourceArchiveUrl;
     setHidden(els.romLegal, false);
   }
   renderRomRoles();

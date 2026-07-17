@@ -14,21 +14,21 @@ example, and download standard artifacts for external tools or physical hardware
 
 This repository currently contains the specialized product and architecture foundation, the
 implemented deterministic source-to-artifact pipeline (assembler, PRG, and D64), and the
-deterministic C++17 machine core: a complete documented NMOS 6510 CPU, C64 bus/banking and ROM
+deterministic C++17 machine core: a documented plus stable-undocumented NMOS 6510/6502 CPU, C64 bus/banking and ROM
 validation, plus cycle-integrated VIC-II, SID, and CIA devices and read-only mounted D64
 execution — compiled once to a production WebAssembly artifact and exercised by native and
 headless WASM parity tests. The static browser IDE (`web/client/`) integrates the production
 assembler worker and production WASM machine with a validated examples gallery, and a deterministic
 `dist/` build plus a GitHub Actions release pipeline deploy the gated bundle to GitHub Pages on
 merged `main`; the Pages site is live at `https://ebadger.github.io/c64/`. Device and media fidelity is honestly
-labelled in the layer specs (line-based VIC renderer, approximate SID filter, high-level
-rather than cycle-level 1541 drive).
+labelled in the layer specs (line-based VIC renderer, approximate SID filter, and bounded
+instruction-atomic cross-clock skew in the digital 1541 drive).
 
 ## Architecture at a glance
 
 ```text
 Committed examples / ?src / ?code / localStorage
-Bundled Pascual ROMs / local custom ROM selection
+Bundled Pascual C64 + 1541 ROMs / local custom C64 ROM selection
                        |
                        v
           Static browser client on GitHub Pages
@@ -92,7 +92,7 @@ There is no runtime API, account system, database, or secret.
    selected manifest-verified bundled or complete custom RomSet -> emulator load ->
    deterministic cycles -> framebuffer/audio -> browser presentation.
 2. **Boot BASIC:** selected manifest-verified bundled or complete custom RomSet + optional
-   validated D64 -> configure/mount -> ROM reset vector -> deterministic cycles ->
+   validated D64 -> configure/mount -> C64 + drive ROM reset vectors -> deterministic cycles ->
    framebuffer/audio -> browser presentation.
 3. **Download:** assembly result -> PRG serializer and D64 builder -> browser `Blob` ->
    user-controlled file download.
@@ -114,9 +114,9 @@ There is no runtime API, account system, database, or secret.
 | Template lineage and operating controls | Inherited and instantiated at template commit `66a14469787860a1b08918f4089f9070680bb3e9` |
 | Machine core (CPU, bus/banking, ROM validation, lifecycle) | Implemented — deterministic C++17 core with native + WASM parity tests |
 | VIC-II, SID/CIA/input | Implemented — cycle-integrated devices (line-based VIC renderer, approximate SID filter); honestly-labelled fidelity in the layer specs |
-| Mounted D64 execution | Implemented — read-only browse/run/eject plus a high-level KERNAL LOAD/IEC trap (drive 8); not a cycle-level 1541 GCR drive |
+| Mounted D64 execution | Implemented — read-only browse/run/eject plus independent 1 MHz drive CPU, selected-ROM VIA surface, wired IEC, and deterministic rotating GCR (drive 8); bounded digital model, not analog flux |
 | Assembler and PRG/D64 generation | Implemented — deterministic browser/Node pipeline in `src/` with Node golden-vector tests |
-| ROM asset handling | Implemented — pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen default with exact integrity/provenance/source gate; explicit complete custom-set override remains memory-only with unknown-digest confirmation |
+| ROM asset handling | Implemented — pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen and clean-room Pascual DOS-1541 defaults with exact integrity/provenance/source gates; explicit complete custom C64 set override remains memory-only with unknown-digest confirmation |
 | Web client, examples, and gallery | Implemented — 3RIC-compatible terminal shell with an emulator-first responsive workspace, exact-result Build & Run, sample selector, build worker, reset-vector BASIC boot, deterministic direct-entry Run, machine presentation/input, disk controls, sharing, downloads, and a validated `gallery.json`; the milestone-1 example visibly cycles its border while running |
 | Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and CI workflows |
 | Production dist build + GitHub Pages deployment | Implemented and live — deterministic `dist/` build (`scripts/build/build-dist.mjs`), dist reference/integrity tests, external D64 interoperability (VICE `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and `.github/workflows/release.yml` deploying the gated artifact on merged `main` |

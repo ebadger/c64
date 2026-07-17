@@ -57,7 +57,11 @@ function contrastRatio(a, b) {
 const out = freshOut("c64-dist-a-");
 const { manifest, wasmIncluded } = buildDist({ repoRoot, outDir: out, requireWasm: false });
 const bundledRoms = verifyBundledRomAssets(out, "roms");
-const approvedRomPaths = new Set(Object.values(bundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`));
+const approvedRomPaths = new Set([
+  ...Object.values(bundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`),
+  `roms/${bundledRoms.manifest.drive.rom.path}`,
+  `roms/${bundledRoms.manifest.drive.baseRom.path}`,
+]);
 
 test.after(() => rmSync(out, { recursive: true, force: true }));
 
@@ -82,6 +86,11 @@ test("dist contains the required app-rooted layout and nothing private", () => {
     "roms/NOTICE.md",
     "roms/PROVENANCE.md",
     `roms/${bundledRoms.manifest.sourceArchive.path}`,
+    `roms/${bundledRoms.manifest.drive.rom.path}`,
+    `roms/${bundledRoms.manifest.drive.baseRom.path}`,
+    `roms/${bundledRoms.manifest.drive.patch.path}`,
+    `roms/${bundledRoms.manifest.drive.sourceArchive.path}`,
+    ...bundledRoms.manifest.drive.redistributionFiles.map((entry) => `roms/${entry.path}`),
     "asset-manifest.json",
     "THIRD-PARTY-NOTICES.md",
   ]) {
@@ -250,6 +259,8 @@ test("third-party notices inventory identifies Pascual redistribution and build-
   assert.match(notices, /Microsoft MIT/);
   assert.match(notices, /LGPL-3.0-or-later/);
   assert.match(notices, /corresponding source/);
+  assert.match(notices, /Pascual_DOS-1541/);
+  assert.match(notices, /wildcard patch/);
   assert.match(notices, /No proprietary Commodore ROM dump/i);
   assert.match(notices, /Emscripten/);
   assert.match(notices, /Playwright/);

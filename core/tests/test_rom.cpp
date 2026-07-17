@@ -82,3 +82,25 @@ TEST(rom_synthetic_vectors) {
   CHECK_EQ(set.kernal[0xFFFA - 0xE000], 0x43u);
   CHECK_EQ(set.kernal[0xFFFB - 0xE000], 0xFEu);
 }
+
+TEST(rom_drive_validation_and_identity) {
+  RomImage image = ::image(kDriveRomSize, 0x5A);
+  image.licenseId = "MIT";
+  DriveRomResult result = validateDriveRom(image);
+  CHECK(result.ok);
+  CHECK(result.rom.complete());
+  CHECK_EQ(result.rom.size, kDriveRomSize);
+  CHECK_STR_EQ(result.rom.id, sha256Hex(image.bytes));
+  CHECK(driveRomIdentityMatches(result.rom));
+
+  result.rom.bytes[0] ^= 0xFF;
+  CHECK(!driveRomIdentityMatches(result.rom));
+  CHECK(!validateDriveRom(::image(kDriveRomSize - 1, 0)).ok);
+}
+
+TEST(rom_synthetic_drive_vector) {
+  DriveRom rom = syntheticDriveRom(0xC123);
+  CHECK(rom.complete());
+  CHECK_EQ(rom.bytes[0x3FFC], 0x23u);
+  CHECK_EQ(rom.bytes[0x3FFD], 0xC1u);
+}

@@ -1,6 +1,8 @@
 #include "c64/bus.hpp"
 
 #include "c64/cpu.hpp"
+#include "c64/drive.hpp"
+#include "c64/iec.hpp"
 
 namespace c64 {
 
@@ -61,6 +63,10 @@ void Bus::powerOnReset(u8 fillSeed) {
   sid_.reset();
   cia1_.reset();
   cia2_.reset();
+  if (iec_ != nullptr) {
+    iec_->setC64PortA(cia2_.portAOutputLatch(), cia2_.portADirection());
+    cia2_.setPortAInputs(iec_->c64PortAInputs());
+  }
 }
 
 void Bus::warmReset() {
@@ -74,6 +80,10 @@ void Bus::warmReset() {
   sid_.reset();
   cia1_.reset();
   cia2_.reset();
+  if (iec_ != nullptr) {
+    iec_->setC64PortA(cia2_.portAOutputLatch(), cia2_.portADirection());
+    cia2_.setPortAInputs(iec_->c64PortAInputs());
+  }
 }
 
 MappedRegion Bus::regionOf(u16 addr) const {
@@ -210,6 +220,10 @@ void Bus::write(u16 addr, u8 value) {
 }
 
 void Bus::cycle() {
+  if (iec_ != nullptr) iec_->setC64PortA(cia2_.portAOutputLatch(), cia2_.portADirection());
+  if (drive_ != nullptr) drive_->tickC64Cycle();
+  if (iec_ != nullptr) cia2_.setPortAInputs(iec_->c64PortAInputs());
+
   // Tick every clocked device by exactly one CPU cycle, then aggregate their interrupt outputs
   // onto the CPU. C64 wiring: VIC-II and CIA1 drive IRQ; CIA2 (and RESTORE, handled by the
   // machine via triggerNmi) drives NMI. The VIC bank comes from CIA2 port A.

@@ -124,31 +124,32 @@ error-byte table:
 - Optional curated `?d64=<id>` values resolve only through committed gallery metadata and
   same-origin static assets; arbitrary remote URLs are not fetched.
 
-### Emulated-drive fidelity: high-level KERNAL LOAD / IEC trap (READ THIS)
+### Emulated-drive fidelity: 1541 CPU / VIA / IEC / GCR
 
-**The mounted disk is served by a deterministic high-level file-service trap, NOT a cycle-level
-1541 CPU/VIA/GCR emulation.** This is a deliberate, prominently-labelled compatibility boundary:
+Mounted media is served by an independent drive machine; the core does not intercept `$FFD5` or
+decode KERNAL parameter blocks.
 
-- The core intercepts a call to the KERNAL LOAD vector (`$FFD5`) when media is mounted. It reads
-  the standard KERNAL zero-page LOAD parameters (device `$BA`, secondary address `$B9`, filename
-  pointer `$BB/$BC` and length `$B7`), locates the file on the immutable D64 (CBM name matching
-  with `*`/`?` wildcards; `$` loads a generated directory listing), copies the file into RAM at
-  the load address (the PRG header when SA≠0, else the X/Y address), sets the KERNAL return
-  registers (carry clear, `X/Y` = end address; carry set with `A=4`/`A=5` on error), and returns.
-- **Supported:** standard `LOAD"NAME",8` / `LOAD"NAME",8,1` and `LOAD"$",8` directory loads
-  through drive 8, the common path for the broad-compatibility MVP. Only **drive 8** is supported
-  (`unsupported-media` otherwise).
-- **NOT supported (returns explicit errors or is simply not intercepted):** custom drive code
-  (`M-E`/`M-W`/`M-R`), fastloaders, bit-level GCR access, non-standard serial protocols, and
-  anything that bypasses the KERNAL LOAD vector. Programs that hand-roll the serial routine or
-  upload drive code are outside this boundary and are not emulated.
-- No 1541 drive ROM is required, fetched, or bundled by this path; there is therefore no
-  copyrighted 1541 ROM in the repository, tests, or artifacts. A future real GCR drive model (if
-  it is ever added) would need a redistributable drive ROM under `ROM-ASSETS.md` and is out of
-  scope here.
-- Byte identity is preserved: `extractFile` returns the exact PRG byte stream (2-byte load
-  address + data) from the sector chain. Issue #2's deferred full BAM-consistency scope is
-  unchanged.
+- Drive 8 runs a validated redistributable 16 KiB DOS ROM on the shared NMOS CPU core with 2 KiB
+  drive RAM and two 6522 VIA devices. C64 CIA2 and drive VIA1 communicate over deterministic
+  open-collector IEC ATN/CLOCK/DATA lines.
+- Every accepted 35-track D64 is encoded into immutable rotating GCR tracks. Each sector produces
+  a standard header sync/header/checksum/gap and data sync/data/checksum/gap; physical track
+  lengths follow the four 1541 density zones. VIA2 exposes motor, stepper, density, write-protect,
+  SYNC, byte latch, and byte-ready/SO behavior.
+- Standard KERNAL `LOAD`, `OPEN`, command/status channels, and software serial routines therefore
+  use the same drive-side path. Compatibility is constrained by the selected clean-room DOS ROM:
+  it implements documented serial/file operations but intentionally does not reproduce private
+  entry points from Commodore's proprietary ROM. Fastloaders that upload and execute their own
+  drive code can work only when they depend on the implemented 6502/VIA/GCR behavior and not on an
+  absent proprietary ROM entry point or writable media.
+- Cross-machine scheduling has the bounded instruction-atomic skew declared in
+  [`EMULATOR.md`](./EMULATOR.md). This is digital GCR/line emulation, not flux, analog drive-speed,
+  weak-bit, half-track, copy-protection, or physical-hardware verification.
+- The mounted image is read-only and write protect is asserted. SAVE, scratch, format, sector
+  writes, and commands requiring mutation return the DOS ROM's write-protect result; they never
+  modify imported bytes or create success-shaped volatile changes.
+- Byte identity remains available through `extractFile` for direct browser launch. Issue #2's
+  deferred full BAM-consistency validation is unchanged.
 
 ## Data flow
 
@@ -185,7 +186,7 @@ visible but marks them stale.
 | PRG parser/validator | Implemented | `parsePrg` shares serializer golden vectors with codegen |
 | Deterministic 35-track D64 builder | Implemented | Byte-exact BAM/directory/chain construction under tests |
 | D64 parser/import | Implemented (limited) | `parseD64`/`extractPrg` (JS) and the C++ core `parseD64`/`extractFile` validate geometry, directory chain, and file chains; full BAM-consistency validation is deferred to ebadger/c64#2 |
-| 1541 drive behavior | Implemented (high-level trap) | Read-only KERNAL LOAD/IEC file-service trap for drive 8 (see the fidelity section above); no cycle-level GCR drive |
+| 1541 drive behavior | Implemented (bounded digital model) | Independent 1 MHz CPU, selected-ROM VIA surface, wired IEC, stepper/motor, and deterministic rotating GCR for read-only drive 8; instruction-atomic cross-clock skew and no analog/flux claims |
 | Browser directory/boot/run/eject workflow | Implemented | Immediate validation, BASIC boot with mounted-media reset continuity, explicit PRG selection and entry, direct exact-byte load, and idempotent drive-8 eject |
 | Curated D64 routes | Implemented | Same-origin gallery IDs only (`?d64` resolves through a valid gallery entry); owned by `WEB-CLIENT.md` |
 | External-tool interoperability | Implemented (software) | `tests/interop/` round-trips a generated D64 through VICE `c1541` (provisioned reproducibly, no committed binary) and asserts 35-track directory metadata plus byte-exact extracted PRG (`tests/interop/PROVENANCE.md`) |
@@ -193,5 +194,5 @@ visible but marks them stale.
 External-tool D64 interoperability is now independently verified against **software** tooling (VICE
 `c1541`): the release gate confirms the generated image's directory metadata and extracts a
 byte-identical PRG through the third-party tool. This is a software-interoperability claim only — it
-does **not** verify physical 1541 hardware, real GCR flux/timing, custom drive code, or fastloaders,
-which remain out of scope (see the fidelity section above and `status/SYSTEM-STATUS.md`).
+does **not** verify physical 1541 hardware, analog GCR flux/timing, weak bits, or protected-disk
+behavior; see the fidelity section above and `status/SYSTEM-STATUS.md`.

@@ -14,6 +14,7 @@ function bundledRoms() {
     basic: new Uint8Array(readFileSync(new URL("basic.rom", pascualDir))),
     kernal: new Uint8Array(readFileSync(new URL("kernal.rom", pascualDir))),
     chargen: new Uint8Array(readFileSync(new URL("chargen.rom", pascualDir))),
+    drive: new Uint8Array(readFileSync(new URL("dos1541.rom", pascualDir))),
   };
 }
 

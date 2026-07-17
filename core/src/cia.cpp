@@ -40,7 +40,7 @@ u8 Cia::bcdInc(u8 value, u8 max) {
 }
 
 u8 Cia::portAPins() const {
-  u8 val = static_cast<u8>((pra_ & ddra_) | (~ddra_ & 0xFF));
+  u8 val = static_cast<u8>(((pra_ & ddra_) | (~ddra_ & 0xFF)) & portAInputs_);
   if (variant_ == Variant::Cia1) {
     val &= joy2_;  // joystick 2 shares CIA1 port A
     // Reverse keyboard scan: rows driven low on port B pull their columns low.

@@ -63,7 +63,8 @@ export class MachineController {
   /**
    * Configure and power on with a validated ROM set. Returns { ok, error } where error is a
    * categorized UI error. A prior machine is disposed first.
-   * @param {{ timingProfile: string, sidModel: string, roms: {basic:Uint8Array,kernal:Uint8Array,chargen:Uint8Array} }} cfg
+   * @param {{ timingProfile: string, sidModel: string,
+   *           roms: {basic:Uint8Array,kernal:Uint8Array,chargen:Uint8Array,drive:?Uint8Array} }} cfg
    */
   configure({ timingProfile, sidModel, roms }) {
     this.dispose();
@@ -74,6 +75,7 @@ export class MachineController {
       basic: roms.basic,
       kernal: roms.kernal,
       chargen: roms.chargen,
+      drive: roms.drive,
     });
     if (machine.configureError !== "none") {
       const code = machine.configureError;

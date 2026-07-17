@@ -84,13 +84,22 @@ export class Machine {
    * Configure and power on. ROM byte arrays are copied into the module.
    * @returns {string} error code id ("none" on success)
    */
-  configure({ timingProfile = "pal-6569", sidModel = "6581", basic, kernal, chargen, powerOnSeed = 0 }) {
+  configure({
+    timingProfile = "pal-6569",
+    sidModel = "6581",
+    basic,
+    kernal,
+    chargen,
+    drive,
+    powerOnSeed = 0,
+  }) {
     return this._h.configure(
       timingProfile,
       sidModel,
       toUint8(basic),
       toUint8(kernal),
       toUint8(chargen),
+      toUint8(drive),
       powerOnSeed | 0,
     );
   }

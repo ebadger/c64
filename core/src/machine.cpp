@@ -2,7 +2,10 @@
 
 namespace c64 {
 
-Machine::Machine() : cpu_(bus_) { bus_.attachCpu(&cpu_); }
+Machine::Machine() : drive_(iec_), cpu_(bus_) {
+  bus_.attachCpu(&cpu_);
+  bus_.attachDrive(&iec_, &drive_);
+}
 
 Error Machine::configure(const MachineConfig& config) {
   const TimingProfile* profile = nullptr;
@@ -21,14 +24,23 @@ Error Machine::configure(const MachineConfig& config) {
     return Error::make(ErrorCode::RomMismatch,
                        "ROM set identity/digests are inconsistent with its bytes.");
   }
+  if (config.driveRom.complete() && !driveRomIdentityMatches(config.driveRom)) {
+    return Error::make(ErrorCode::RomMismatch,
+                       "Drive ROM identity/digest is inconsistent with its bytes.");
+  }
+  if (!config.driveRom.bytes.empty() && !config.driveRom.complete()) {
+    return Error::make(ErrorCode::RomSize, "Drive ROM must be exactly 16384 bytes.");
+  }
 
   config_ = config;
   roms_ = config.roms;
+  driveRom_ = config.driveRom;
   profile_ = profile;
   bus_.setRoms(roms_);
   const Sid::Model sidModel =
       (config.sidModel == "8580") ? Sid::Model::Mos8580 : Sid::Model::Mos6581;
   bus_.configureDevices(*profile_, sidModel, config.sampleRate ? config.sampleRate : 44100);
+  drive_.configure(driveRom_.bytes, *profile_);
   ready_ = true;
   return reset(ResetKind::PowerOn);
 }
@@ -45,9 +57,13 @@ Error Machine::reset(ResetKind kind) {
   if (!e.ok()) return e;
 
   if (kind == ResetKind::PowerOn) {
+    iec_.reset();
+    drive_.reset();
     bus_.powerOnReset(config_.powerOnSeed);
     cpu_.powerOn();
   } else {
+    iec_.reset();
+    drive_.reset();
     bus_.warmReset();
     cpu_.reset();
   }
@@ -110,7 +126,7 @@ RunResult Machine::runCycles(u64 maxCycles) {
   u64 consumed = 0;
   while (consumed < maxCycles) {
     // High-level LOAD trap: intercept a JSR to the KERNAL LOAD vector when media is mounted.
-    if (disk_.loaded && cpu_.pc() == 0xFFD5) {
+    if (disk_.loaded && !drive_.configured() && cpu_.pc() == 0xFFD5) {
       const u32 trapCycles = serviceLoadTrap();
       // Charge a deterministic cost so the cycle budget always progresses; this both models the
       // (large) real LOAD time by advancing the devices and guarantees runCycles terminates even
@@ -221,13 +237,14 @@ MediaResult Machine::mountD64(const std::vector<u8>& bytes, u8 driveNumber) {
   }
   if (driveNumber != 8) {
     r.error = Error::make(ErrorCode::UnsupportedMedia,
-                          "Only drive 8 is supported by the high-level IEC drive model.");
+                          "Only drive 8 is supported by the D64 drive model.");
     return r;
   }
   Disk parsed;
   MediaResult parseResult = parseD64(bytes, parsed);
   if (!parseResult.ok) return parseResult;  // malformed media is never mounted
   disk_ = std::move(parsed);
+  drive_.mount(disk_);
   return parseResult;
 }
 
@@ -236,13 +253,14 @@ Error Machine::unmountD64(u8 driveNumber) {
   if (!e.ok()) return e;
   if (driveNumber != 8) {
     return Error::make(ErrorCode::UnsupportedMedia,
-                       "Only drive 8 is supported by the high-level IEC drive model.");
+                       "Only drive 8 is supported by the D64 drive model.");
   }
   disk_ = Disk{};
+  drive_.unmount();
   return Error::none();
 }
 
-// --- High-level LOAD trap ---------------------------------------------------------------------
+// --- Firmware-free compatibility LOAD trap ----------------------------------------------------
 
 void Machine::rtsFromTrap(CpuState& st) {
   // Pull the JSR return address off the stack and continue after it (RTS semantics).

@@ -61,7 +61,7 @@ test("romSetStatus reports missing and unconfirmed roles", () => {
 test("RomManager becomes ready after confirming a complete unknown-digest set (Run enablement)", () => {
   // Regression: setRoleBytes must store an accepted descriptor that romSetStatus keys readiness
   // off. A prior defect stored the descriptor without `ok`, so readiness was permanently false and
-  // Run could never be enabled with user-supplied ROMs (the only supported case today).
+  // Run could never be enabled with user-supplied ROMs.
   const rm = new RomManager();
   assert.equal(rm.ready(), false);
   for (const role of ROM_ROLES) {
@@ -148,8 +148,13 @@ test("loads the pinned vendored Pascual set only after every package asset passe
     new URL(bundledManifest.roles.basic.path, manifestUrl).href,
     new URL(bundledManifest.roles.kernal.path, manifestUrl).href,
     new URL(bundledManifest.roles.chargen.path, manifestUrl).href,
+    new URL(bundledManifest.drive.rom.path, manifestUrl).href,
     new URL(bundledManifest.sourceArchive.path, manifestUrl).href,
     ...bundledManifest.redistributionFiles.map((entry) => new URL(entry.path, manifestUrl).href),
+    new URL(bundledManifest.drive.sourceArchive.path, manifestUrl).href,
+    ...bundledManifest.drive.redistributionFiles.map((entry) => new URL(entry.path, manifestUrl).href),
+    new URL(bundledManifest.drive.baseRom.path, manifestUrl).href,
+    new URL(bundledManifest.drive.patch.path, manifestUrl).href,
   ]);
   assert.equal(result.set.licenseUrl, new URL("LICENSE.txt", manifestUrl).href);
   assert.equal(result.set.basicLicenseUrl, new URL("LICENSE-microsoft.txt", manifestUrl).href);
@@ -158,6 +163,13 @@ test("loads the pinned vendored Pascual set only after every package asset passe
   assert.equal(result.set.chargenNoticeUrl, new URL("NOTICE.md", manifestUrl).href);
   assert.equal(result.set.provenanceUrl, new URL("PROVENANCE.md", manifestUrl).href);
   assert.equal(result.set.sourceArchiveUrl, new URL(bundledManifest.sourceArchive.path, manifestUrl).href);
+  assert.equal(result.set.driveLicenseUrl, new URL("LICENSE-dos1541.txt", manifestUrl).href);
+  assert.equal(result.set.driveProvenanceUrl, new URL("PROCEDENCIA-dos1541.md", manifestUrl).href);
+  assert.equal(
+    result.set.driveSourceArchiveUrl,
+    new URL(bundledManifest.drive.sourceArchive.path, manifestUrl).href,
+  );
+  assert.equal(result.set.drive.sha256, bundledManifest.drive.rom.sha256);
 
   const manager = new RomManager();
   const applied = manager.setBundledSet(result.set);
@@ -165,6 +177,7 @@ test("loads the pinned vendored Pascual set only after every package asset passe
   assert.equal(manager.ready(), true);
   assert.equal(manager.status().source, "bundled");
   assert.equal(manager.status().set.id, bundledManifest.id);
+  assert.equal(manager.status().drive.digest, bundledManifest.drive.rom.sha256);
   for (const role of ROM_ROLES) {
     assert.equal(manager.status().roles[role].source, "bundled-replacement");
     assert.equal(manager.status().roles[role].digest, bundledManifest.roles[role].sha256);
@@ -212,6 +225,11 @@ test("a bundled source or legal-file mismatch fails the runtime package closed",
   for (const changedPath of [
     bundledManifest.sourceArchive.path,
     bundledManifest.licenses.basic.path,
+    bundledManifest.drive.sourceArchive.path,
+    bundledManifest.drive.license.path,
+    bundledManifest.drive.baseRom.path,
+    bundledManifest.drive.patch.path,
+    bundledManifest.drive.rom.path,
   ]) {
     const manifestUrl = new URL("https://example.test/roms/manifest.json");
     const loaded = await loadBundledRomSet(manifestUrl, async (url) => {
@@ -243,6 +261,11 @@ test("RomManager never mixes a bundled role with an incremental custom set", () 
         },
       ]),
     ),
+    drive: {
+      bytes: new Uint8Array(readFileSync(new URL(bundledManifest.drive.rom.path, bundledRomsDir))),
+      sha256: bundledManifest.drive.rom.sha256,
+      licenseId: bundledManifest.drive.license.id,
+    },
   };
   assert.equal(manager.setBundledSet(bundledSet).ok, true);
   assert.equal(manager.ready(), true);
@@ -254,6 +277,20 @@ test("RomManager never mixes a bundled role with an incremental custom set", () 
   assert.equal(status.roles.basic.source, "user-supplied");
   assert.equal(status.roles.kernal, null);
   assert.equal(status.roles.chargen, null);
+  assert.equal(status.drive.digest, bundledManifest.drive.rom.sha256);
+
+  manager.clear();
+  assert.equal(manager.status().drive.digest, bundledManifest.drive.rom.sha256);
+  for (const role of ROM_ROLES) {
+    manager.setRoleBytes(role, rom(role, 0x70 + ROM_ROLES.indexOf(role)));
+    manager.confirmRole(role);
+  }
+  const customSet = manager.getRomSet();
+  assert.equal(customSet.drive.length, 16384);
+  assert.deepEqual(
+    customSet.drive,
+    new Uint8Array(readFileSync(new URL(bundledManifest.drive.rom.path, bundledRomsDir))),
+  );
 });
 
 test("RomManager rejects an invalid bundled candidate without replacing a ready custom set", () => {

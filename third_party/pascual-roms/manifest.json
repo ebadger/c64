@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "id": "pascuals-basic-c64",
   "title": "Pascual's BASIC/KERNAL with MEGA65 PXL chargen",
   "upstreamRepository": "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC",
@@ -62,8 +62,8 @@
     },
     {
       "path": "PROVENANCE.md",
-      "bytes": 2364,
-      "sha256": "3443e4f7f2786226f9609acee603669d35b285be085f50f4332e4d93f58d85a4"
+      "bytes": 3855,
+      "sha256": "3bbecf2f1350f96f07ae81552b619b738f2cd3ba69da078c47e4467d7560917e"
     }
   ],
   "roles": {
@@ -84,6 +84,67 @@
       "upstreamPath": "bin/chargen.bin",
       "bytes": 4096,
       "sha256": "5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7"
+    }
+  },
+  "drive": {
+    "id": "pascual-dos-1541-c64",
+    "title": "Pascual DOS-1541 with c64 wildcard compatibility",
+    "upstreamRepository": "https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541",
+    "revision": "72c2648494c71126cf5338f0c3c09b9e815a8b50",
+    "sourceUrl": "https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541/tree/72c2648494c71126cf5338f0c3c09b9e815a8b50",
+    "sourceArchive": {
+      "path": "pascual-dos-1541-72c2648494c71126cf5338f0c3c09b9e815a8b50.tar.gz",
+      "bytes": 82984,
+      "sha256": "ade11365bd3ae671e681306d536d4942942be2a3fcb10ef0f54b2ffdff2fff9c"
+    },
+    "license": {
+      "id": "MIT",
+      "path": "LICENSE-dos1541.txt"
+    },
+    "redistributionFiles": [
+      {
+        "path": "LICENSE-dos1541.txt",
+        "bytes": 1079,
+        "sha256": "20e3dc98c849f182118dcd3a1464c8310205d53d6452dd997e519ba0128830f0"
+      },
+      {
+        "path": "README-dos1541.md",
+        "bytes": 8032,
+        "sha256": "a1bfe1d80a596ed8be7ce6456e6e974f0c0cb8c2478c6832cbf179cb8e3ce8a4"
+      },
+      {
+        "path": "PROCEDENCIA-dos1541.md",
+        "bytes": 5867,
+        "sha256": "7785ca6e584b7857634bfe51e61c07bd5179d796a951c6821eaaf31bc61c366b"
+      },
+      {
+        "path": "NOTAS-BUS-VICE-dos1541.md",
+        "bytes": 9345,
+        "sha256": "857ae208c165ce23a6b9b2ff065f657b869039144adc9082a2f438745b6e0e97"
+      },
+      {
+        "path": "NOTAS-DISCO-VICE-dos1541.md",
+        "bytes": 13207,
+        "sha256": "6fa4dcbb7177dfe187604f061d13bfe70029afeb77244f445ae08c16f1851a40"
+      }
+    ],
+    "baseRom": {
+      "path": "dos1541-upstream.rom",
+      "upstreamPath": "dos.bin",
+      "bytes": 16384,
+      "sha256": "c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39"
+    },
+    "patch": {
+      "path": "dos1541-c64-wildcards.patch",
+      "bytes": 558,
+      "sha256": "0ad5224b08295edb922b16fd394c8c4dca488edc38ad481a5cc58a903052e0f9"
+    },
+    "rom": {
+      "path": "dos1541.rom",
+      "upstreamPath": "dos.bin",
+      "bytes": 16384,
+      "sha256": "0a77fedc1a65b0dca49bd3bf3d5607b05e6fbf3d6d10b7b14b005fe62532104d",
+      "baseSha256": "c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39"
     }
   }
 }

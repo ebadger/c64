@@ -22,6 +22,7 @@ enum class RomRole : u8 { Basic = 0, Kernal = 1, Chargen = 2 };
 constexpr u32 kBasicRomSize = 8192;
 constexpr u32 kKernalRomSize = 8192;
 constexpr u32 kChargenRomSize = 4096;
+constexpr u32 kDriveRomSize = 16384;
 
 // Stable lowercase role id: "basic" | "kernal" | "chargen".
 const char* romRoleId(RomRole role);
@@ -63,6 +64,24 @@ struct RomSetResult {
   Error error = Error::none();
 };
 
+struct DriveRom {
+  u32 schema = 1;
+  std::string id;  // plain SHA-256 over bytes
+  std::vector<u8> bytes;
+  u32 size = 0;
+  std::string sha256;
+  std::string licenseId;
+  std::string source;
+
+  bool complete() const { return bytes.size() == kDriveRomSize; }
+};
+
+struct DriveRomResult {
+  bool ok = false;
+  DriveRom rom;
+  Error error = Error::none();
+};
+
 // Validate three role images into a RomSet.
 //
 // Errors (never exceptions):
@@ -80,12 +99,16 @@ RomSetResult validateRomSet(const RomImage& basic, const RomImage& kernal,
 // if the set is incomplete.
 bool romSetIdentityMatches(const RomSet& set);
 
+DriveRomResult validateDriveRom(const RomImage& image);
+bool driveRomIdentityMatches(const DriveRom& rom);
+
 // Build a fully synthetic, legally-clean ROM set for tests and headless bring-up. The bytes
 // are generated from a seed (never copyrighted dumps): each role is filled with a
 // role-specific deterministic pattern, and the KERNAL image carries valid NMI/RESET/IRQ
 // vectors at $FFFA/$FFFC/$FFFE pointing at the provided addresses. This lets reset and
 // interrupt sequencing be exercised without any Commodore ROM.
 RomSet syntheticRomSet(u16 resetVector, u16 irqVector, u16 nmiVector);
+DriveRom syntheticDriveRom(u16 resetVector);
 
 }  // namespace c64
 

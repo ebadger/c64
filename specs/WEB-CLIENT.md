@@ -17,8 +17,8 @@ Static assets include:
 - `index.html` and versioned CSS/ES modules
 - the production emulator `.wasm` and generated embind loader
 - `gallery.json` plus committed example source and optional curated media
-- the pinned Pascual's BASIC/KERNAL set plus MEGA65 PXL chargen, its manifest,
-  per-component licenses/notices, provenance, and corresponding source
+- the pinned Pascual's BASIC/KERNAL set plus MEGA65 PXL chargen and clean-room Pascual DOS-1541
+  drive ROM, their manifest, per-component licenses/notices, provenance, and corresponding source
 
 `gallery.json` entries use a versioned shape:
 
@@ -140,10 +140,12 @@ intentionally has its own `buildId`; the two golden records do not have to match
   requires an explicit hexadecimal (`$C000`/`0xC000`) or decimal (`49152`) uint16 entry address,
   then follows the same configure/mount/load/set-PC path as source Run. Reset restarts whichever
   mode was most recently started: reset-vector BASIC boot, source build, or disk PRG. The D64
-  controls visibly repeat the [`MEDIA.md`](./MEDIA.md) compatibility boundary: standard drive-8
-  KERNAL LOAD is supported, while fastloaders, custom drive code, and bit-level disk access are not.
-  The emulator fidelity note also states the [`EMULATOR.md`](./EMULATOR.md) CPU boundary:
-  undocumented NMOS opcodes stop execution with an explicit fault.
+  controls visibly repeat the [`MEDIA.md`](./MEDIA.md) compatibility boundary: drive 8 uses a
+  clean-room DOS ROM with a cycle-scheduled CPU, selected 6522 surface, wired IEC, and rotating
+  digital GCR; writable/protected media, analog flux, and private entry points from Commodore's
+  original ROM are not claimed. The emulator fidelity note also states the
+  [`EMULATOR.md`](./EMULATOR.md) CPU boundary: declared stable undocumented NMOS families execute,
+  while unstable/JAM/65C02 encodings stop with an explicit fault.
 - **Eject** clears the file input, directory, entry address, and in-memory selected bytes, and
   unmounts drive 8 from an already configured machine without stopping or resetting execution.
   Invalid replacement media reports a `media` error and preserves the prior valid disk.
@@ -219,7 +221,7 @@ can stick.
   absolute/external asset URL and the browser-matrix E2E runs under the deployed CSP with zero
   console CSP violations.
 - Source is treated as data, never inserted as HTML or evaluated as JavaScript.
-- Bundled ROMs are committed release assets fetched only from the same app origin at runtime.
+- Bundled C64 and drive ROM replacements are committed release assets fetched only from the same app origin at runtime.
   Their pinned source revision, license, sizes, and hashes ship beside them; production
   assembly independently rechecks the allowlisted files before emitting `dist/`.
 - No analytics, ads, accounts, uploads, remote code execution, cross-origin source fetches,
@@ -255,7 +257,7 @@ not continue showing a running state.
 files the deployed site needs: `index.html`, `main.js`, `styles.css`, `buildWorker.js`, `lib/`, the
 shared assembler `pipeline/` (from `src/`), the `emulator/` wrapper, the production
 `wasm/c64core.{mjs,wasm}`, `gallery.json` and its referenced example sources, a
-manifest-verified `roms/` subtree containing only the approved Pascual ROM set and its
+manifest-verified `roms/` subtree containing only the approved Pascual C64 and 1541 ROM sets and their
 per-component licenses/notices/provenance/corresponding source, a `THIRD-PARTY-NOTICES.md` inventory, and a content-derived
 `asset-manifest.json` (sha256 + byte size + MIME per file). It emits no source maps, private
 inputs, Commodore ROM dumps, or user-supplied bytes.
@@ -296,7 +298,7 @@ commands live in `SETUP.md`.
 | WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core |
 | URL share/remix and autosave | Implemented | `?code`/`?src`/`?d64`, bearer-data warning, namespaced autosave/preferences |
 | Gallery and canonical PR flow | Implemented | `web/client/gallery.json` with a validated, reproducible border-flash entry |
-| Default and custom ROM selection | Implemented | Bundled, pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen loads and verifies by default; explicit memory-only complete custom-set override |
+| Default and custom ROM selection | Implemented | Bundled, pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen and clean-room DOS-1541 load and verify by default; explicit memory-only complete custom C64 set override |
 | BASIC boot and direct-entry execution | Implemented | Reset-vector Boot BASIC is distinct from deterministic source/disk PRG entry; Stop preserves machine state and Reset restarts the active mode |
 | D64 import controls | Implemented | Immediate directory validation, BASIC boot with selected media, selected-PRG run with explicit/detected entry, reset continuity, and live drive-8 eject |
 | GitHub Pages deployment | Implemented and live | Deterministic `dist/` build (`scripts/build/build-dist.mjs`) + release workflow (`.github/workflows/release.yml`) deploy the gated artifact to Pages on merged `main` |

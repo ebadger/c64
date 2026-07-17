@@ -20,6 +20,7 @@ MachineConfig {
   timingProfile: "pal-6569" | "ntsc-6567r8"
   sidModel: "6581" | "8580"
   romSet: RomSet
+  driveRom: DriveRom
 }
 
 LoadResult {
@@ -72,9 +73,11 @@ and runs under the web client's restrictive CSP with no `unsafe-eval` (see `spec
 - Implement NMOS 6510 behavior, including decimal mode, interrupt sequencing, page-crossing
   timing, read-modify-write bus cycles, the 6510 data-direction register at `$0000`, and
   processor port at `$0001`.
-- Implement documented NMOS 6502/6510 opcodes first. Any supported undocumented opcode must
-  be named, tested against a declared reference, and enabled consistently in native and
-  WASM builds. 65C02-only instructions are invalid.
+- Implement the documented NMOS 6502/6510 set plus the stable undocumented instructions used by
+  supported software: NOP variants, LAX, SAX, DCP, ISC, SLO, RLA, SRE, RRA, and the `$EB`
+  immediate SBC alias. Each encoding is named and tested against NMOS behavior. Unstable
+  immediate/store families, KIL/JAM, and 65C02-only instructions remain invalid rather than being
+  approximated.
 - The 16-bit address bus resolves RAM, BASIC ROM, KERNAL ROM, character ROM, color RAM, and
   I/O according to `$0000/$0001` banking and cartridge lines. Cartridge emulation is outside
   the initial scope, but unused lines must have deterministic defaults.
@@ -130,18 +133,40 @@ releases the bus, and those stall cycles are counted. The bus aggregates the dev
 outputs onto the CPU each cycle — VIC-II and CIA1 drive IRQ, CIA2 (and the RESTORE key) drive
 NMI — alongside the external test IRQ/NMI hooks.
 
-## CPU accuracy (implemented)
+## CPU accuracy
 
-The complete documented NMOS 6502/6510 instruction set (151 opcodes) and all addressing modes
-are implemented. 65C02-only instructions and undocumented opcodes are not implemented; executing
-one stops the run with a `fault`. Cycle accounting is exact at instruction granularity — the
-documented per-opcode cycle counts plus dynamic page-cross (indexed reads) and branch
-(taken / page-cross) penalties. Read-modify-write instructions perform the hardware
+The complete documented NMOS 6502/6510 instruction set (151 opcodes), the declared stable
+undocumented families above, and all addressing modes they require are implemented. An unsupported
+opcode stops the run with a `fault`. Undocumented read-modify-write instructions combine the same
+NMOS read + dummy-write + write sequence with their declared ALU operation; NOP variants still
+perform their operand reads and page-cross timing. Cycle accounting is exact at instruction
+granularity — the declared per-opcode cycle counts plus dynamic page-cross (indexed reads) and
+branch (taken / page-cross) penalties. Read-modify-write instructions perform the hardware
 read + dummy-write + write sequence, the JMP `(ind)` page-boundary bug is modelled, decimal
 ADC/SBC follow documented NMOS flag behaviour, and BRK/IRQ/NMI/reset sequencing and stack order
 match hardware. Instructions execute atomically (as hardware instructions are), and their bus
 cycles tick the devices in order; internal (non-bus) cycles are ticked at the instruction
 boundary. Interrupts are sampled at instruction boundaries.
+
+## 1541 execution
+
+- Drive 8 is an independent deterministic machine with a 1 MHz NMOS 6502, 2 KiB RAM mirrored
+  through `$0000-$17FF`, VIA 1 at `$1800`, VIA 2 at `$1C00`, and a validated 16 KiB DOS ROM at
+  `$C000-$FFFF`.
+- The C64 and drive share wired-AND IEC ATN/CLOCK/DATA lines. C64 CIA2 port A and drive VIA1
+  expose their real active-low line roles; no KERNAL entry point is intercepted.
+- Drive cycles are scheduled from the selected C64 profile with an integer rational accumulator,
+  never browser time. The drive CPU retains instruction-atomic execution, so cross-machine line
+  visibility can lag by at most one drive instruction; VIA, GCR, IEC, and CPU bus effects are
+  otherwise advanced on their owning emulated cycles. This bounded skew is a declared fidelity
+  limit, not a claim of analog or flux-level accuracy.
+- VIA 2 controls the stepper phase, motor, density zone, LED, read/write mode, active-low SYNC,
+  byte latch, and byte-ready/SO input. Mounted D64 sectors are encoded into deterministic rotating
+  1541 GCR tracks with standard header/data blocks, checksums, sync marks, and zone-sized gaps.
+- The initial drive is read-only: write protect is asserted and mounted D64 bytes never mutate.
+  The physical write path and persistent copy-on-write/export semantics are deferred.
+- Reset initializes both processors and drive devices while preserving the mounted immutable disk.
+  Eject removes the medium immediately; the empty drive and IEC participant continue to execute.
 
 The **NMOS one-instruction interrupt-enable delay** after `CLI`/`SEI`/`PLP` is implemented: the
 interrupt poll for the single instruction following one of these uses the pre-change I flag, so a
@@ -179,8 +204,7 @@ exactly one tick per consumed cycle.
 - Browser disk-program Run uses the same primitive operations: configure/power-on, mount the
   selected immutable D64, load the exact PRG extracted by the shared media parser, and set the
   explicit or structurally detected entry point. Direct extraction does not expand the drive
-  fidelity boundary; the mounted disk remains available to that program only through the
-  documented high-level KERNAL LOAD trap.
+  fidelity boundary; subsequent accesses use the same drive CPU/VIA/IEC/GCR path as Boot BASIC.
 - `unmountD64(8)` is idempotent and removes the immutable drive-8 image without resetting CPU,
   RAM, devices, or execution counters. It is invalid before configuration and rejects every
   drive number other than 8 as `unsupported-media`.
@@ -204,7 +228,7 @@ devices -> deterministic state -> framebuffer/audio/trace buffers -> web client 
 | `rom-mismatch` | ROM size/identity is inconsistent with the selected set |
 | `invalid-state` | Operation is not valid for the current machine lifecycle |
 | `invalid-input` | A host input snapshot field is malformed |
-| `unsupported-media` | Operation requires drive fidelity the high-level IEC model does not provide |
+| `unsupported-media` | Unsupported drive number, geometry, or writable-media operation |
 | `internal-fault` | Checked invariant failed; execution stops with diagnostic context |
 
 The bridge surfaces failures to the UI and tests. It must not silently reset, substitute
@@ -224,11 +248,11 @@ ROMs, or report success-shaped defaults.
 | Timing profiles (PAL 6569, NTSC 6567R8) | Implemented | Exact reduced-rational phi2 clocks and cycle/line/frame counts |
 | C++17 machine shell and bus | Implemented | RAM, ROM windows, colour RAM, processor port/DDR banking, concrete clocked devices |
 | Cycle-integrated execution | Implemented | Per-cycle device advancement, BA/AEC read stalls, aggregated device IRQ/NMI, NMOS CLI/SEI/PLP interrupt-enable delay |
-| NMOS 6510 core | Implemented | Complete 151-opcode documented set; cycle-exact; decimal, interrupts, RMW, JMP-indirect bug; native + WASM golden/parity tests |
+| NMOS 6510/6502 core | Implemented | Complete documented set plus declared stable undocumented families; cycle-accounted decimal, interrupts, RMW, JMP-indirect bug; shared by C64 and drive; native + WASM golden/parity tests |
 | ROM set validation | Implemented | Sizes, per-role SHA-256, deterministic set id; memory-only; synthetic test fixtures |
 | Machine lifecycle | Implemented | Configure/validate, reset-vector BASIC boot, power-on/warm reset with mounted-media continuity, PRG load (no run-address inference), direct-mode PC, bounded `runCycles`, breakpoints, debug inspect/write |
 | Native and embind APIs | Implemented | `setInput`/`copyFramebuffer`/`drainAudio`/`mountD64`/`unmountD64` with owned-copy semantics; value types only; no exceptions cross embind |
 | Headless deterministic runner | Implemented | Node loads the production WASM artifact; native/WASM scenario parity is byte-identical (integer device state); SID float audio validated separately |
 | VIC-II / SID / CIA devices | Implemented | See VIC-II.md and IO.md for the exact modelled behaviour and honestly-labelled unsupported fidelity |
-| Mounted D64 / framebuffer / audio / input | Implemented | Read-only mount/eject plus a high-level KERNAL LOAD/IEC trap (see MEDIA.md); indexed framebuffer; mono float audio; keyboard/joystick/RESTORE input |
+| Mounted D64 / framebuffer / audio / input | Implemented | Read-only 1541 CPU/VIA/IEC/GCR drive path (see MEDIA.md); indexed framebuffer; mono float audio; keyboard/joystick/RESTORE input |
 | Save-state format | Deferred | Requires a separate versioned contract |

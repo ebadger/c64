@@ -5,6 +5,8 @@ import { MachineController } from "../../web/client/lib/machine.js";
 
 function fakeController() {
   const calls = [];
+  const drive = Uint8Array.from([0x15, 0x41]);
+  let createdConfig = null;
   const machine = {
     configureError: "none",
     ready: () => true,
@@ -21,7 +23,8 @@ function fakeController() {
     dispose: () => calls.push(["dispose"]),
   };
   const emulator = {
-    createMachine: () => {
+    createMachine: (config) => {
+      createdConfig = config;
       calls.push(["createMachine"]);
       return machine;
     },
@@ -34,12 +37,18 @@ function fakeController() {
       basic: new Uint8Array(8192),
       kernal: new Uint8Array(8192),
       chargen: new Uint8Array(4096),
+      drive,
     },
   });
   assert.equal(configured.ok, true);
   calls.length = 0;
-  return { controller, calls };
+  return { controller, calls, createdConfig, drive };
 }
+
+test("configuration forwards the selected drive firmware to the production wrapper", () => {
+  const { createdConfig, drive } = fakeController();
+  assert.strictEqual(createdConfig.drive, drive);
+});
 
 test("Boot BASIC resets at the ROM vector without loading a PRG or overriding PC", () => {
   const { controller, calls } = fakeController();

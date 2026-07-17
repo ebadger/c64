@@ -59,8 +59,17 @@ AudioInfo {
 - CIA 1 resolves keyboard matrix and joystick ports with active-low line interactions. Key
   ghosting behavior is deterministic and documented by matrix tests.
 - CIA 2 drives VIC bank selection and the IEC-facing lines needed by the selected disk-drive
-  model. Unsupported user-port peripherals remain disconnected with deterministic pull-up
-  values.
+  model. Port A bits 3/4/5 are the inverted open-collector ATN/CLOCK/DATA outputs and bits 6/7
+  read CLOCK/DATA line state. A released line reads high; any participant asserting it drives the
+  shared line low. Unsupported user-port peripherals remain disconnected with deterministic
+  pull-up values.
+- Drive VIA1 port B resolves IEC DATA input/output, CLOCK input/output, ATN acknowledge, device
+  address straps, and ATN input. Drive DATA assertion includes the 1541 ATNA gate:
+  `DATA asserted = DATA_OUT || (ATN asserted && !ATNA)`.
+- Drive VIA2 port A is the GCR byte latch. Port B controls stepper phase (bits 0-1), motor (2),
+  activity LED (3), reads write protect (4), selects density (5-6), and reads active-low SYNC (7).
+  PCR selects read/write head mode and byte-ready/SO enable. The initial read-only model asserts
+  write protect and ignores write-head output.
 - RESTORE is represented as its machine interrupt input, not a printable key.
 - Browser key repeat is ignored by the core; only current input state matters.
 
@@ -95,9 +104,13 @@ Fidelity notes (honestly labelled unsupported fidelity):
   claimed. Audio is point-sampled at emit time (no oversampling), so it is deterministic but not
   alias-free. SID output is **float**; native/WASM byte-identical parity is asserted only over
   integer device state, and SID audio is validated by native unit tests plus a WASM smoke test.
-- **CIA:** the serial shift register (SDR) has limited support; it is stored and readable but the
-  full RS-232/serial-shift timing is not modelled (the disk path uses the high-level IEC trap in
-  MEDIA.md, which does not need it). The CNT pin is idle, so timer INMODE=CNT does not count.
+- **CIA:** the serial shift register (SDR) has limited support; it is stored and readable but full
+  RS-232/serial-shift timing is not modelled. The 1541 path bit-bangs CIA2 port pins and does not
+  depend on SDR. The CNT pin is idle, so timer INMODE=CNT does not count.
+- **6522 VIA:** the drive model implements port latches/directions and the PCR-facing head/SO
+  controls used by the bundled DOS. Timers, shift-register modes, CA/CB interrupt edge latches,
+  and arbitrary user hardware are not yet complete, so compatibility with original-ROM timing
+  loops and uploaded fastloaders is bounded by that explicit surface.
 - **TOD** advances from the profile's 50/60 Hz frame source (via CRA bit7 divider), never host
   wall-clock.
 
@@ -110,5 +123,5 @@ Fidelity notes (honestly labelled unsupported fidelity):
 | SID voices and envelopes | Implemented | 3 voices, freq/PW, tri/saw/pulse/noise, gate/test, ADSR, ring mod, sync; open-bus reads differ 6581 vs 8580 |
 | SID filters and resampling | Implemented (approximate) | Register-complete filter + mixer/volume; deterministic integer resampling to the output rate; not analog-perfect |
 | Serial shift register (SDR) | Limited | Stored/readable; full serial timing not modelled |
-| IEC-facing signal contract | Implemented (high-level) | CIA2 IEC lines default released; the disk LOAD path is the high-level trap in MEDIA.md |
-
+| IEC-facing signal contract | Implemented | Wired open-collector CIA2/VIA1 ATN/CLOCK/DATA with 1541 ATNA gating; drive VIA2 GCR/head controls |
+| Drive 6522 VIA | Implemented (selected-ROM surface) | Ports, DDR, PCR head/SO controls, IEC and disk pins; general timers/shift/edge IRQ modes remain incomplete |

@@ -1,6 +1,6 @@
-# Pascual's BASIC ROM-set provenance
+# Bundled Pascual ROM provenance
 
-The ROM images in this directory are unmodified published binaries from
+The C64 ROM images in this directory are unmodified published binaries from
 [`Pascual-Candel-Palazon/Pascuals-BASIC`](https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC).
 
 - Upstream revision: `45da60da4d39f9f3950cdf957996c1743c53bb6e`
@@ -35,4 +35,32 @@ Upstream describes this revision as providing a full Microsoft 6502 BASIC-derive
 screen editor, and IEC `LOAD`/`SAVE`/`VERIFY`. c64 records those as upstream claims. Its local
 release gate verifies reset-vector startup through the production WASM artifact to the Pascual
 banner and `READY.`, deterministic direct-entry assembly execution, and drive-8 access through
-c64's documented high-level KERNAL LOAD trap.
+c64's documented 1541 CPU/VIA/IEC/GCR boundary.
+
+## Clean-room DOS-1541 firmware
+
+The drive firmware comes from
+[`Pascual-Candel-Palazon/Pascual_DOS-1541`](https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541):
+
+- Upstream revision: `72c2648494c71126cf5338f0c3c09b9e815a8b50`
+- Pinned source:
+  <https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541/tree/72c2648494c71126cf5338f0c3c09b9e815a8b50>
+- Vendored corresponding source:
+  `pascual-dos-1541-72c2648494c71126cf5338f0c3c09b9e815a8b50.tar.gz`
+  (82984 bytes, SHA-256
+  `ade11365bd3ae671e681306d536d4942942be2a3fcb10ef0f54b2ffdff2fff9c`)
+- Published upstream binary:
+  `dos1541-upstream.rom` (16384 bytes, SHA-256
+  `c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39`)
+
+The upstream package is a clean-room MIT implementation whose development rules prohibit
+consulting or disassembling Commodore's proprietary drive ROM. Its archived `LICENSE`,
+`README.md`, `PROCEDENCIA.md`, and hardware notes ship under drive-specific filenames beside
+the source archive.
+
+c64 adds standard CBM `*` and `?` directory-name matching. The source change is
+`dos1541-c64-wildcards.patch`; `scripts/build/build-drive-rom.mjs` applies the equivalent
+reviewed byte replacements to the exact published binary after checking both its digest and
+patch sites. The resulting deployed `dos1541.rom` is 16384 bytes with SHA-256
+`0a77fedc1a65b0dca49bd3bf3d5607b05e6fbf3d6d10b7b14b005fe62532104d`.
+No proprietary bytes, game-specific names, or private Commodore entry points are added.

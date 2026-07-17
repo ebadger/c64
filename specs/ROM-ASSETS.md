@@ -1,12 +1,12 @@
 # c64 — ROM Assets Spec
 
-> Legal, private, and reproducible handling of BASIC, KERNAL, and character ROM data.
+> Legal, private, and reproducible handling of C64 and 1541 ROM data.
 
 ---
 
 ## Purpose
 
-The ROM asset layer supplies the emulator with a complete identified ROM set without
+The ROM asset layer supplies the emulator with a complete identified C64 ROM set and drive ROM without
 committing or distributing copyrighted Commodore ROMs. The application may bundle only
 redistributable replacement ROMs and may accept user-selected originals locally.
 
@@ -30,8 +30,21 @@ RomSet {
   descriptors: RomDescriptor[3]
 }
 
+DriveRom {
+  schema: 1
+  id: string
+  bytes: Uint8Array
+  descriptor: {
+    role: "drive1541"
+    size: 16384
+    sha256: string
+    licenseId: string | null
+    source: "bundled-replacement" | "user-supplied"
+  }
+}
+
 BundledRomManifest {
-  schema: 2
+  schema: 3
   id: string
   title: string
   upstreamRepository: string
@@ -53,6 +66,30 @@ BundledRomManifest {
     kernal:  { path: string, upstreamPath: string, bytes: 8192, sha256: string }
     chargen: { path: string, upstreamPath: string, bytes: 4096, sha256: string }
   }
+  drive: {
+    id: string
+    title: string
+    upstreamRepository: string
+    revision: string
+    sourceUrl: string
+    sourceArchive: { path: string, bytes: uint32, sha256: string }
+    license: { id: "MIT", path: string }
+    redistributionFiles: { path: string, bytes: uint32, sha256: string }[]
+    baseRom: {
+      path: string
+      upstreamPath: "dos.bin"
+      bytes: 16384
+      sha256: string
+    }
+    patch: { path: string, bytes: uint32, sha256: string }
+    rom: {
+      path: string
+      upstreamPath: "dos.bin"
+      bytes: 16384
+      sha256: string
+      baseSha256: string
+    }
+  }
 }
 ```
 
@@ -63,6 +100,8 @@ chargen, by the role id, a `\0` separator, the little-endian 32-bit byte length,
 and the raw bytes. Per-role descriptor digests are plain SHA-256 over that role's bytes. The
 core computes these with its own dependency-free SHA-256 so native and WebAssembly builds
 produce identical digests (verified by byte-identical native/WASM parity tests).
+The drive ROM is a separate 16384-byte identity so replacing drive firmware never changes the
+C64 `RomSet.id`. `DriveRom.id` is the plain SHA-256 of its bytes.
 
 Bundled replacement metadata includes source repository/version, license text, build
 provenance, corresponding source, and immutable digests. The legal right to redistribute
@@ -95,22 +134,43 @@ Upstream describes this revision as a full Microsoft 6502 BASIC-derived interpre
 screen editor and IEC `LOAD`/`SAVE`/`VERIFY`. c64 treats those as upstream claims and asserts
 only the supported paths it tests locally: reset-vector startup reaches the Pascual banner
 and `READY.`, direct-entry assembly execution remains deterministic, and standard drive-8
-loads use the high-level KERNAL LOAD boundary in [`MEDIA.md`](./MEDIA.md).
+loads use the drive boundary in [`MEDIA.md`](./MEDIA.md).
+
+The bundled 1541 firmware is
+[`Pascual-Candel-Palazon/Pascual_DOS-1541`](https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541),
+pinned to revision `72c2648494c71126cf5338f0c3c09b9e815a8b50` under MIT. It is a clean-room
+implementation from public 1541 hardware and IEC documentation, not a derivative or disassembly of
+Commodore DOS. The published `dos.bin` is preserved as `dos1541-upstream.rom` (16384 bytes, SHA-256
+`c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39`). c64 applies the
+auditable `dos1541-c64-wildcards.patch` to the corresponding source and an equivalent
+deterministic byte patch to that exact published binary so standard CBM `*` and `?` filename
+patterns work. The runtime `dos1541.rom` is 16384 bytes with SHA-256
+`0a77fedc1a65b0dca49bd3bf3d5607b05e6fbf3d6d10b7b14b005fe62532104d`. The patch changes
+only the directory name matcher and uses erased space in the clean-room ROM; it does not add
+game-specific filenames, addresses, or proprietary code.
+
+The exact source archive is 82984 bytes with SHA-256
+`ade11365bd3ae671e681306d536d4942942be2a3fcb10ef0f54b2ffdff2fff9c`; its MIT license,
+`PROCEDENCIA.md`, source, hardware notes, tests, upstream base binary, and c64 patch ship beside
+the runtime binary and are covered by the production allowlist/integrity gate. The build script
+verifies the base bytes and replaced instruction ranges before producing the patched identity,
+so assembler-version layout differences cannot silently alter the deployed firmware.
 
 ## Behaviour / Rules
 
-- No Commodore-owned BASIC, KERNAL, or character ROM dump may be committed, bundled in
+- No Commodore-owned BASIC, KERNAL, character, or drive ROM dump may be committed, bundled in
   generated assets, embedded in tests, copied into issues/PRs, or fetched by the app.
 - User-supplied ROMs enter through local file selection or drag/drop, are size checked,
   hashed locally, and remain in browser memory for the session.
-- The client loads the bundled manifest, all three role files, corresponding source archive, and
+- The client loads the bundled manifest, all three C64 role files, the drive ROM, corresponding source archives, and
   every redistribution file from the same static app origin at startup. It validates manifest
   shape plus every byte count and exact SHA-256 before replacing the active set. A partial or
   mismatched package is rejected atomically.
-- The ROM-source control defaults to **Bundled Pascual's BASIC/KERNAL**. Choosing **Custom local
+- The ROM-source control defaults to **Bundled Pascual's BASIC/KERNAL and DOS-1541**. Choosing **Custom local
   ROM files** clears the bundled set and requires a complete BASIC/KERNAL/CHARGEN trio; it
-  never silently mixes a custom role with roles from the bundled set. Switching back reloads
-  and revalidates the bundled set.
+  never silently mixes a custom C64 role with roles from the bundled C64 set. The independently
+  licensed bundled drive ROM remains selected; a custom drive-ROM picker is deferred. Switching
+  back reloads and revalidates the bundled set.
 - If multiple file reads overlap for the same custom role, only the most recent picker
   selection may update that role; stale completions and stale read errors are ignored.
 - ROM-source selection and custom bytes are session-only. Reloading the page returns to the
@@ -129,8 +189,9 @@ loads use the high-level KERNAL LOAD boundary in [`MEDIA.md`](./MEDIA.md).
 
 ## Data flow
 
-`same-origin bundled manifest + role files OR user file picker -> byte/size/digest validation
--> atomic active RomSet in memory -> MachineConfig -> emulator`; metadata may flow to
+`same-origin bundled manifest + C64 role files + drive ROM OR user C64 file picker ->
+byte/size/digest validation -> atomic active RomSet + DriveRom in memory -> MachineConfig ->
+emulator`; metadata may flow to
 reproducibility diagnostics, but user ROM bytes never flow back to the application network
 or source-sharing state.
 
@@ -160,5 +221,7 @@ or source-sharing state.
 | ROM manifest and validation | Implemented | Same-origin manifest loader; exact size/SHA-256 checks; atomic activation; deterministic set id; explicit manifest/fetch/integrity errors |
 | Synthetic test fixtures | Implemented | Legally-clean generated ROMs (with valid vectors) drive native/WASM tests; no Commodore bytes |
 | Redistributable default set | Implemented | Pinned Pascual's BASIC/KERNAL + MEGA65 PXL chargen; exact role/archive integrity gate; complete per-component licenses, notices, provenance, and corresponding source |
+| Redistributable drive ROM | Implemented | Pinned clean-room MIT Pascual DOS-1541 base plus exact source archive, c64 wildcard source/binary patch, provenance, hardware notes, tests, and integrity gate |
 | User file picker | Implemented | Explicit custom source mode requires all three roles; size/digest validation, unknown-digest confirmation, memory-only |
+| Custom drive-ROM picker | Deferred | Bundled clean-room drive ROM remains active with custom C64 ROM sets; a local original-ROM override needs its own compatibility UI/tests |
 | Persistent user-ROM cache | Deferred | Requires explicit privacy/storage design |

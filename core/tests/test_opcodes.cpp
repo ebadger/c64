@@ -63,6 +63,25 @@ const u8 kPageCross[] = {
     0x7D, 0x79, 0x71,  // ADC
     0xFD, 0xF9, 0xF1,  // SBC
     0xDD, 0xD9, 0xD1,  // CMP
+    0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC,  // undocumented NOP abs,X
+    0xB3, 0xBF,                          // LAX (zp),Y / abs,Y
+};
+
+const u8 kUndocumentedImplemented[] = {
+    0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA,
+    0x80, 0x82, 0x89, 0xC2, 0xE2,
+    0x04, 0x44, 0x64,
+    0x14, 0x34, 0x54, 0x74, 0xD4, 0xF4,
+    0x0C, 0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC,
+    0xA3, 0xA7, 0xAF, 0xB3, 0xB7, 0xBF,
+    0x83, 0x87, 0x8F, 0x97,
+    0x03, 0x07, 0x0F, 0x13, 0x17, 0x1B, 0x1F,
+    0x23, 0x27, 0x2F, 0x33, 0x37, 0x3B, 0x3F,
+    0x43, 0x47, 0x4F, 0x53, 0x57, 0x5B, 0x5F,
+    0x63, 0x67, 0x6F, 0x73, 0x77, 0x7B, 0x7F,
+    0xC3, 0xC7, 0xCF, 0xD3, 0xD7, 0xDB, 0xDF,
+    0xE3, 0xE7, 0xEF, 0xF3, 0xF7, 0xFB, 0xFF,
+    0xEB,
 };
 
 }  // namespace
@@ -81,9 +100,26 @@ TEST(opcodes_documented_set_is_exactly_151) {
   CHECK_EQ(count, 151);
 }
 
+TEST(opcodes_implemented_set_is_documented_plus_80_stable_undocumented) {
+  std::set<u8> documented(std::begin(kDocumented), std::end(kDocumented));
+  std::set<u8> undocumented(std::begin(kUndocumentedImplemented),
+                            std::end(kUndocumentedImplemented));
+  CHECK_EQ(undocumented.size(), 80u);
+
+  int count = 0;
+  for (int op = 0; op <= 255; ++op) {
+    const CpuOpcodeInfo info = cpuOpcodeInfo(static_cast<u8>(op));
+    const bool expected = documented.count(static_cast<u8>(op)) != 0 ||
+                          undocumented.count(static_cast<u8>(op)) != 0;
+    CHECK_EQ(info.implemented, expected);
+    if (info.implemented) ++count;
+  }
+  CHECK_EQ(count, 231);
+}
+
 TEST(opcodes_page_cross_flags) {
   std::set<u8> cross(std::begin(kPageCross), std::end(kPageCross));
-  CHECK_EQ(cross.size(), 23u);
+  CHECK_EQ(cross.size(), 31u);
   for (int op = 0; op <= 255; ++op) {
     const CpuOpcodeInfo info = cpuOpcodeInfo(static_cast<u8>(op));
     const bool expected = cross.count(static_cast<u8>(op)) != 0;
