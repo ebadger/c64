@@ -3,7 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>c64 — browser IDE</title>
+    <title>C64 Studio — 6510 Emulator &amp; Editor</title>
+    <meta name="application-name" content="C64 Studio" />
+    <meta
+      name="description"
+      content="C64 Studio is a deterministic browser-based NMOS 6510 assembler, C64 emulator, and PRG/D64 development environment."
+    />
     <!-- Restrictive static CSP: same-origin modules/worker/WASM/audio only; no third-party
          scripts, no inline scripts/styles, no eval beyond WASM compilation. See WEB-CLIENT.md. -->
     <meta
@@ -16,11 +21,30 @@
   <body>
     <a class="skip-link" href="#editor">Skip to editor</a>
     <header class="app-header">
-      <h1>c64 <span class="subtitle">browser IDE</span></h1>
-      <p class="tagline">
-        Write NMOS&nbsp;6510 assembly, build a PRG and D64 deterministically, and run it in the
-        WebAssembly C64 core — all in your browser, nothing uploaded.
-      </p>
+      <div class="brand">
+        <h1>C64 Studio &mdash; 6510 Emulator &amp; Editor</h1>
+        <span class="tagline">deterministic · browser-only · nothing uploaded</span>
+      </div>
+      <div class="machine-toolbar" role="toolbar" aria-label="Machine controls">
+        <button id="btn-boot-basic" type="button" disabled>Boot BASIC</button>
+        <button id="btn-stop" type="button" disabled>Stop</button>
+        <button id="btn-reset" type="button" disabled>Reset</button>
+        <label class="file-button">
+          Mount D64&hellip;
+          <input id="d64-file" type="file" accept=".d64" />
+        </label>
+        <label class="toolbar-field">
+          <span>Timing</span>
+          <select id="sel-timing">
+            <option value="pal-6569">PAL (6569)</option>
+            <option value="ntsc-6567r8">NTSC (6567R8)</option>
+          </select>
+        </label>
+        <button id="btn-audio" type="button">Enable audio</button>
+        <span id="audio-status" class="hint">Audio off</span>
+        <span id="run-status" class="run-status" aria-live="polite">Stopped.</span>
+        <span id="status-line" class="hint" role="status" aria-live="polite">Loading&hellip;</span>
+      </div>
     </header>
 
     <!-- Shown only when required browser capabilities are missing. -->
@@ -29,7 +53,7 @@
       <ul id="capability-list"></ul>
     </section>
 
-    <!-- Live status/errors region. -->
+    <!-- Live errors/notices. General and machine status stay in the compact header. -->
     <section
       id="status-region"
       class="status-region"
@@ -37,173 +61,104 @@
       aria-live="polite"
       aria-label="Status and messages"
     >
-      <p id="status-line" class="status-line">Loading…</p>
       <ul id="error-list" class="error-list" aria-label="Errors and notices"></ul>
     </section>
 
     <main class="app-main">
-      <!-- Editing + build -->
-      <section class="panel panel-editor" aria-labelledby="h-editor">
-        <h2 id="h-editor">Source</h2>
-        <div class="editor-toolbar" role="toolbar" aria-label="Build controls">
-          <label class="field field-name">
-            <span>Program name</span>
-            <input id="project-name" type="text" autocomplete="off" spellcheck="false" maxlength="64" />
-          </label>
-          <button id="btn-build" type="button">Build</button>
-          <button id="btn-run" type="button" disabled>Run</button>
-          <button id="btn-boot-basic" type="button" disabled>Boot BASIC</button>
-          <button id="btn-stop" type="button" disabled>Stop</button>
-          <button id="btn-reset" type="button" disabled>Reset</button>
-        </div>
-        <label class="visually-hidden" for="editor">Assembly source</label>
-        <textarea
-          id="editor"
-          class="editor"
-          spellcheck="false"
-          autocomplete="off"
-          autocapitalize="off"
-          wrap="off"
-          aria-describedby="diagnostics-summary"
-        ></textarea>
-        <div class="diagnostics" aria-labelledby="h-diag">
-          <h3 id="h-diag">Diagnostics</h3>
-          <p id="diagnostics-summary" class="diag-summary" aria-live="polite">No build yet.</p>
-          <ol id="diagnostics-list" class="diag-list"></ol>
-        </div>
-      </section>
-
-      <!-- Emulator + configuration -->
-      <section class="panel panel-machine" aria-labelledby="h-machine">
-        <h2 id="h-machine">Machine</h2>
-
-        <div id="screen-surface" class="screen-surface" tabindex="0" role="application"
-             aria-label="Emulator display (focus to send keyboard and joystick input)">
-          <canvas id="screen" class="screen" width="384" height="284"></canvas>
-        </div>
-        <p id="run-status" class="run-status">Stopped.</p>
-
-        <div class="controls-grid">
-          <label class="field">
-            <span>Video timing</span>
-            <select id="sel-timing">
-              <option value="pal-6569">PAL (6569)</option>
-              <option value="ntsc-6567r8">NTSC (6567R8)</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>SID model</span>
-            <select id="sel-sid">
-              <option value="6581">6581</option>
-              <option value="8580">8580</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Joystick port</span>
-            <select id="sel-joyport">
-              <option value="2">Port 2</option>
-              <option value="1">Port 1</option>
-            </select>
-          </label>
-          <label class="field field-check">
-            <input id="chk-gamepad" type="checkbox" checked />
-            <span>Use gamepad</span>
-          </label>
-          <div class="field field-audio">
-            <button id="btn-audio" type="button">Enable audio</button>
-            <span id="audio-status" class="muted">Audio off</span>
+      <div class="workspace">
+        <!-- Emulator comes first visually and in narrow-screen source order, matching 3RIC Studio. -->
+        <section id="emulator" class="primary-panel panel-machine" aria-labelledby="h-machine">
+          <div class="section-bar">
+            <h2 id="h-machine">EMULATOR</h2>
+            <span class="hint">click the screen to type or use a joystick</span>
           </div>
-          <label class="field">
-            <span>Volume</span>
-            <input id="vol" type="range" min="0" max="1" step="0.05" value="0.6" />
-          </label>
-        </div>
-
-        <p class="fidelity-note muted">
-          Fidelity is honestly labelled: the CPU faults on undocumented opcodes, the VIC-II
-          renderer is line-based, the SID filter is an approximation (not analog-perfect), and the
-          disk drive is a high-level KERNAL LOAD/IEC trap, not a cycle-level 1541. In-app Run enters
-          at the SYS target rather than tokenizing BASIC.
-        </p>
-      </section>
-
-      <!-- ROMs -->
-      <section class="panel panel-rom" aria-labelledby="h-rom">
-        <h2 id="h-rom">ROMs</h2>
-        <p class="muted">
-          Pascual's BASIC and KERNAL are bundled by default with the MEGA65 PXL chargen. Use
-          Boot BASIC for the ROM cold-start workflow, or Run for deterministic direct PRG entry.
-        </p>
-        <label class="field rom-source">
-          <span>ROM source</span>
-          <select id="sel-rom-source">
-            <option value="bundled">Bundled Pascual's BASIC/KERNAL (default)</option>
-            <option value="custom">Custom local ROM files</option>
-          </select>
-        </label>
-        <p id="rom-status" class="rom-status" aria-live="polite">Loading bundled Pascual ROMs…</p>
-        <p id="rom-legal" class="muted" hidden>
-          Redistribution materials:
-          <a id="rom-provenance-link">provenance</a> ·
-          <a id="rom-license-link">project MIT license</a> ·
-          <a id="rom-basic-license-link">Microsoft BASIC MIT license</a> ·
-          <a id="rom-lgpl-link">LGPL text</a> ·
-          <a id="rom-gpl-link">GPL text</a> ·
-          <a id="rom-chargen-notice-link">chargen notices</a> ·
-          <a id="rom-source-link" download>corresponding source archive</a>
-        </p>
-        <div id="rom-custom" hidden>
-          <p class="muted">
-            Select a complete alternative set. Files stay in memory for this page session and are
-            never uploaded, stored, or logged.
+          <div
+            id="screen-surface"
+            class="screen-surface"
+            tabindex="0"
+            role="application"
+            aria-label="Emulator display (focus to send keyboard and joystick input)"
+          >
+            <canvas id="screen" class="screen" width="384" height="284"></canvas>
+          </div>
+          <div class="controls-grid">
+            <label class="field">
+              <span>SID</span>
+              <select id="sel-sid">
+                <option value="6581">6581</option>
+                <option value="8580">8580</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Joystick</span>
+              <select id="sel-joyport">
+                <option value="2">Port 2</option>
+                <option value="1">Port 1</option>
+              </select>
+            </label>
+            <label class="field field-check">
+              <input id="chk-gamepad" type="checkbox" checked />
+              <span>Use gamepad</span>
+            </label>
+            <label class="field field-volume">
+              <span>Volume</span>
+              <input id="vol" type="range" min="0" max="1" step="0.05" value="0.6" />
+            </label>
+          </div>
+          <p class="fidelity-note muted">
+            Documented NMOS opcodes only (unsupported opcodes fault) · line-based VIC-II ·
+            approximate SID filter · high-level KERNAL LOAD/IEC disk trap. Source Run enters at
+            the generated SYS target.
           </p>
-          <div id="rom-roles" class="rom-roles"></div>
-        </div>
-      </section>
+        </section>
 
-      <!-- Media import -->
-      <section class="panel panel-media" aria-labelledby="h-media">
-        <h2 id="h-media">Disk (D64)</h2>
-        <label class="field">
-          <span>Mount a local .d64 (read-only)</span>
-          <input id="d64-file" type="file" accept=".d64" />
-        </label>
-        <p class="muted">
-          Select a disk to inspect its directory. A file runs only when you choose it below.
-          Standard drive-8 KERNAL LOAD is supported; fastloaders, custom drive code, and bit-level
-          disk access are not.
-        </p>
-        <p id="d64-status" class="muted" aria-live="polite">No disk mounted.</p>
-        <div id="d64-controls" class="media-controls" hidden>
-          <label class="field">
-            <span>Disk program</span>
-            <select id="d64-program"></select>
-          </label>
-          <label class="field">
-            <span>Entry address</span>
-            <input id="d64-entry" type="text" inputmode="text" autocomplete="off" spellcheck="false"
-                   placeholder="$C000 or 49152" aria-describedby="d64-entry-status" />
-          </label>
-          <p id="d64-entry-status" class="muted" aria-live="polite"></p>
-          <div class="media-actions">
-            <button id="btn-run-d64" type="button" disabled>Run selected PRG</button>
-            <button id="btn-eject-d64" class="secondary" type="button">Eject</button>
+        <section id="ide" class="primary-panel panel-editor" aria-labelledby="h-editor">
+          <div class="editor-toolbar" role="toolbar" aria-label="Assembler and artifact controls">
+            <h2 id="h-editor">ASSEMBLER</h2>
+            <label class="toolbar-field sample-field">
+              <span>Sample</span>
+              <select id="gallery-select" disabled>
+                <option value="">Choose sample&hellip;</option>
+              </select>
+            </label>
+            <label class="field field-name">
+              <span>Name</span>
+              <input id="project-name" type="text" autocomplete="off" spellcheck="false" maxlength="64" />
+            </label>
+            <button
+              id="btn-build-run"
+              class="go"
+              type="button"
+              aria-keyshortcuts="Control+Enter Meta+Enter"
+              title="Build the current source and run the successful result (Ctrl+Enter)"
+            >Build &amp; Run</button>
+            <button id="btn-build" type="button" title="Build without starting the emulator">Build only</button>
+            <button id="btn-run" type="button" title="Run the latest successful build" disabled>Run build</button>
+            <button id="btn-dl-prg" type="button" disabled>Download .PRG</button>
+            <button id="btn-dl-d64" type="button" disabled>Download .D64</button>
+            <button id="btn-dl-src" type="button">Download source</button>
+            <button id="btn-share" type="button">Share</button>
           </div>
-        </div>
-      </section>
-
-      <!-- Artifacts + share -->
-      <section class="panel panel-artifacts" aria-labelledby="h-artifacts">
-        <h2 id="h-artifacts">Artifacts</h2>
-        <p id="artifact-status" class="artifact-status" aria-live="polite">Build to produce a PRG and D64.</p>
-        <p class="build-id">Build ID: <code id="build-id">—</code></p>
-        <div class="artifact-buttons">
-          <button id="btn-dl-prg" type="button" disabled>Download PRG</button>
-          <button id="btn-dl-d64" type="button" disabled>Download D64</button>
-          <button id="btn-dl-src" type="button">Download source</button>
-        </div>
-        <div class="share">
-          <button id="btn-share" type="button">Share…</button>
+          <label class="visually-hidden" for="editor">Assembly source</label>
+          <textarea
+            id="editor"
+            class="editor"
+            spellcheck="false"
+            autocomplete="off"
+            autocapitalize="off"
+            wrap="off"
+            aria-describedby="diagnostics-summary"
+            placeholder="; write NMOS 6510 assembly here, then Build & Run"
+          ></textarea>
+          <div class="diagnostics" aria-labelledby="h-diag">
+            <div class="diagnostics-heading">
+              <h3 id="h-diag">BUILD OUTPUT</h3>
+              <p id="diagnostics-summary" class="diag-summary" aria-live="polite">No build yet.</p>
+            </div>
+            <ol id="diagnostics-list" class="diag-list"></ol>
+            <p id="artifact-status" class="artifact-status" aria-live="polite">Build to produce a PRG and D64.</p>
+            <p class="build-id">Build ID: <code id="build-id">—</code></p>
+          </div>
           <div id="share-panel" class="share-panel" hidden>
             <p id="share-warning" class="share-warning"></p>
             <label class="visually-hidden" for="share-url">Share URL</label>
@@ -213,35 +168,96 @@
               <button id="btn-share-close" type="button">Close</button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
-      <!-- Gallery -->
-      <section class="panel panel-gallery" aria-labelledby="h-gallery">
-        <h2 id="h-gallery">Gallery</h2>
-        <p class="muted">Curated examples. Loading one replaces the editor with a remixable copy.</p>
-        <ul id="gallery-list" class="gallery-list"></ul>
-      </section>
+      <div class="utility-grid">
+        <section class="panel panel-rom" aria-labelledby="h-rom">
+          <h2 id="h-rom">ROMs</h2>
+          <p class="muted">
+            Bundled Pascual BASIC/KERNAL and MEGA65 PXL chargen are the default. Custom files stay
+            in memory and are never uploaded, stored, or logged.
+          </p>
+          <label class="field rom-source">
+            <span>ROM source</span>
+            <select id="sel-rom-source">
+              <option value="bundled">Bundled Pascual's BASIC/KERNAL (default)</option>
+              <option value="custom">Custom local ROM files</option>
+            </select>
+          </label>
+          <p id="rom-status" class="rom-status" aria-live="polite">Loading bundled Pascual ROMs&hellip;</p>
+          <p id="rom-legal" class="muted" hidden>
+            Redistribution materials:
+            <a id="rom-provenance-link">provenance</a> ·
+            <a id="rom-license-link">project MIT license</a> ·
+            <a id="rom-basic-license-link">Microsoft BASIC MIT license</a> ·
+            <a id="rom-lgpl-link">LGPL text</a> ·
+            <a id="rom-gpl-link">GPL text</a> ·
+            <a id="rom-chargen-notice-link">chargen notices</a> ·
+            <a id="rom-source-link" download>corresponding source archive</a>
+          </p>
+          <div id="rom-custom" hidden>
+            <div id="rom-roles" class="rom-roles"></div>
+          </div>
+        </section>
 
-      <!-- Help -->
-      <section class="panel panel-help" aria-labelledby="h-help">
-        <h2 id="h-help">Keyboard &amp; joystick</h2>
-        <p class="muted">Click the display to give it focus, then:</p>
-        <table class="key-help">
-          <thead>
-            <tr><th scope="col">Your key</th><th scope="col">C64</th></tr>
-          </thead>
-          <tbody id="key-help-body"></tbody>
-        </table>
-      </section>
+        <section class="panel panel-media" aria-labelledby="h-media">
+          <h2 id="h-media">Disk (D64)</h2>
+          <p class="muted">
+            Mount a read-only disk from the top toolbar. Its directory appears here and never
+            auto-runs a file. Standard drive-8 KERNAL LOAD is supported; fastloaders, custom drive
+            code, and bit-level disk access are not.
+          </p>
+          <p id="d64-status" class="muted" aria-live="polite">No disk mounted.</p>
+          <div id="d64-controls" class="media-controls" hidden>
+            <label class="field">
+              <span>Disk program</span>
+              <select id="d64-program"></select>
+            </label>
+            <label class="field">
+              <span>Entry address</span>
+              <input
+                id="d64-entry"
+                type="text"
+                inputmode="text"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="$C000 or 49152"
+                aria-describedby="d64-entry-status"
+              />
+            </label>
+            <p id="d64-entry-status" class="muted" aria-live="polite"></p>
+            <div class="media-actions">
+              <button id="btn-run-d64" type="button" disabled>Run selected PRG</button>
+              <button id="btn-eject-d64" type="button">Eject</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-gallery" aria-labelledby="h-gallery">
+          <h2 id="h-gallery">Gallery</h2>
+          <p class="muted">Curated examples. Loading one replaces the editor with a remixable copy.</p>
+          <ul id="gallery-list" class="gallery-list"></ul>
+        </section>
+
+        <section class="panel panel-help" aria-labelledby="h-help">
+          <h2 id="h-help">Keyboard &amp; joystick</h2>
+          <p class="muted">Click the display to give it focus, then:</p>
+          <table class="key-help">
+            <thead>
+              <tr><th scope="col">Your key</th><th scope="col">C64</th></tr>
+            </thead>
+            <tbody id="key-help-body"></tbody>
+          </table>
+        </section>
+      </div>
     </main>
 
     <footer class="app-footer">
-      <p class="muted">
-        Static and serverless — no accounts, uploads, analytics, or remote code. Published to
-        GitHub Pages by the release workflow after review and merge; this build runs the same bytes
-        locally and under the Pages project base.
-      </p>
+      NMOS 6510 core compiled to WebAssembly with deterministic PRG/D64 assembly. Click the screen
+      to send keyboard and joystick input; use <strong>Build &amp; Run</strong> or
+      <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to assemble the current source and start its exact result.
+      Static and serverless: no accounts, uploads, analytics, or remote code.
     </footer>
 
     <script type="module" src="main.js"></script>
