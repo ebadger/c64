@@ -21,6 +21,7 @@ import { Storage } from "./lib/storage.js";
 import { RomManager } from "./lib/roms.js";
 import { loadBundledRomSet } from "./lib/bundledRoms.js";
 import { loadGallery, fetchSource, fetchCuratedD64 } from "./lib/gallery.js";
+import { isCurrentCuratedMediaRequest } from "./lib/galleryActions.js";
 import { downloadBytes, downloadSource } from "./lib/downloads.js";
 import { computeShare, copyToClipboard } from "./lib/share.js";
 import { ROM_ROLES } from "./lib/romValidate.js";
@@ -949,6 +950,7 @@ async function loadGalleryList() {
 
 async function openGalleryEntry(entry) {
   const generation = ++gallerySelectionGeneration;
+  const mediaGeneration = d64SelectionGeneration;
   const src = await fetchSource(entry, repoBase);
   if (generation !== gallerySelectionGeneration) return;
   if (!src.ok) {
@@ -959,13 +961,21 @@ async function openGalleryEntry(entry) {
   const project = projectFromGalleryEntry(entry, src.source);
   loadProjectIntoUI(project, "src");
   els.gallerySelect.value = entry.id;
-  if (entry.curatedD64Path) await mountCuratedD64(entry.curatedD64Path);
+  if (entry.curatedD64Path && mediaGeneration === d64SelectionGeneration) {
+    await mountCuratedD64(entry.curatedD64Path, generation);
+  }
 }
 
-async function mountCuratedD64(path) {
+async function mountCuratedD64(path, galleryGeneration = null) {
   const generation = ++d64SelectionGeneration;
   const res = await fetchCuratedD64(path, repoBase);
-  if (generation !== d64SelectionGeneration) return;
+  if (!isCurrentCuratedMediaRequest(
+    { mediaGeneration: generation, galleryGeneration },
+    {
+      mediaGeneration: d64SelectionGeneration,
+      galleryGeneration: gallerySelectionGeneration,
+    },
+  )) return;
   if (!res.ok) {
     errorBus.error(res.error.category, res.error.code, res.error.message);
     return;

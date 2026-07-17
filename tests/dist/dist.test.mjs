@@ -39,6 +39,20 @@ function isText(p) {
   return TEXT_EXT.has(extname(p).toLowerCase());
 }
 
+function relativeLuminance(hex) {
+  const channels = hex.slice(1).match(/../g).map((part) => {
+    const value = Number.parseInt(part, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
+}
+
+function contrastRatio(a, b) {
+  const lighter = Math.max(relativeLuminance(a), relativeLuminance(b));
+  const darker = Math.min(relativeLuminance(a), relativeLuminance(b));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 // Build once for the reference/manifest/MIME tests (WASM optional in this environment).
 const out = freshOut("c64-dist-a-");
 const { manifest, wasmIncluded } = buildDist({ repoRoot, outDir: out, requireWasm: false });
@@ -215,6 +229,15 @@ test("the production shell uses the 3RIC-compatible emulator-first workspace", (
   assert.match(css, /--bg:\s*#0b0e0c;/);
   assert.match(css, /--fg:\s*#33ff66;/);
   assert.match(css, /--dim:\s*#1d6b33;/);
+  const secondaryText = css.match(/--secondary-text:\s*(#[0-9a-f]{6});/i)?.[1];
+  assert.ok(secondaryText, "secondary text color is declared");
+  for (const background of ["#0b0e0c", "#11140f", "#000000"]) {
+    assert.ok(
+      contrastRatio(secondaryText, background) >= 4.5,
+      `secondary text meets 4.5:1 contrast on ${background}`,
+    );
+  }
+  assert.doesNotMatch(css, /^\s*color:\s*var\(--dim\)/m, "structural dim green is not used for text");
   assert.match(css, /\.workspace\s*\{[^}]*display:\s*flex;/s);
   assert.match(css, /\.panel-machine\s*\{[^}]*width:\s*640px;/s);
   assert.match(css, /\.panel-editor\s*\{[^}]*max-width:\s*780px;/s);

@@ -8,7 +8,7 @@
   --dim: #1d6b33;
   --panel: #11140f;
   --panel-hover: #182119;
-  --key-alt: #75bd89;
+  --secondary-text: #75bd89;
   --error: #ff6b6b;
   --warn: #ffcf6b;
   --mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
@@ -98,7 +98,7 @@ a {
 .tagline,
 .hint,
 .muted {
-  color: var(--dim);
+  color: var(--secondary-text);
 }
 
 .tagline,
@@ -198,13 +198,13 @@ input[type="range"] {
   flex: 0 0 auto;
   gap: 5px;
   align-items: center;
-  color: var(--dim);
+  color: var(--secondary-text);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .run-status {
-  color: var(--key-alt);
+  color: var(--secondary-text);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -252,7 +252,7 @@ input[type="range"] {
 
 .error-list .cat {
   margin-right: 6px;
-  color: var(--key-alt);
+  color: var(--secondary-text);
   font-size: 10px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -368,7 +368,7 @@ input[type="range"] {
   gap: 3px;
   min-width: 0;
   flex-direction: column;
-  color: var(--dim);
+  color: var(--secondary-text);
   font-size: 11px;
 }
 
@@ -430,7 +430,7 @@ input[type="range"] {
 }
 
 .editor::placeholder {
-  color: var(--dim);
+  color: var(--secondary-text);
 }
 
 .diagnostics {
@@ -441,7 +441,7 @@ input[type="range"] {
   border: 1px solid var(--dim);
   border-radius: 4px;
   background: #000;
-  color: var(--dim);
+  color: var(--secondary-text);
   font-size: 11px;
 }
 
@@ -460,7 +460,7 @@ input[type="range"] {
 }
 
 .diag-summary {
-  color: var(--key-alt);
+  color: var(--secondary-text);
   font-size: 11px;
 }
 
@@ -483,7 +483,7 @@ input[type="range"] {
 }
 
 .build-id code {
-  color: var(--key-alt);
+  color: var(--secondary-text);
   word-break: break-all;
 }
 
@@ -538,7 +538,7 @@ input[type="range"] {
 }
 
 .rom-status {
-  color: var(--key-alt);
+  color: var(--secondary-text);
   font-size: 11px;
   font-weight: 400;
 }
@@ -575,13 +575,13 @@ input[type="range"] {
 }
 
 .rom-role .digest {
-  color: var(--dim);
+  color: var(--secondary-text);
   font-size: 9px;
   word-break: break-all;
 }
 
 .rom-role .state {
-  color: var(--key-alt);
+  color: var(--secondary-text);
   font-size: 10px;
 }
 
@@ -631,7 +631,7 @@ input[type="range"] {
 
 .gallery-item p {
   margin: 0 0 6px;
-  color: var(--dim);
+  color: var(--secondary-text);
   font-size: 10px;
 }
 
@@ -654,20 +654,20 @@ input[type="range"] {
 }
 
 .key-help th {
-  color: var(--key-alt);
+  color: var(--secondary-text);
   font-weight: 400;
 }
 
 .app-footer {
   padding: 8px 16px;
   border-top: 1px solid var(--dim);
-  color: var(--dim);
+  color: var(--secondary-text);
   font-size: 10px;
 }
 
 .app-footer strong,
 .app-footer kbd {
-  color: var(--key-alt);
+  color: var(--fg);
 }
 
 .app-footer kbd {

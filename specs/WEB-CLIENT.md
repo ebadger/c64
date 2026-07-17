@@ -91,11 +91,14 @@ intentionally has its own `buildId`; the two golden records do not have to match
 
 - The presentation shell intentionally shares 3RIC Studio's compact terminal visual language:
   a full-height near-black surface (`#0b0e0c`), bright and dim phosphor greens (`#33ff66` and
-  `#1d6b33`), a dark panel surface (`#11140f`), system monospace text, and one-pixel controls.
-  It loads no external font or style dependency. On wide screens the emulator is the left,
-  screen-first column (up to 640 CSS pixels) and the assembler is the flexible right column
-  (up to 780 CSS pixels), with C64-specific utility panels below. The two columns wrap without
-  horizontal page scrolling, and the narrow layout keeps emulator then editor source order.
+  `#1d6b33`), a readable secondary green (`#75bd89`), a dark panel surface (`#11140f`), system
+  monospace text, and one-pixel controls. Dim green is structural (borders/dividers); normal-size
+  secondary text uses the lighter green and maintains at least 4.5:1 contrast on its declared
+  surfaces. The client loads no external font or style dependency. On wide screens the emulator
+  is the left, screen-first column (up to 640 CSS pixels) and the assembler is the flexible right
+  column (up to 780 CSS pixels), with C64-specific utility panels below. The two columns wrap
+  without horizontal page scrolling, and the narrow layout keeps emulator then editor source
+  order.
 - Initial UI areas: a compact machine toolbar; source editor and diagnostics; Build & Run,
   build-only, run-last-build, Boot BASIC, Stop, and Reset controls; machine profile; video and
   audio; keyboard/joystick help; artifact downloads; share; gallery; ROM status; and D64
@@ -115,7 +118,9 @@ intentionally has its own `buildId`; the two golden records do not have to match
   path and suppresses the textarea newline for that chord only.
 - Valid gallery entries populate both the descriptive gallery cards and a compact **Sample**
   selector in the assembler bar. Choosing a sample follows the same validated source/remix load
-  path as its gallery card and does not auto-run it.
+  path as its gallery card and does not auto-run it. Source selection does not eject already
+  mounted media (D64 remains independent), but every newer gallery or explicit disk action
+  invalidates an older in-flight curated-D64 fetch so late media cannot attach to a newer source.
 - Switching ROM source stops execution and replaces the set atomically. Custom mode starts
   empty and cannot inherit individual bundled roles, avoiding unsupported mixed sets.
 - In-app **Run** resets the machine (power-on), loads the PRG, and enters the machine-code entry
