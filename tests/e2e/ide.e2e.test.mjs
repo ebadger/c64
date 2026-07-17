@@ -143,7 +143,31 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
       null,
       { timeout: 10000 },
     );
+
+    await page.click("#virtual-keyboard-summary");
+    for (const id of ["key-p", "key-r", "key-i", "key-n", "key-t", "space", "digit-5", "return"]) {
+      await page.click(`[data-key-id="${id}"]`);
+      await page.waitForTimeout(130);
+    }
+    await page.waitForFunction(
+      () => {
+        const text = window.__c64.screenText();
+        return text.includes("PRINT 5") && (text.match(/READY\./g) || []).length >= 3;
+      },
+      null,
+      { timeout: 10000 },
+    );
     await page.click("#btn-stop");
+
+    const virtualChord = await page.evaluate(() => {
+      document.querySelector('[data-key-id="left-shift"]').click();
+      document.querySelector('[data-key-id="key-a"]').click();
+      return [...window.__c64.inputSnapshot().keyboardColumns];
+    });
+    assert.equal(virtualChord[1], 0xff & ~(1 << 7) & ~(1 << 2), "virtual SHIFT+A reaches the shared matrix");
+    await page.waitForTimeout(130);
+    const virtualReleased = await page.evaluate(() => [...window.__c64.inputSnapshot().keyboardColumns]);
+    assert.deepEqual(virtualReleased, [255, 255, 255, 255, 255, 255, 255, 255], "virtual pulse releases its chord");
 
     // ROM bytes and source-selection state never touch storage.
     const storedHasRom = await page.evaluate(() => {

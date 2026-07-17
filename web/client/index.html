@@ -70,8 +70,11 @@
         <section id="emulator" class="primary-panel panel-machine" aria-labelledby="h-machine">
           <div class="section-bar">
             <h2 id="h-machine">EMULATOR</h2>
-            <span class="hint">click the screen to type or use a joystick</span>
+            <span class="hint">focus the screen or open the C64 keyboard</span>
           </div>
+          <button id="skip-emulator-input" class="emulator-focus-exit" type="button">
+            Skip emulator input
+          </button>
           <div
             id="screen-surface"
             class="screen-surface"
@@ -81,6 +84,22 @@
           >
             <canvas id="screen" class="screen" width="384" height="284"></canvas>
           </div>
+          <details id="virtual-keyboard" class="virtual-keyboard">
+            <summary id="virtual-keyboard-summary">
+              VIRTUAL KEYBOARD
+              <span class="vk-summary-hint">Commodore 64 layout</span>
+            </summary>
+            <div
+              id="virtual-keyboard-keys"
+              class="virtual-keyboard-keys"
+              role="group"
+              aria-label="Commodore 64 virtual keyboard"
+            ></div>
+            <p id="virtual-keyboard-note" class="vk-note">
+              SHIFT, CTRL, and C= apply to the next virtual key. SHIFT LOCK stays on until
+              toggled. RESTORE sends the C64 NMI input.
+            </p>
+          </details>
           <div class="controls-grid">
             <label class="field">
               <span>SID</span>
@@ -240,7 +259,7 @@
 
         <section class="panel panel-help" aria-labelledby="h-help">
           <h2 id="h-help">Keyboard &amp; joystick</h2>
-          <p class="muted">Click the display to give it focus, then:</p>
+          <p class="muted">Focus the display for physical input, or use the virtual C64 keyboard.</p>
           <table class="key-help">
             <thead>
               <tr><th scope="col">Your key</th><th scope="col">C64</th></tr>

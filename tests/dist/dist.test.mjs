@@ -222,6 +222,9 @@ test("the production shell uses the 3RIC-compatible emulator-first workspace", (
     "btn-audio",
     "d64-file",
     "gallery-select",
+    "skip-emulator-input",
+    "virtual-keyboard",
+    "virtual-keyboard-keys",
   ]) {
     assert.equal([...html.matchAll(new RegExp(`id="${id}"`, "g"))].length, 1, `${id} appears exactly once`);
   }
@@ -242,6 +245,19 @@ test("the production shell uses the 3RIC-compatible emulator-first workspace", (
   assert.match(css, /\.panel-machine\s*\{[^}]*width:\s*640px;/s);
   assert.match(css, /\.panel-editor\s*\{[^}]*max-width:\s*780px;/s);
   assert.match(css, /@media\s*\(max-width:\s*480px\)/);
+  assert.ok(
+    html.indexOf('id="skip-emulator-input"') < html.indexOf('id="screen-surface"')
+      && html.indexOf('id="screen-surface"') < html.indexOf('id="virtual-keyboard"'),
+    "focus escape, display, and virtual keyboard stay in source order",
+  );
+  assert.match(css, /\.vk-function-column\s*\{[^}]*flex-direction:\s*column;/s);
+  assert.match(css, /\.vk-space-row \.space\s*\{[^}]*flex-grow:\s*6;/s);
+  const narrowKeyboardStyles = css.slice(
+    css.indexOf("@media (max-width: 640px)"),
+    css.indexOf("@media (max-width: 480px)"),
+  );
+  assert.match(narrowKeyboardStyles, /\.virtual-keyboard-keys\s*\{[^}]*overflow-x:\s*hidden;/s);
+  assert.match(narrowKeyboardStyles, /\.vk-layout\s*\{[^}]*min-width:\s*0;/s);
 });
 
 test("third-party notices inventory identifies Pascual redistribution and build-time-only tooling", () => {

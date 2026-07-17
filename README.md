@@ -15,8 +15,9 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 > once to a production WebAssembly artifact and proven by native and byte-identical headless
 > WASM parity tests; the **static browser IDE** (`web/client/`) that integrates the production
 > assembler in a worker and the production WASM machine through a 3RIC-compatible terminal
-> shell, emulator-first responsive workspace, exact-result Build & Run, compact sample selector,
-> Boot BASIC, direct-entry run/stop/reset, presentation, input, D64 directory/run/eject controls,
+> shell, emulator-first responsive workspace, integrated physical-layout C64 virtual keyboard,
+> exact-result Build & Run, compact sample selector, Boot BASIC, direct-entry run/stop/reset,
+> presentation, input, D64 directory/run/eject controls,
 > bundled Pascual/custom-ROM handling, sharing, gallery, and downloads; and the **release
 > pipeline** — a deterministic `dist/` build, external D64 interoperability verification (VICE
 > `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and a GitHub Pages deploy workflow.
@@ -35,7 +36,8 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 3. Choose **Build & Run** (or `Ctrl`/`Command`+`Enter`) to build and start the exact successful
    result, or **Build only** to produce deterministic PRG and D64 artifacts without starting it.
 4. Boot into Pascual's BASIC at the ROM reset vector, or run the built PRG directly in the
-   shared C++17 emulator core compiled to WebAssembly.
+   shared C++17 emulator core compiled to WebAssembly; use either the physical keyboard or the
+   integrated C64-layout virtual keyboard.
 5. Import a D64 for BASIC/KERNAL drive-8 access, or choose a PRG from its directory and supply an entry address when it has no
    detectable BASIC `SYS` target, and run or eject it without reloading the page.
 6. Share editable source through `?src` or base64url UTF-8 `?code`.

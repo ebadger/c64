@@ -3,13 +3,13 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-16 — disk browse/run/eject and animated-example candidate_
+_Last verified: 2026-07-16 — integrated C64 virtual keyboard, disk browse/run/eject, and animated example_
 
 ## Environments
 
 | Environment | Current location | URL | State |
 |-------------|------------------|-----|-------|
-| Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker, production WASM machine, and D64 directory/run/eject controls |
+| Development | Repository checkout | `http://127.0.0.1:8080/web/client/` via `node scripts/dev/serve.mjs` | Deterministic source-to-artifact pipeline, the C++17 machine core (native CMake/CTest and the production WASM artifact), and the static browser IDE (`web/client/`) integrating the production assembler worker, production WASM machine, physical/virtual C64 keyboard input, and D64 directory/run/eject controls |
 | Production | GitHub Pages | `https://ebadger.github.io/c64/` | Live static deployment. `release.yml` rebuilds and deploys the exact gated `dist/` artifact on merged `main`; no runtime backend or secret |
 
 ## Run locally
@@ -28,7 +28,9 @@ The static browser IDE in `web/client/` runs the production assembler in a modul
 production WASM machine through `web/emulator/c64.mjs`. Edit/build/download work without the WASM
 artifact; **Boot BASIC** and **Run** additionally require the built WASM core. The pinned Pascual
 BASIC/KERNAL set with MEGA65 PXL chargen loads by default, with an explicit complete custom
-local-set override that remains memory-only.
+local-set override that remains memory-only. A collapsed original-layout C64 virtual keyboard below
+the canvas feeds the same active-low matrix as physical keys, including one-shot touch modifiers,
+persistent SHIFT LOCK, RESTORE NMI, paired cursor keys, and F1/F2 through F7/F8 keycaps.
 A valid local or curated D64 immediately exposes its directory; a selected PRG runs at a detected
 first-line BASIC `SYS` target or a user-supplied entry address, and **Eject** removes drive-8 media
 without stopping or resetting the CPU.
@@ -90,9 +92,9 @@ in `SETUP.md`).
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
 | CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + full browser matrix + external interop + dist build/integrity + Pages deploy on main) and `.github/workflows/core.yml` (fast per-branch feedback) |
-| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, Boot BASIC, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned Pascual ROMs, and complete memory-only custom-set override |
+| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, integrated C64-layout virtual keyboard, Boot BASIC, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned Pascual ROMs, and complete memory-only custom-set override |
 | Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and the exact Pascual binary/license/notice/source allowlist; WASM required (fail-not-skip) |
-| Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI). The deep Build & Run E2E waits for the program's observable RAM write rather than treating browser pacing state as proof that a machine batch executed. |
+| Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic, including the 66-key C64 layout and virtual matrix interaction) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI). The deep E2E enters BASIC commands through both physical and virtual keys and waits for observable machine state rather than treating browser pacing state as proof that a batch executed. |
 | External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
 | GitHub Pages deploy | Implemented and live — `release.yml` deploys the gated `dist/` on merged `main` via official Pages actions |
 
