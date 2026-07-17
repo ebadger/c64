@@ -85,10 +85,14 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     await page.fill("#project-name", "e2etest");
     await page.fill("#editor", OBSERVABLE_PROGRAM);
     await page.click("#btn-build-run");
+    // Pacing can become active before the first machine batch; wait for the program's write too.
     await page.waitForFunction(
       (id) => {
         const b = window.__c64.lastBuild();
-        return b !== null && b.buildId === id && window.__c64.running();
+        return b !== null
+          && b.buildId === id
+          && window.__c64.running()
+          && window.__c64.peek(0x0400) === 0x07;
       },
       expectedBuild.assembly.buildId,
       { timeout: 8000 },
