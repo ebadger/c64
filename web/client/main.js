@@ -356,7 +356,7 @@ function wireMachineControls() {
   input = new InputController(els.screenSurface, {
     inputRegion: els.emulator,
     onReleasePhysical: () => {
-      if (machine && machine.ready) machine.releaseInput();
+      if (machine && machine.ready) machine.setInput(input.snapshot());
     },
     onReleaseAll: () => {
       if (virtualKeyboard) virtualKeyboard.reset();
