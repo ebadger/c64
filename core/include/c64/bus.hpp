@@ -13,6 +13,7 @@
 #include <array>
 
 #include "c64/cia.hpp"
+#include "c64/cpu_bus.hpp"
 #include "c64/device.hpp"
 #include "c64/rom.hpp"
 #include "c64/sid.hpp"
@@ -23,6 +24,8 @@
 namespace c64 {
 
 class Cpu;  // forward declaration; the Bus drives the CPU's device IRQ/NMI inputs each cycle
+class Drive1541;
+class IecBus;  // forward declaration; the Bus drives the CPU's device IRQ/NMI inputs each cycle
 
 // Region a physical address currently resolves to. Used by debug inspection and banking tests.
 enum class MappedRegion : u8 {
@@ -41,7 +44,7 @@ enum class MappedRegion : u8 {
 
 const char* mappedRegionId(MappedRegion region);
 
-class Bus {
+class Bus : public CpuBus {
  public:
   Bus();
 
@@ -54,6 +57,10 @@ class Bus {
 
   // Wire the CPU so the Bus can drive its aggregated device IRQ line and NMI edges each cycle.
   void attachCpu(Cpu* cpu) { cpu_ = cpu; }
+  void attachDrive(IecBus* iec, Drive1541* drive) {
+    iec_ = iec;
+    drive_ = drive;
+  }
 
   // Reset all RAM to a deterministic pattern (power-on) and set the processor port to its
   // documented reset state ($00 = $2F, $01 = $37). `fillSeed` selects the power-on RAM
@@ -68,13 +75,13 @@ class Bus {
   // advances the devices exactly once.
   u8 read(u16 addr);
   void write(u16 addr, u8 value);
-  u8 peek(u16 addr) const;
+  u8 peek(u16 addr) const override;
 
   // One CPU cycle that performs a read/write/idle. readCycle() first resolves any VIC bus steal
   // (BA/AEC): while the VIC is holding the bus the CPU is stalled on a read, so extra stall
   // cycles are consumed (ticking the devices) before the read completes. Writes are not stalled.
-  u8 readCycle(u16 addr);
-  void writeCycle(u16 addr, u8 value);
+  u8 readCycle(u16 addr) override;
+  void writeCycle(u16 addr, u8 value) override;
   void idleCycles(u32 count);
 
   // Total device cycles ticked since the last reset (free-running accounting clock).
@@ -118,6 +125,8 @@ class Bus {
 
   const RomSet* roms_ = nullptr;
   Cpu* cpu_ = nullptr;
+  IecBus* iec_ = nullptr;
+  Drive1541* drive_ = nullptr;
 
   u64 cycleCounter_ = 0;    // free-running device-cycle accounting clock
   bool prevNmiLine_ = false;  // for edge detection on the aggregated device NMI line

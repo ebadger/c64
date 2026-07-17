@@ -133,6 +133,34 @@ bool romSetIdentityMatches(const RomSet& set) {
   return true;
 }
 
+DriveRomResult validateDriveRom(const RomImage& image) {
+  DriveRomResult result;
+  if (image.bytes.empty()) {
+    result.error = Error::make(ErrorCode::RomSetIncomplete, "Drive ROM is missing.");
+    return result;
+  }
+  if (image.bytes.size() != kDriveRomSize) {
+    result.error = Error::make(ErrorCode::RomSize,
+                               "Drive ROM must be 16384 bytes but was " +
+                                   std::to_string(image.bytes.size()) + ".");
+    return result;
+  }
+  result.rom.bytes = image.bytes;
+  result.rom.size = static_cast<u32>(image.bytes.size());
+  result.rom.sha256 = sha256Hex(image.bytes);
+  result.rom.id = result.rom.sha256;
+  result.rom.licenseId = image.licenseId;
+  result.rom.source = image.source;
+  result.ok = true;
+  return result;
+}
+
+bool driveRomIdentityMatches(const DriveRom& rom) {
+  if (!rom.complete() || rom.size != rom.bytes.size()) return false;
+  const std::string digest = sha256Hex(rom.bytes);
+  return rom.id == digest && rom.sha256 == digest;
+}
+
 RomSet syntheticRomSet(u16 resetVector, u16 irqVector, u16 nmiVector) {
   RomImage basic;
   basic.bytes.resize(kBasicRomSize);
@@ -169,6 +197,18 @@ RomSet syntheticRomSet(u16 resetVector, u16 irqVector, u16 nmiVector) {
 
   RomSetResult validated = validateRomSet(basic, kernal, chargen);
   return validated.set;
+}
+
+DriveRom syntheticDriveRom(u16 resetVector) {
+  RomImage image;
+  image.bytes.assign(kDriveRomSize, 0xEA);
+  image.source = "synthetic-test";
+  image.licenseId = "CC0-1.0";
+  image.bytes[0x3FFC] = static_cast<u8>(resetVector & 0xFF);
+  image.bytes[0x3FFD] = static_cast<u8>((resetVector >> 8) & 0xFF);
+  image.bytes[0x3FFE] = static_cast<u8>(resetVector & 0xFF);
+  image.bytes[0x3FFF] = static_cast<u8>((resetVector >> 8) & 0xFF);
+  return validateDriveRom(image).rom;
 }
 
 }  // namespace c64

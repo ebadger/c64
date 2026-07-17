@@ -5,8 +5,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { loadEmulator, makeSyntheticRoms, wasmArtifactExists } from "./helpers.mjs";
+import { buildKeyboardColumns } from "../../web/client/lib/keymap.js";
 
 const pascualDir = new URL("../../third_party/pascual-roms/", import.meta.url);
+
+function bundledRoms() {
+  return {
+    basic: new Uint8Array(readFileSync(new URL("basic.rom", pascualDir))),
+    kernal: new Uint8Array(readFileSync(new URL("kernal.rom", pascualDir))),
+    chargen: new Uint8Array(readFileSync(new URL("chargen.rom", pascualDir))),
+    drive: new Uint8Array(readFileSync(new URL("dos1541.rom", pascualDir))),
+  };
+}
 
 function decodeScreen(machine) {
   let text = "";
@@ -27,9 +37,7 @@ test("bundled Pascual ROMs cold-start to the BASIC READY prompt through WASM", a
   const emu = await loadEmulator();
   const machine = emu.createMachine({
     timingProfile: "pal-6569",
-    basic: new Uint8Array(readFileSync(new URL("basic.rom", pascualDir))),
-    kernal: new Uint8Array(readFileSync(new URL("kernal.rom", pascualDir))),
-    chargen: new Uint8Array(readFileSync(new URL("chargen.rom", pascualDir))),
+    ...bundledRoms(),
   });
   try {
     assert.equal(machine.configureError, "none");
@@ -42,6 +50,67 @@ test("bundled Pascual ROMs cold-start to the BASIC READY prompt through WASM", a
     assert.match(screen, /PASCUAL'S BASIC/);
     assert.match(screen, /38911 BASIC BYTES FREE/);
     assert.match(screen, /READY\./);
+  } finally {
+    machine.dispose();
+  }
+});
+
+test("bundled BASIC LOAD wildcard reads a mounted D64 through WASM", async (t) => {
+  if (!wasmArtifactExists()) {
+    t.skip("WASM artifact not built");
+    return;
+  }
+  const { buildD64 } = await import("../../src/d64.js");
+  const prg = Uint8Array.from([
+    0x01, 0x08,             // load address $0801
+    0x07, 0x08, 0x0a, 0x00, 0x80, 0x00, // 10 END
+    0x00, 0x00,             // BASIC program terminator
+  ]);
+  const built = buildD64({ outputName: "PROG", diskName: "TESTDISK", diskId: "ID" }, prg);
+  assert.equal(built.ok, true, built.error?.message);
+
+  const emu = await loadEmulator();
+  const machine = emu.createMachine({
+    timingProfile: "pal-6569",
+    ...bundledRoms(),
+  });
+  try {
+    assert.equal(machine.configureError, "none");
+    assert.equal(machine.mountD64(built.d64).ok, true);
+
+    let screen = "";
+    for (let batch = 0; batch < 100 && !screen.includes("READY."); batch += 1) {
+      const run = machine.runCycles(200000);
+      assert.notEqual(run.stopReason, "fault");
+      screen = decodeScreen(machine);
+    }
+    assert.match(screen, /READY\./);
+
+    const commandKeys = [
+      ["KeyL"], ["KeyO"], ["KeyA"], ["KeyD"],
+      ["ShiftLeft", "Quote"], ["ShiftLeft", "Digit8"], ["ShiftLeft", "Quote"],
+      ["Comma"], ["Digit8"], ["Enter"],
+    ];
+    for (const codes of commandKeys) {
+      assert.equal(machine.setInput({ keyboardColumns: buildKeyboardColumns(codes) }), "none");
+      assert.notEqual(machine.runCycles(50000).stopReason, "fault");
+      assert.equal(machine.setInput({ keyboardColumns: buildKeyboardColumns([]) }), "none");
+      assert.notEqual(machine.runCycles(50000).stopReason, "fault");
+    }
+
+    const expectedEnd = 0x0801 + prg.length - 2;
+    let vartab = 0;
+    for (let batch = 0; batch < 100 && vartab !== expectedEnd; batch += 1) {
+      const run = machine.runCycles(200000);
+      assert.notEqual(run.stopReason, "fault");
+      // Pascual's BASIC locates VARTAB at $2A/$2B.
+      vartab = machine.debugReadRam(0x2a) | (machine.debugReadRam(0x2b) << 8);
+    }
+    assert.equal(vartab, expectedEnd);
+    assert.deepEqual(
+      Array.from({ length: prg.length - 2 }, (_, i) => machine.debugReadRam(0x0801 + i)),
+      [...prg.subarray(2)],
+    );
   } finally {
     machine.dispose();
   }

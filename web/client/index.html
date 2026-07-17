@@ -125,8 +125,9 @@
             </label>
           </div>
           <p class="fidelity-note muted">
-            Line-based VIC-II · approximate SID filter · high-level KERNAL LOAD/IEC disk trap.
-            Source Run enters at the generated SYS target.
+            Documented + stable undocumented NMOS opcodes (others fault) · line-based VIC-II ·
+            approximate SID filter · bounded digital 1541 (not analog/flux accurate). Source Run
+            enters at the generated SYS target.
           </p>
         </section>
 
@@ -193,8 +194,9 @@
         <section class="panel panel-rom" aria-labelledby="h-rom">
           <h2 id="h-rom">ROMs</h2>
           <p class="muted">
-            Bundled Pascual BASIC/KERNAL and MEGA65 PXL chargen are the default. Custom files stay
-            in memory and are never uploaded, stored, or logged.
+            Bundled Pascual BASIC/KERNAL, MEGA65 PXL chargen, and clean-room DOS-1541 firmware are
+            the default. Custom C64 ROM files stay in memory and are never uploaded, stored, or
+            logged; the bundled drive firmware remains active.
           </p>
           <label class="field rom-source">
             <span>ROM source</span>
@@ -212,7 +214,10 @@
             <a id="rom-lgpl-link">LGPL text</a> ·
             <a id="rom-gpl-link">GPL text</a> ·
             <a id="rom-chargen-notice-link">chargen notices</a> ·
-            <a id="rom-source-link" download>corresponding source archive</a>
+            <a id="rom-source-link" download>C64 corresponding source</a> ·
+            <a id="drive-license-link">drive MIT license</a> ·
+            <a id="drive-provenance-link">drive provenance</a> ·
+            <a id="drive-source-link" download>drive corresponding source</a>
           </p>
           <div id="rom-custom" hidden>
             <div id="rom-roles" class="rom-roles"></div>
@@ -223,7 +228,8 @@
           <h2 id="h-media">Disk (D64)</h2>
           <p class="muted">
             Mount a read-only disk from the top toolbar. Its directory appears here and never
-            auto-runs a file.
+            auto-runs a file. Standard drive-8 IEC/DOS and uploaded drive code run within a bounded
+            digital CPU/VIA/GCR model; writable disks and copy-protection/analog-flux formats do not.
           </p>
           <p id="d64-status" class="muted" aria-live="polite">No disk mounted.</p>
           <div id="d64-controls" class="media-controls" hidden>

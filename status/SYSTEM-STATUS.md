@@ -3,7 +3,8 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-16 — integrated C64 virtual keyboard, disk browse/run/eject, and animated example_
+_Last verified: 2026-07-17 — 255 strict Node/browser/WASM/interop tests, 17 native suites,
+drive-ROM/dist integrity_
 
 ## Environments
 
@@ -27,8 +28,10 @@ node scripts/dev/serve.mjs         # serve the static browser IDE at http://127.
 The static browser IDE in `web/client/` runs the production assembler in a module worker and the
 production WASM machine through `web/emulator/c64.mjs`. Edit/build/download work without the WASM
 artifact; **Boot BASIC** and **Run** additionally require the built WASM core. The pinned Pascual
-BASIC/KERNAL set with MEGA65 PXL chargen loads by default, with an explicit complete custom
-local-set override that remains memory-only. A collapsed original-layout C64 virtual keyboard below
+BASIC/KERNAL set with MEGA65 PXL chargen and the clean-room Pascual DOS-1541 firmware load by
+default. The explicit complete custom C64-ROM override remains memory-only while retaining the
+bundled drive firmware.
+A collapsed original-layout C64 virtual keyboard below
 the canvas feeds the same active-low matrix as physical keys, including one-shot touch modifiers,
 persistent SHIFT LOCK, RESTORE NMI, paired cursor keys, and F1/F2 through F7/F8 keycaps.
 A valid local or curated D64 immediately exposes its directory; a selected PRG runs at a detected
@@ -43,21 +46,24 @@ toolchain commands (including the Windows Visual Studio path and the pinned Emsc
 install). In short:
 
 ```sh
-sh scripts/build/build-native.sh        # native CMake build + CTest (15 suites)
+sh scripts/build/build-native.sh        # native CMake build + CTest (17 suites)
 sh scripts/build/build-wasm.sh          # production build/wasm/c64core.mjs + c64core.wasm
 node --test tests/wasm/                  # headless native/WASM byte-identical parity + smoke
 ```
 
-Implemented and verifiable now: the complete documented NMOS 6510 CPU, C64 memory
+Implemented and verifiable now: the complete documented NMOS 6510 CPU plus the declared stable
+undocumented opcode families, C64 memory
 bus/banking and processor port, ROM-set validation and identity, machine lifecycle
 (configure/reset/PRG-load/`runCycles`/debug), cycle-integrated VIC-II (raster/IRQ/bad-line/
 sprites/modes/indexed framebuffer), SID (voices/ADSR/waveforms + approximate filter, mono float
-audio), the two CIAs (ports/timers/TOD/keyboard/joystick/VIC-bank), read-only mounted D64
-execution through a high-level KERNAL LOAD/IEC trap, the `setInput`/`copyFramebuffer`/
+audio), the two CIAs (ports/timers/TOD/keyboard/joystick/VIC-bank), and read-only mounted D64
+execution through an independent 1 MHz 1541 CPU, selected 6522 VIA surface, wired IEC, and
+deterministic rotating GCR tracks. The `setInput`/`copyFramebuffer`/
 `drainAudio`/`mountD64`/`unmountD64` APIs, the embind projection, and the `web/emulator` ES
 wrapper. The static browser IDE (`web/client/`) is implemented on top of these, and the GitHub
 Pages deployment is live. Device and media fidelity is honestly labelled (line-based VIC
-renderer, approximate SID filter, high-level rather than cycle-level 1541 drive); see the layer
+renderer, approximate SID filter, and a bounded digital rather than analog/flux-level 1541); see
+the layer
 specs.
 
 ## Verify the files that exist
@@ -88,11 +94,11 @@ in `SETUP.md`).
 | Step | State |
 |------|-------|
 | Install pinned Emscripten (3.1.74) | Implemented — `scripts/build/emscripten-version.txt`; commands in `SETUP.md` |
-| Native CMake build + CTest | Implemented — `core/` project, `scripts/build/build-native.sh`, 15 test suites |
+| Native CMake build + CTest | Implemented — `core/` project, `scripts/build/build-native.sh`, 17 test suites |
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
 | CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + full browser matrix + external interop + dist build/integrity + Pages deploy on main) and `.github/workflows/core.yml` (fast per-branch feedback) |
-| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, integrated C64-layout virtual keyboard, Boot BASIC, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned Pascual ROMs, and complete memory-only custom-set override |
+| Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, integrated C64-layout virtual keyboard, Boot BASIC, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned Pascual C64 and DOS-1541 ROMs, and complete memory-only custom C64-set override |
 | Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and the exact Pascual binary/license/notice/source allowlist; WASM required (fail-not-skip) |
 | Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic, including the 66-key C64 layout and virtual matrix interaction) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI). The deep E2E enters BASIC commands through both physical and virtual keys and waits for observable machine state rather than treating browser pacing state as proof that a batch executed. |
 | External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
@@ -115,6 +121,7 @@ repository or CI data.
 | `scripts/dev/pre-push-tests.sh` | Run operating validations and, when critical-path files change, the non-bypassable pipeline eval. |
 | `scripts/dev/test-critical-path.sh` | Product critical-path eval: full `node --test tests/` plus example golden-vector verification. |
 | `scripts/dev/review-template-updates.mjs` | Check canonical policy changes and record reviewed checkpoints. |
+| `scripts/build/build-drive-rom.mjs` | Reproduce or verify the reviewed wildcard-compatible DOS-1541 ROM from the exact pinned upstream binary. |
 | `scripts/build/build-dist.mjs` | Assemble the clean, flattened, base-path-agnostic production `dist/` with a sha256 manifest. |
 | `scripts/dev/verify-dist.mjs` | Verify the assembled `dist/` (manifest hashes, required files, CSP, no leaks). |
 | `scripts/dev/require-release-artifacts.mjs` | Release gate: fail (not skip) when the production WASM artifact is missing. |
@@ -125,9 +132,10 @@ repository or CI data.
   D64 first. In-app source/disk **Run** remains distinct: it resets, loads the PRG, and enters the
   selected machine-code target directly. Reset restarts the last BASIC/program mode and preserves
   mounted media; Stop changes browser pacing only.
-- The pinned Pascual BASIC/KERNAL set plus MEGA65 PXL chargen is the default and is shipped with
-  complete per-component license texts/notices, provenance, and corresponding source. A complete
-  custom BASIC/KERNAL/character set can replace it for one page session; custom bytes and source
+- The pinned Pascual BASIC/KERNAL set, MEGA65 PXL chargen, and clean-room DOS-1541 firmware are
+  the default and ship with complete per-component license texts/notices, provenance, and
+  corresponding source. A complete custom BASIC/KERNAL/character set can replace the C64 trio
+  for one page session while the bundled drive firmware remains active; custom bytes and source
   selection are never persisted.
 - **Web Audio is optional.** When a browser provides no Web Audio (e.g. headless WebKit), the
   emulator still loads, builds, runs video, accepts input, and downloads artifacts, but sound is
@@ -139,16 +147,17 @@ repository or CI data.
   6581-vs-8580 tonal differences are a deterministic **approximation** (no analog-perfect claim).
   SID output is float, so native/WASM byte-identical parity is asserted only over integer device
   state; SID audio is validated by native unit tests and a WASM smoke test.
-- The mounted-D64 drive is a **high-level KERNAL LOAD/IEC trap** (drive 8, standard file and
-  directory LOAD), not a cycle-level 1541 CPU/VIA/GCR drive. Browser directory launch extracts
-  and directly loads the exact selected PRG; subsequent emulated disk access still uses the
-  high-level trap. Custom drive code, fastloaders, and bit-level GCR access are not emulated (see
-  `specs/MEDIA.md`).
+- The mounted-D64 drive is a bounded digital 1541 model: an independent 1 MHz NMOS CPU, selected
+  6522 surface required by the bundled clean-room DOS, open-collector IEC, and deterministic
+  rotating GCR tracks. It is not analog/flux accurate, writable, or compatible with software
+  that depends on private entry points from Commodore's proprietary ROM. Uploaded fastloaders
+  work only within that explicit CPU/VIA/GCR surface (see `specs/MEDIA.md`).
 - The CIA serial shift register (SDR) has limited support; full RS-232/serial timing is not
   modelled. Interrupts are sampled at instruction boundaries (the NMOS CLI/SEI/PLP enable delay
   is modelled).
-- No proprietary Commodore ROM dump ships. Core conformance tests retain synthetic generated ROMs,
-  and the high-level D64 trap uses no 1541 drive ROM.
+- No proprietary Commodore ROM dump ships. Core conformance tests retain synthetic generated ROMs;
+  production drive execution uses the pinned MIT clean-room Pascual DOS-1541 image and c64's
+  audited wildcard patch.
 - Generated D64 images are now independently verified against **external software tooling** (VICE
   `c1541`: 35-track directory metadata + byte-exact extracted PRG). This is a **software**
   interoperability claim only — it does not verify physical 1541 hardware, real GCR flux/timing, or

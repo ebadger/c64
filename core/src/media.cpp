@@ -1,5 +1,6 @@
 #include "c64/media.hpp"
 
+#include <array>
 #include <set>
 
 namespace c64 {
@@ -10,6 +11,10 @@ constexpr u32 kBamTrack = 18;
 constexpr u32 kBamSector = 0;
 constexpr u32 kDirTrack = 18;
 constexpr u8 kShiftSpace = 0xA0;
+constexpr std::array<u8, 16> kGcrCodes = {
+    0x0A, 0x0B, 0x12, 0x13, 0x0E, 0x0F, 0x16, 0x17,
+    0x09, 0x19, 0x1A, 0x1B, 0x0D, 0x1D, 0x1E, 0x15,
+};
 
 MediaResult mediaError(ErrorCode code, std::string message) {
   MediaResult r;
@@ -79,6 +84,34 @@ bool walkFileChain(const std::vector<u8>& bytes, u8 startTrack, u8 startSector,
     t = nextT;
     s = nextS;
   }
+}
+
+void appendGcrGroup(GcrTrack& track, const u8* decoded) {
+  u64 packed = 0;
+  for (u8 i = 0; i < 4; ++i) {
+    packed = (packed << 5) | kGcrCodes[decoded[i] >> 4];
+    packed = (packed << 5) | kGcrCodes[decoded[i] & 0x0F];
+  }
+  for (int shift = 32; shift >= 0; shift -= 8) {
+    track.bytes.push_back(static_cast<u8>((packed >> shift) & 0xFF));
+    track.sync.push_back(0);
+  }
+}
+
+void appendEncoded(GcrTrack& track, const u8* decoded, u32 size) {
+  for (u32 i = 0; i < size; i += 4) appendGcrGroup(track, decoded + i);
+}
+
+void appendFill(GcrTrack& track, u8 value, u32 count, bool sync) {
+  track.bytes.insert(track.bytes.end(), count, value);
+  track.sync.insert(track.sync.end(), count, sync ? 1 : 0);
+}
+
+u32 trackLength(u32 track) {
+  if (track <= 17) return 7692;
+  if (track <= 24) return 7142;
+  if (track <= 30) return 6666;
+  return 6250;
 }
 }  // namespace
 
@@ -199,6 +232,54 @@ bool extractFile(const Disk& disk, size_t fileIndex, std::vector<u8>& outPrg, Er
     return false;
   }
   return true;
+}
+
+GcrDisk encodeGcrDisk(const Disk& disk) {
+  GcrDisk result;
+  if (!disk.loaded || disk.image.size() != kD64Size) return result;
+
+  for (u32 trackNumber = 1; trackNumber <= 35; ++trackNumber) {
+    GcrTrack& track = result.tracks[trackNumber - 1];
+    const u32 sectors = sectorsInTrack(trackNumber);
+    const u32 targetLength = trackLength(trackNumber);
+    const u32 fixedPerSector = 5 + 10 + 9 + 5 + 325;
+    const u32 remainingGap = targetLength - fixedPerSector * sectors;
+    const u32 baseGap = remainingGap / sectors;
+    const u32 extraGapSectors = remainingGap % sectors;
+
+    for (u32 sector = 0; sector < sectors; ++sector) {
+      const i32 offset = sectorOffset(trackNumber, sector);
+      const u8 id1 = disk.metadata.diskId0;
+      const u8 id2 = disk.metadata.diskId1;
+      const u8 header[8] = {
+          0x08,
+          static_cast<u8>(sector ^ trackNumber ^ id2 ^ id1),
+          static_cast<u8>(sector),
+          static_cast<u8>(trackNumber),
+          id2,
+          id1,
+          0x0F,
+          0x0F,
+      };
+      std::array<u8, 260> data{};
+      data[0] = 0x07;
+      u8 checksum = 0;
+      for (u32 i = 0; i < 256; ++i) {
+        const u8 value = disk.image[static_cast<u32>(offset) + i];
+        data[i + 1] = value;
+        checksum ^= value;
+      }
+      data[257] = checksum;
+
+      appendFill(track, 0xFF, 5, true);
+      appendEncoded(track, header, 8);
+      appendFill(track, 0x55, 9, false);
+      appendFill(track, 0xFF, 5, true);
+      appendEncoded(track, data.data(), static_cast<u32>(data.size()));
+      appendFill(track, 0x55, baseGap + (sector < extraGapSectors ? 1u : 0u), false);
+    }
+  }
+  return result;
 }
 
 }  // namespace c64

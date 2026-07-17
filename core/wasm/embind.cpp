@@ -42,7 +42,8 @@ class MachineHandle {
   MachineHandle() = default;
 
   std::string configure(const std::string& timing, const std::string& sid, const val& basicBytes,
-                        const val& kernalBytes, const val& chargenBytes, int seed) {
+                        const val& kernalBytes, const val& chargenBytes, const val& driveBytes,
+                        int seed) {
     RomImage basic;
     basic.bytes = toBytes(basicBytes);
     basic.source = "user-supplied";
@@ -62,6 +63,16 @@ class MachineHandle {
     cfg.sidModel = sid;
     cfg.powerOnSeed = static_cast<u8>(seed & 0xFF);
     cfg.roms = roms.set;
+    RomImage driveImage;
+    driveImage.bytes = toBytes(driveBytes);
+    driveImage.source = "bundled-replacement";
+    if (!driveImage.bytes.empty()) {
+      DriveRomResult drive = validateDriveRom(driveImage);
+      if (!drive.ok) {
+        return errorCodeId(drive.error.code);
+      }
+      cfg.driveRom = drive.rom;
+    }
     return errorCodeId(m_.configure(cfg).code);
   }
 

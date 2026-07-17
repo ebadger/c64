@@ -1,5 +1,8 @@
 #include "c64/cpu.hpp"
 
+#include <array>
+
+#include "c64/cpu_bus.hpp"
 #include "c64/machine.hpp"
 #include "harness.hpp"
 #include "test_framework.hpp"
@@ -9,6 +12,24 @@ using namespace c64test;
 
 namespace {
 bool flag(Machine& m, u8 mask) { return (m.cpuState().p & mask) != 0; }
+
+class SoTestBus final : public CpuBus {
+ public:
+  u8 readCycle(u16 addr) override {
+    if (triggerOnRead) {
+      triggerOnRead = false;
+      cpu->triggerSo();
+      cpu->triggerSo();
+    }
+    return bytes[addr];
+  }
+  void writeCycle(u16 addr, u8 value) override { bytes[addr] = value; }
+  u8 peek(u16 addr) const override { return bytes[addr]; }
+
+  std::array<u8, 65536> bytes{};
+  Cpu* cpu = nullptr;
+  bool triggerOnRead = false;
+};
 }  // namespace
 
 TEST(cpu_reset_vector) {
@@ -18,6 +39,24 @@ TEST(cpu_reset_vector) {
   CHECK_EQ(m.cpuState().sp, 0xFDu);
   CHECK(flag(m, FlagI));
   CHECK(flag(m, FlagU));
+}
+
+TEST(cpu_so_edge_latches_until_next_instruction_boundary) {
+  SoTestBus bus;
+  Cpu cpu(bus);
+  bus.cpu = &cpu;
+  bus.bytes[0x1000] = 0xEA;
+  bus.bytes[0x1001] = 0xEA;
+  CpuState state;
+  state.pc = 0x1000;
+  state.p = FlagU;
+  cpu.setState(state);
+
+  bus.triggerOnRead = true;
+  cpu.step();
+  CHECK(!(cpu.state().p & FlagV));
+  cpu.step();
+  CHECK(cpu.state().p & FlagV);
 }
 
 TEST(cpu_lda_flags) {

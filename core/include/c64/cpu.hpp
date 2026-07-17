@@ -1,15 +1,12 @@
 // NMOS 6510/6502 CPU core.
 //
-// Implements the complete documented NMOS instruction set and addressing modes. 65C02-only
-// instructions and undocumented ("illegal") opcodes are not implemented: executing one stops
-// with an IllegalOpcode result rather than guessing. Cycle accounting is exact at instruction
-// granularity — the documented per-opcode cycle counts plus dynamic page-cross and branch
-// penalties — and read-modify-write instructions perform the hardware double write. Decimal
-// ADC/SBC follow documented NMOS flag behaviour. See specs/EMULATOR.md.
+// Implements the documented NMOS instruction set plus the declared stable undocumented families.
+// Unstable, JAM, and 65C02-only encodings stop with an IllegalOpcode result rather than guessing.
+// See specs/EMULATOR.md.
 #ifndef C64_CPU_HPP
 #define C64_CPU_HPP
 
-#include "c64/bus.hpp"
+#include "c64/cpu_bus.hpp"
 #include "c64/types.hpp"
 
 namespace c64 {
@@ -46,7 +43,7 @@ struct StepResult {
 
 class Cpu {
  public:
-  explicit Cpu(Bus& bus);
+  explicit Cpu(CpuBus& bus);
 
   // Power-on: clear registers, then perform the reset sequence. Used for a cold machine.
   void powerOn();
@@ -67,6 +64,7 @@ class Cpu {
   void setIrqLine(bool asserted) { extIrq_ = asserted; }        // external/host IRQ input
   void setDeviceIrq(bool asserted) { devIrq_ = asserted; }      // aggregated device IRQ (Bus)
   void triggerNmi() { nmiPending_ = true; }                     // edge input (CIA2/RESTORE/host)
+  void triggerSo() { soPending_ = true; }                       // falling SO edge (1541 byte ready)
 
   // Number of bus (read/write) cycles the most recent step() performed. The enclosing machine
   // uses this to tick the remaining internal (non-bus) cycles of the instruction so the device
@@ -112,7 +110,7 @@ class Cpu {
   void sbc(u8 value);
   void compare(u8 reg, u8 value);
 
-  Bus& bus_;
+  CpuBus& bus_;
   u16 pc_ = 0;
   u8 a_ = 0;
   u8 x_ = 0;
@@ -123,6 +121,7 @@ class Cpu {
   bool extIrq_ = false;    // external/host IRQ input
   bool devIrq_ = false;    // aggregated device IRQ input (VIC-II | CIA1), driven by the Bus
   bool nmiPending_ = false;
+  bool soPending_ = false;
 
   // NMOS interrupt-enable delay: CLI/SEI/PLP update the I flag, but the interrupt poll for the
   // single following instruction still uses the pre-update value. This defers the effect of
@@ -137,8 +136,9 @@ class Cpu {
 
 // Decode metadata for one opcode byte, for exhaustive table tests.
 struct CpuOpcodeInfo {
-  bool documented;      // false for undocumented/65C02 opcodes (not implemented)
-  u8 baseCycles;        // documented cycle count before page-cross/branch penalties
+  bool documented;        // true only for the official NMOS opcode set
+  bool implemented;       // documented or explicitly supported stable undocumented encoding
+  u8 baseCycles;          // cycle count before page-cross/branch penalties
   bool pageCrossPenalty;  // true when an indexed read adds +1 on a page cross
 };
 CpuOpcodeInfo cpuOpcodeInfo(u8 opcode);

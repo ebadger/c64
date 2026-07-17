@@ -11,6 +11,8 @@
 
 #include "c64/bus.hpp"
 #include "c64/cpu.hpp"
+#include "c64/drive.hpp"
+#include "c64/iec.hpp"
 #include "c64/io_types.hpp"
 #include "c64/media.hpp"
 #include "c64/result.hpp"
@@ -24,6 +26,7 @@ struct MachineConfig {
   std::string timingProfile = "pal-6569";  // "pal-6569" | "ntsc-6567r8"
   std::string sidModel = "6581";           // "6581" | "8580"
   RomSet roms;
+  DriveRom driveRom;       // optional for synthetic tests; production supplies 16 KiB firmware
   u8 powerOnSeed = 0;      // deterministic power-on RAM pattern selector (never host randomness)
   u32 sampleRate = 44100;  // SID audio output sample rate
 };
@@ -63,6 +66,7 @@ class Machine {
   bool ready() const { return ready_; }
   const TimingProfile& timing() const { return *profile_; }
   const RomSet& roms() const { return roms_; }
+  const DriveRom& driveRom() const { return driveRom_; }
 
   // Deterministic reset. power-on rebuilds RAM from the configured seed and zeroes registers;
   // warm preserves RAM. Both restore the processor port and jump through the reset vector, and
@@ -130,8 +134,8 @@ class Machine {
 
   // Mount an immutable, validated D64 as read-only media on the given drive (only drive 8 is
   // supported). Malformed media is never mounted. The mounted disk is served through a
-  // deterministic high-level KERNAL LOAD/IEC trap (see specs/MEDIA.md for the compatibility
-  // boundary); custom drive code is not emulated.
+  // cycle-scheduled drive when drive firmware is configured. Synthetic tests without drive
+  // firmware retain the bounded high-level LOAD fixture.
   MediaResult mountD64(const std::vector<u8>& bytes, u8 driveNumber = 8);
   // Remove drive-8 media without resetting machine state. Idempotent when no disk is mounted.
   Error unmountD64(u8 driveNumber = 8);
@@ -150,6 +154,9 @@ class Machine {
   const TimingProfile* profile_ = nullptr;
   MachineConfig config_;
   RomSet roms_;
+  DriveRom driveRom_;
+  IecBus iec_;
+  Drive1541 drive_;
   Bus bus_;
   Cpu cpu_;
   u64 totalCycles_ = 0;

@@ -9,9 +9,10 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 > **Current status:** this repository contains the specialized mission, architecture, and
 > operating foundation; the implemented deterministic source-to-artifact pipeline (NMOS 6510
 > assembler, PRG serializer, and standard 35-track D64 builder/parser); the deterministic
-> C++17 machine core — a complete documented NMOS 6510 CPU with cycle-integrated devices
-> (VIC-II video, SID audio, two CIAs with keyboard/joystick/timers/TOD), read-only mounted D64
-> execution via a high-level KERNAL LOAD/IEC trap, and framebuffer/audio/input APIs — compiled
+> C++17 machine core — a complete documented NMOS 6510 CPU plus stable undocumented opcode
+> families, with cycle-integrated devices (VIC-II video, SID audio, two CIAs with
+> keyboard/joystick/timers/TOD), and read-only mounted D64 execution through an independent
+> 1541 CPU, selected 6522 VIA surface, wired IEC, and deterministic GCR tracks — compiled
 > once to a production WebAssembly artifact and proven by native and byte-identical headless
 > WASM parity tests; the **static browser IDE** (`web/client/`) that integrates the production
 > assembler in a worker and the production WASM machine through a 3RIC-compatible terminal
@@ -24,9 +25,9 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 > The Pages site is live at [`https://ebadger.github.io/c64/`](https://ebadger.github.io/c64/);
 > merged `main` updates deploy only after the complete release gate passes.
 > Device/media fidelity is honestly labelled (line-based VIC renderer, approximate SID filter,
-> high-level rather than cycle-level 1541 drive); Boot BASIC executes the bundled ROM cold-start,
-> while in-app source/disk Run remains a deterministic direct-entry path at the selected SYS/entry
-> target.
+> and a bounded digital rather than analog/flux-level 1541); Boot BASIC executes the bundled ROM
+> cold-start, while in-app source/disk Run remains a deterministic direct-entry path at the
+> selected SYS/entry target.
 
 ## User workflow
 
@@ -49,9 +50,9 @@ source produces long URLs.
 
 ## Architecture
 
-- **Emulator:** deterministic C++17 NMOS 6510 CPU, bus/banking, and cycle-integrated VIC-II,
-  SID, and CIA devices with read-only mounted D64 execution; the browser IDE and gallery are
-  implemented on top (see the Client entry below).
+- **Emulator:** deterministic C++17 NMOS 6510 CPU, bus/banking, cycle-integrated VIC-II, SID,
+  and CIA devices, plus an independently scheduled 1541 CPU/VIA/IEC/GCR subsystem for read-only
+  mounted D64 execution; the browser IDE and gallery are implemented on top.
 - **Execution:** one Emscripten/embind WebAssembly artifact for browser use and headless WASM
   tests; the same C++ sources also compile natively for diagnostics.
 - **Code generation:** one dependency-light ES module assembler for browser and Node.js,
@@ -67,10 +68,11 @@ Start with [`specs/SYSTEM.md`](./specs/SYSTEM.md) for the full layer map and dat
 
 ## ROM and hardware boundary
 
-Proprietary Commodore BASIC, KERNAL, and character ROM dumps are not committed or distributed.
-The application ships pinned redistributable Pascual BASIC/KERNAL ROMs plus the MEGA65 PXL
-chargen, with complete per-component licenses/notices and corresponding source, and accepts a
-complete user-supplied ROM set locally for the current page session.
+Proprietary Commodore BASIC, KERNAL, character, and drive ROM dumps are not committed or
+distributed. The application ships pinned redistributable Pascual BASIC/KERNAL ROMs, the MEGA65
+PXL chargen, and clean-room Pascual DOS-1541 firmware with complete per-component
+licenses/notices and corresponding source. A complete user-supplied C64 ROM trio can replace the
+bundled trio locally for the current page session while the bundled drive firmware remains active.
 
 This project ends at software emulation and standard PRG/D64 interoperability. It does not
 include custom transfer devices, firmware, PCBs, HDL, KiCad, GAL/address-decode logic, or
@@ -116,11 +118,12 @@ node scripts/dev/serve.mjs            # http://127.0.0.1:8080/web/client/
 
 Build the production WebAssembly artifact first (see [`SETUP.md`](./SETUP.md)) so **Boot BASIC**
 and **Run** work; without it you can still edit, build, and download PRG/D64. The emulator uses
-the pinned, redistributable Pascual set by default. The ROM panel can replace it with a complete local
-BASIC/KERNAL/character set for the current page session; custom bytes are never uploaded, stored,
-or logged. The Media panel validates an imported D64 immediately, makes it available to Boot BASIC,
-lists its directory, runs a selected PRG at its detected or explicit entry address, and ejects
-drive 8 without resetting the running machine.
+the pinned, redistributable Pascual C64 and drive set by default. The ROM panel can replace the
+C64 BASIC/KERNAL/character trio for the current page session while retaining the bundled drive
+firmware; custom bytes are never uploaded, stored, or logged. The Media panel validates an
+imported D64 immediately, makes it available to Boot BASIC, lists its directory, runs a selected
+PRG at its detected or explicit entry address, and ejects drive 8 without resetting the running
+machine.
 
 ## Build and test
 

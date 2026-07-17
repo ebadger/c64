@@ -16,6 +16,7 @@
     "test:e2e": "node --test tests/e2e/",
     "test:interop": "node --test tests/interop/",
     "build:native": "sh scripts/build/build-native.sh",
+    "build:drive-rom": "node scripts/build/build-drive-rom.mjs",
     "build:wasm": "sh scripts/build/build-wasm.sh",
     "build:dist": "node scripts/build/build-dist.mjs",
     "example": "node examples/build-example.mjs",

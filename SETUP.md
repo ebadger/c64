@@ -123,10 +123,10 @@ node scripts/dev/serve.mjs --port 5173
 ```
 
 Build the production WebAssembly artifact first (see the section above) so **Boot BASIC** and
-**Run** work. The app loads and verifies the pinned Pascual BASIC/KERNAL set plus MEGA65 PXL
-chargen by default. Use the ROM-source selector
-for a complete local BASIC/KERNAL/character override; custom files stay in memory and are never
-uploaded, stored, or logged.
+**Run** work. The app loads and verifies the pinned Pascual BASIC/KERNAL set, MEGA65 PXL chargen,
+and clean-room Pascual DOS-1541 firmware by default. Use the ROM-source selector for a complete
+local BASIC/KERNAL/character override; the bundled drive firmware remains active, and custom
+files stay in memory and are never uploaded, stored, or logged.
 
 Test and verify:
 

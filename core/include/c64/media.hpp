@@ -51,6 +51,15 @@ struct Disk {
   std::vector<DiskFile> files;
 };
 
+struct GcrTrack {
+  std::vector<u8> bytes;
+  std::vector<u8> sync;  // one byte per track byte; non-zero while the read head sees SYNC
+};
+
+struct GcrDisk {
+  std::array<GcrTrack, 35> tracks;
+};
+
 struct MediaResult {
   bool ok = false;
   DiskMetadata metadata;
@@ -63,6 +72,10 @@ MediaResult parseD64(const std::vector<u8>& bytes, Disk& out);
 
 // Reconstruct a file's raw PRG byte stream (2-byte load address + data) by walking its chain.
 bool extractFile(const Disk& disk, size_t fileIndex, std::vector<u8>& outPrg, Error& err);
+
+// Convert immutable D64 sectors into deterministic standard 1541 GCR tracks. Track lengths
+// follow the four hardware density zones and include header/data sync marks and checksums.
+GcrDisk encodeGcrDisk(const Disk& disk);
 
 }  // namespace c64
 

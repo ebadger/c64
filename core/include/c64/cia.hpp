@@ -45,6 +45,12 @@ class Cia {
   void setKeyboard(const std::array<u8, 8>& columns) { keyboard_ = columns; }
   void setJoysticks(u8 joy1, u8 joy2) { joy1_ = joy1; joy2_ = joy2; }
 
+  // External active-low port-A pins. CIA2 uses bits 6/7 for IEC CLOCK/DATA input; all other
+  // callers leave the default pull-up mask ($FF).
+  void setPortAInputs(u8 pins) { portAInputs_ = pins; }
+  u8 portAOutputLatch() const { return pra_; }
+  u8 portADirection() const { return ddra_; }
+
   // CIA2: selected VIC-II 16 KB bank (0..3) derived from port A bits 0..1.
   u8 vicBank() const;
 
@@ -92,6 +98,7 @@ class Cia {
   std::array<u8, 8> keyboard_{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
   u8 joy1_ = 0xFF;
   u8 joy2_ = 0xFF;
+  u8 portAInputs_ = 0xFF;
 };
 
 }  // namespace c64

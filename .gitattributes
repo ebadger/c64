@@ -10,5 +10,6 @@
 third_party/pascual-roms/*.md text eol=lf
 third_party/pascual-roms/*.txt text eol=lf
 third_party/pascual-roms/*.json text eol=lf
+third_party/pascual-roms/*.patch text eol=lf
 third_party/pascual-roms/COPYING text eol=lf
 third_party/pascual-roms/COPYING.LESSER text eol=lf

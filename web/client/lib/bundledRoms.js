@@ -12,7 +12,7 @@ const ASSET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const UPSTREAM_PATH = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
 export function validateBundledRomManifest(value) {
-  if (!isRecord(value) || value.schema !== 2) return manifestError("The bundled ROM manifest schema is invalid.");
+  if (!isRecord(value) || value.schema !== 3) return manifestError("The bundled ROM manifest schema is invalid.");
   for (const key of ["id", "title", "upstreamRepository", "revision", "sourceUrl"]) {
     if (typeof value[key] !== "string" || value[key].length === 0) {
       return manifestError(`The bundled ROM manifest field '${key}' is invalid.`);
@@ -91,11 +91,13 @@ export function validateBundledRomManifest(value) {
       sha256: entry.sha256,
     };
   }
+  const drive = validateDrive(value.drive);
+  if (!drive.ok) return drive;
 
   return {
     ok: true,
     manifest: {
-      schema: 2,
+      schema: 3,
       id: value.id,
       title: value.title,
       upstreamRepository: value.upstreamRepository,
@@ -109,6 +111,7 @@ export function validateBundledRomManifest(value) {
       licenses: licenses.licenses,
       redistributionFiles,
       roles,
+      drive: drive.drive,
     },
   };
 }
@@ -145,12 +148,21 @@ export async function loadBundledRomSet(manifestUrl, fetchImpl = globalThis.fetc
     if (!validated.ok) return { ok: false, error: validated.error };
     roles[role] = { bytes, sha256: entry.sha256 };
   }
+  const loadedDrive = await fetchVerifiedAsset(baseUrl, manifest.drive.rom, "drive ROM", fetchImpl);
+  if (!loadedDrive.ok) return loadedDrive;
   const packageAssets = [
     { ...manifest.sourceArchive, label: "corresponding source archive" },
     ...manifest.redistributionFiles.map((entry) => ({
       ...entry,
       label: `redistribution file ${entry.path}`,
     })),
+    { ...manifest.drive.sourceArchive, label: "drive corresponding source archive" },
+    ...manifest.drive.redistributionFiles.map((entry) => ({
+      ...entry,
+      label: `drive redistribution file ${entry.path}`,
+    })),
+    { ...manifest.drive.baseRom, label: "published upstream drive ROM" },
+    { ...manifest.drive.patch, label: "drive wildcard source patch" },
   ];
   for (const asset of packageAssets) {
     const loaded = await fetchVerifiedAsset(baseUrl, asset, asset.label, fetchImpl);
@@ -177,14 +189,114 @@ export async function loadBundledRomSet(manifestUrl, fetchImpl = globalThis.fetc
       ).href,
       provenanceUrl: new URL("PROVENANCE.md", baseUrl).href,
       sourceArchiveUrl: new URL(manifest.sourceArchive.path, baseUrl).href,
+      driveLicenseUrl: new URL(manifest.drive.license.path, baseUrl).href,
+      driveProvenanceUrl: new URL("PROCEDENCIA-dos1541.md", baseUrl).href,
+      driveSourceArchiveUrl: new URL(manifest.drive.sourceArchive.path, baseUrl).href,
       roles: {
         basic: { ...roles.basic, licenseId: manifest.licenses.basic.id },
         kernal: { ...roles.kernal, licenseId: manifest.licenses.package.id },
         chargen: { ...roles.chargen, licenseId: manifest.licenses.chargen.id },
       },
+      drive: {
+        bytes: loadedDrive.bytes,
+        sha256: manifest.drive.rom.sha256,
+        licenseId: manifest.drive.license.id,
+      },
     },
     manifest,
   };
+}
+
+function validateDrive(value) {
+  if (!isRecord(value)) return manifestError("The bundled drive package is invalid.");
+  for (const key of ["id", "title", "upstreamRepository", "revision", "sourceUrl"]) {
+    if (typeof value[key] !== "string" || value[key].length === 0) {
+      return manifestError(`The bundled drive field '${key}' is invalid.`);
+    }
+  }
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(value.id) || !REVISION.test(value.revision)) {
+    return manifestError("The bundled drive identity is invalid.");
+  }
+  const sourceArchive = validateAsset(value.sourceArchive, "drive source archive");
+  if (!sourceArchive.ok) return sourceArchive;
+  if (
+    !isRecord(value.license) ||
+    value.license.id !== "MIT" ||
+    !ASSET_NAME.test(value.license.path || "")
+  ) {
+    return manifestError("The bundled drive license entry is invalid.");
+  }
+  if (!Array.isArray(value.redistributionFiles)) {
+    return manifestError("The bundled drive redistribution file list is invalid.");
+  }
+  const redistributionFiles = [];
+  for (const entry of value.redistributionFiles) {
+    const checked = validateAsset(entry, "drive redistribution file");
+    if (!checked.ok) return checked;
+    redistributionFiles.push(checked.asset);
+  }
+  const requiredPaths = [
+    value.license.path,
+    "README-dos1541.md",
+    "PROCEDENCIA-dos1541.md",
+    "NOTAS-BUS-VICE-dos1541.md",
+    "NOTAS-DISCO-VICE-dos1541.md",
+  ].sort();
+  const paths = redistributionFiles.map((entry) => entry.path).sort();
+  if (new Set(paths).size !== paths.length || paths.join(",") !== requiredPaths.join(",")) {
+    return manifestError("The bundled drive redistribution file list is incomplete or contains extras.");
+  }
+  const baseRom = validateDriveRom(value.baseRom, "upstream drive ROM");
+  if (!baseRom.ok) return baseRom;
+  const patch = validateAsset(value.patch, "drive patch");
+  if (!patch.ok) return patch;
+  const rom = validateDriveRom(value.rom, "runtime drive ROM");
+  if (!rom.ok || value.rom.baseSha256 !== baseRom.rom.sha256) {
+    return manifestError("The bundled runtime drive ROM base identity is invalid.");
+  }
+  return {
+    ok: true,
+    drive: {
+      id: value.id,
+      title: value.title,
+      upstreamRepository: value.upstreamRepository,
+      revision: value.revision,
+      sourceUrl: value.sourceUrl,
+      sourceArchive: sourceArchive.asset,
+      license: { id: value.license.id, path: value.license.path },
+      redistributionFiles,
+      baseRom: baseRom.rom,
+      patch: patch.asset,
+      rom: { ...rom.rom, baseSha256: value.rom.baseSha256 },
+    },
+  };
+}
+
+function validateAsset(value, label) {
+  if (
+    !isRecord(value) ||
+    !ASSET_NAME.test(value.path || "") ||
+    !Number.isSafeInteger(value.bytes) ||
+    value.bytes <= 0 ||
+    !SHA256.test(value.sha256 || "")
+  ) {
+    return manifestError(`The bundled ${label} entry is invalid.`);
+  }
+  return { ok: true, asset: { path: value.path, bytes: value.bytes, sha256: value.sha256 } };
+}
+
+function validateDriveRom(value, label) {
+  const asset = validateAsset(value, label);
+  if (
+    !asset.ok ||
+    value.bytes !== 16384 ||
+    !UPSTREAM_PATH.test(value.upstreamPath || "") ||
+    value.upstreamPath.includes("..") ||
+    value.upstreamPath.includes("//")
+  ) {
+    return manifestError(`The bundled ${label} entry is invalid.`);
+  }
+  return { ok: true, rom: { ...asset.asset, upstreamPath: value.upstreamPath } };
 }
 
 async function fetchVerifiedAsset(baseUrl, entry, label, fetchImpl) {

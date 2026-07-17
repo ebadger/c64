@@ -39,6 +39,7 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, extname, join, resolve } from "node:path";
+import { buildDriveRom } from "./build-drive-rom.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = resolve(here, "..", "..");
@@ -109,6 +110,9 @@ const REWRITES = {
   "web/client/lib/romValidate.js": [
     { find: 'import { sha256Hex } from "../../../src/hash.js";', replace: 'import { sha256Hex } from "../pipeline/hash.js";' },
   ],
+  "web/client/lib/roms.js": [
+    { find: 'import { sha256Hex } from "../../../src/hash.js";', replace: 'import { sha256Hex } from "../pipeline/hash.js";' },
+  ],
   "web/client/lib/bundledRoms.js": [
     { find: 'import { sha256Hex } from "../../../src/hash.js";', replace: 'import { sha256Hex } from "../pipeline/hash.js";' },
   ],
@@ -150,11 +154,11 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
     throw new Error(`build-dist: invalid bundled ROM manifest: ${String(err && err.message ? err.message : err)}`);
   }
   if (
-    !manifest || manifest.schema !== 2 || manifest.id !== "pascuals-basic-c64" ||
+    !manifest || manifest.schema !== 3 || manifest.id !== "pascuals-basic-c64" ||
     manifest.upstreamRepository !== "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC" ||
     typeof manifest.title !== "string" || !/^[0-9a-f]{40}$/.test(manifest.revision || "") ||
     typeof manifest.upstreamRepository !== "string" || typeof manifest.sourceUrl !== "string" ||
-    !manifest.roles || !manifest.sourceArchive || !manifest.licenses ||
+    !manifest.roles || !manifest.sourceArchive || !manifest.licenses || !manifest.drive ||
     !Array.isArray(manifest.redistributionFiles)
   ) {
     throw new Error("build-dist: malformed bundled ROM manifest metadata");
@@ -230,6 +234,83 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
     throw new Error("build-dist: bundled ROM redistribution file list is incomplete or contains extras");
   }
 
+  const drive = manifest.drive;
+  if (
+    drive.id !== "pascual-dos-1541-c64" ||
+    drive.upstreamRepository !== "https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541" ||
+    !/^[0-9a-f]{40}$/.test(drive.revision || "") ||
+    drive.sourceUrl !== `${drive.upstreamRepository}/tree/${drive.revision}` ||
+    !drive.sourceArchive ||
+    !drive.license ||
+    !Array.isArray(drive.redistributionFiles) ||
+    !drive.baseRom ||
+    !drive.patch ||
+    !drive.rom
+  ) {
+    throw new Error("build-dist: malformed bundled drive manifest metadata");
+  }
+  if (
+    drive.sourceArchive.path !== `pascual-dos-1541-${drive.revision}.tar.gz` ||
+    !Number.isSafeInteger(drive.sourceArchive.bytes) ||
+    drive.sourceArchive.bytes <= 0 ||
+    !/^[0-9a-f]{64}$/.test(drive.sourceArchive.sha256 || "")
+  ) {
+    throw new Error("build-dist: invalid bundled drive sourceArchive manifest entry");
+  }
+  integrityFiles.push({ label: "drive source archive", ...drive.sourceArchive });
+  if (JSON.stringify(drive.license) !== JSON.stringify({ id: "MIT", path: "LICENSE-dos1541.txt" })) {
+    throw new Error("build-dist: bundled drive license entry is incomplete or unexpected");
+  }
+  const expectedDriveRedistributionPaths = [
+    "LICENSE-dos1541.txt",
+    "README-dos1541.md",
+    "PROCEDENCIA-dos1541.md",
+    "NOTAS-BUS-VICE-dos1541.md",
+    "NOTAS-DISCO-VICE-dos1541.md",
+  ].sort();
+  const driveRedistributionPaths = [];
+  for (const entry of drive.redistributionFiles) {
+    if (
+      !entry ||
+      !safeSingleFilename(entry.path) ||
+      !Number.isSafeInteger(entry.bytes) ||
+      entry.bytes <= 0 ||
+      !/^[0-9a-f]{64}$/.test(entry.sha256 || "")
+    ) {
+      throw new Error("build-dist: invalid bundled drive redistribution file entry");
+    }
+    driveRedistributionPaths.push(entry.path);
+    integrityFiles.push({ label: `drive redistribution file ${entry.path}`, ...entry });
+  }
+  if (
+    new Set(driveRedistributionPaths).size !== driveRedistributionPaths.length ||
+    JSON.stringify(driveRedistributionPaths.sort()) !== JSON.stringify(expectedDriveRedistributionPaths)
+  ) {
+    throw new Error("build-dist: bundled drive redistribution file list is incomplete or contains extras");
+  }
+  for (const [key, expectedPath] of [["baseRom", "dos1541-upstream.rom"], ["rom", "dos1541.rom"]]) {
+    const entry = drive[key];
+    if (
+      entry.path !== expectedPath ||
+      entry.upstreamPath !== "dos.bin" ||
+      entry.bytes !== 16384 ||
+      !/^[0-9a-f]{64}$/.test(entry.sha256 || "")
+    ) {
+      throw new Error(`build-dist: invalid bundled drive ${key} manifest entry`);
+    }
+    integrityFiles.push({ label: `drive ${key}`, ...entry });
+  }
+  if (
+    drive.rom.baseSha256 !== drive.baseRom.sha256 ||
+    drive.patch.path !== "dos1541-c64-wildcards.patch" ||
+    !Number.isSafeInteger(drive.patch.bytes) ||
+    drive.patch.bytes <= 0 ||
+    !/^[0-9a-f]{64}$/.test(drive.patch.sha256 || "")
+  ) {
+    throw new Error("build-dist: invalid bundled drive patch identity");
+  }
+  integrityFiles.push({ label: "drive source patch", ...drive.patch });
+
   for (const entry of integrityFiles) {
     const path = join(base, entry.path);
     if (!existsSync(path) || !statSync(path).isFile()) {
@@ -240,12 +321,22 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
       throw new Error(`build-dist: bundled ROM ${entry.label} failed size/sha256 verification: ${entry.path}`);
     }
   }
+  buildDriveRom({
+    basePath: join(base, drive.baseRom.path),
+    outputPath: join(base, drive.rom.path),
+    check: true,
+  });
 
   const files = [
     "manifest.json",
     ...Object.values(manifest.roles).map((entry) => entry.path),
     sourceArchive.path,
     ...manifest.redistributionFiles.map((entry) => entry.path),
+    drive.rom.path,
+    drive.sourceArchive.path,
+    ...drive.redistributionFiles.map((entry) => entry.path),
+    drive.baseRom.path,
+    drive.patch.path,
   ];
   if (new Set(files).size !== files.length || files.some((path) => !safeSingleFilename(path))) {
     throw new Error("build-dist: bundled ROM manifest contains duplicate or unsafe file paths");
@@ -427,6 +518,7 @@ function thirdPartyNotices() {
     "| `wasm/c64core.mjs` (loader glue) | Emscripten-generated | MIT / University of Illinois/NCSA | Yes |",
     "| `wasm/c64core.wasm` | Compiled from first-party `core/` C++17 | Repository license (see CONTRIBUTING.md) | Yes |",
     "| `roms/` Pascual's BASIC/KERNAL + MEGA65 PXL chargen | Pascual-Candel-Palazon/Pascuals-BASIC, pinned revision | MIT (project KERNAL/tooling); Microsoft MIT (BASIC); LGPL-3.0-or-later (chargen) | Yes — unmodified images, complete license/notices, provenance, corresponding source |",
+    "| `roms/dos1541.rom` | Pascual-Candel-Palazon/Pascual_DOS-1541, pinned revision; c64 wildcard patch | MIT | Yes — clean-room base and patched image, source patch, complete license/provenance, corresponding source |",
     "| Web client, `lib/`, `pipeline/`, `emulator/` | First-party (this repository) | Repository license | Yes |",
     "",
     "## Build-time only (NOT shipped)",

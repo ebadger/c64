@@ -3,6 +3,7 @@
 // or network requests (see specs/ROM-ASSETS.md). Only role/digest/source metadata is public.
 
 import { validateRomRole, romSetStatus, computeRomSetId, ROM_ROLES } from "./romValidate.js";
+import { sha256Hex } from "../../../src/hash.js";
 
 export class RomManager {
   constructor() {
@@ -11,6 +12,8 @@ export class RomManager {
     this._bytes = new Map();
     this._source = null;
     this._setMetadata = null;
+    this._driveBytes = null;
+    this._driveDescriptor = null;
   }
 
   /** Set a role from raw bytes (used by the file picker and by tests). */
@@ -43,7 +46,8 @@ export class RomManager {
   /**
    * Replace the active set atomically with a manifest-verified bundled set.
    * @param {{ id:string, title:string, revision:string, licenseIds:string[],
-   *           roles:Record<string,{bytes:Uint8Array,sha256:string,licenseId:string}> }} set
+   *           roles:Record<string,{bytes:Uint8Array,sha256:string,licenseId:string}>,
+   *           drive:{bytes:Uint8Array,sha256:string,licenseId:string} }} set
    */
   setBundledSet(set) {
     if (
@@ -83,9 +87,26 @@ export class RomManager {
       };
       ownedBytes.set(role, new Uint8Array(entry.bytes));
     }
+    if (
+      !set.drive ||
+      !(set.drive.bytes instanceof Uint8Array) ||
+      set.drive.bytes.length !== 16384 ||
+      typeof set.drive.sha256 !== "string" ||
+      sha256Hex(set.drive.bytes) !== set.drive.sha256 ||
+      typeof set.drive.licenseId !== "string"
+    ) {
+      return { ok: false, error: bundledSetError("The bundled ROM set is missing a valid drive entry.") };
+    }
 
     this._descriptors = descriptors;
     this._bytes = ownedBytes;
+    this._driveBytes = new Uint8Array(set.drive.bytes);
+    this._driveDescriptor = {
+      size: set.drive.bytes.length,
+      digest: set.drive.sha256,
+      source: "bundled-replacement",
+      licenseId: set.drive.licenseId,
+    };
     this._source = "bundled";
     this._setMetadata = {
       id: set.id,
@@ -142,6 +163,7 @@ export class RomManager {
       source: this._source,
       set: this._setMetadata ? { ...this._setMetadata } : null,
       roles,
+      drive: this._driveDescriptor ? { ...this._driveDescriptor } : null,
     };
   }
 
@@ -155,7 +177,13 @@ export class RomManager {
     const basic = this._bytes.get("basic");
     const kernal = this._bytes.get("kernal");
     const chargen = this._bytes.get("chargen");
-    return { basic, kernal, chargen, id: computeRomSetId({ basic, kernal, chargen }) };
+    return {
+      basic,
+      kernal,
+      chargen,
+      drive: this._driveBytes,
+      id: computeRomSetId({ basic, kernal, chargen }),
+    };
   }
 }
 

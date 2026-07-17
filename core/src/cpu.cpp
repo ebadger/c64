@@ -1,14 +1,16 @@
 #include "c64/cpu.hpp"
 
+#include <initializer_list>
+
 namespace c64 {
 namespace {
 
-// Mnemonics (documented NMOS set only).
+// Mnemonics (documented NMOS set plus the supported stable undocumented families).
 enum M : u8 {
   ILL = 0, LDA, LDX, LDY, STA, STX, STY, TAX, TAY, TXA, TYA, TSX, TXS, PHA, PLA, PHP, PLP,
   AND, ORA, EOR, BIT, ADC, SBC, CMP, CPX, CPY, INC, DEC, INX, INY, DEX, DEY, ASL, LSR, ROL,
   ROR, JMP, JSR, RTS, RTI, BPL, BMI, BVC, BVS, BCC, BCS, BNE, BEQ, CLC, SEC, CLI, SEI, CLV,
-  CLD, SED, NOP, BRK
+  CLD, SED, NOP, BRK, LAX, SAX, DCP, ISC, SLO, RLA, SRE, RRA
 };
 
 // Addressing modes.
@@ -19,13 +21,17 @@ struct Dec {
   u8 mode = IMP;
   u8 cycles = 2;
   bool cross = false;  // add +1 when an indexed read crosses a page boundary
+  bool documented = false;
 };
 
 struct DecodeTable {
   Dec e[256];
   DecodeTable() {
     auto set = [&](u8 op, M m, AM mode, u8 cyc, bool cross = false) {
-      e[op] = Dec{static_cast<u8>(m), static_cast<u8>(mode), cyc, cross};
+      e[op] = Dec{static_cast<u8>(m), static_cast<u8>(mode), cyc, cross, true};
+    };
+    auto setU = [&](u8 op, M m, AM mode, u8 cyc, bool cross = false) {
+      e[op] = Dec{static_cast<u8>(m), static_cast<u8>(mode), cyc, cross, false};
     };
     // Load / store
     set(0xA9, LDA, IMM, 2); set(0xA5, LDA, ZP, 3); set(0xB5, LDA, ZPX, 4);
@@ -98,6 +104,40 @@ struct DecodeTable {
     set(0xF8, SED, IMP, 2);
     // System
     set(0xEA, NOP, IMP, 2); set(0x00, BRK, IMP, 7);
+
+    // Stable undocumented NOP variants. Operand-addressed forms still perform their read.
+    for (u8 op : std::initializer_list<u8>{0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA})
+      setU(op, NOP, IMP, 2);
+    for (u8 op : std::initializer_list<u8>{0x80, 0x82, 0x89, 0xC2, 0xE2})
+      setU(op, NOP, IMM, 2);
+    for (u8 op : std::initializer_list<u8>{0x04, 0x44, 0x64}) setU(op, NOP, ZP, 3);
+    for (u8 op : std::initializer_list<u8>{0x14, 0x34, 0x54, 0x74, 0xD4, 0xF4})
+      setU(op, NOP, ZPX, 4);
+    setU(0x0C, NOP, ABS, 4);
+    for (u8 op : std::initializer_list<u8>{0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC})
+      setU(op, NOP, ABX, 4, true);
+
+    // Stable load/store combinations.
+    setU(0xA3, LAX, IZX, 6); setU(0xA7, LAX, ZP, 3); setU(0xAF, LAX, ABS, 4);
+    setU(0xB3, LAX, IZY, 5, true); setU(0xB7, LAX, ZPY, 4);
+    setU(0xBF, LAX, ABY, 4, true);
+    setU(0x83, SAX, IZX, 6); setU(0x87, SAX, ZP, 3); setU(0x8F, SAX, ABS, 4);
+    setU(0x97, SAX, ZPY, 4);
+
+    // Stable read-modify-write combinations.
+    auto setRmw = [&](M m, u8 izx, u8 zp, u8 abs, u8 izy, u8 zpx, u8 aby, u8 abx) {
+      setU(izx, m, IZX, 8); setU(zp, m, ZP, 5); setU(abs, m, ABS, 6);
+      setU(izy, m, IZY, 8); setU(zpx, m, ZPX, 6); setU(aby, m, ABY, 7);
+      setU(abx, m, ABX, 7);
+    };
+    setRmw(SLO, 0x03, 0x07, 0x0F, 0x13, 0x17, 0x1B, 0x1F);
+    setRmw(RLA, 0x23, 0x27, 0x2F, 0x33, 0x37, 0x3B, 0x3F);
+    setRmw(SRE, 0x43, 0x47, 0x4F, 0x53, 0x57, 0x5B, 0x5F);
+    setRmw(RRA, 0x63, 0x67, 0x6F, 0x73, 0x77, 0x7B, 0x7F);
+    setRmw(DCP, 0xC3, 0xC7, 0xCF, 0xD3, 0xD7, 0xDB, 0xDF);
+    setRmw(ISC, 0xE3, 0xE7, 0xEF, 0xF3, 0xF7, 0xFB, 0xFF);
+
+    setU(0xEB, SBC, IMM, 2);
   }
 };
 
@@ -110,10 +150,10 @@ const Dec& decode(u8 op) {
 
 CpuOpcodeInfo cpuOpcodeInfo(u8 opcode) {
   const Dec& d = decode(opcode);
-  return CpuOpcodeInfo{d.m != ILL, d.cycles, d.cross};
+  return CpuOpcodeInfo{d.documented, d.m != ILL, d.cycles, d.cross};
 }
 
-Cpu::Cpu(Bus& bus) : bus_(bus) {}
+Cpu::Cpu(CpuBus& bus) : bus_(bus) {}
 
 u16 Cpu::read16(u16 addr) {
   const u8 lo = read(addr);
@@ -227,6 +267,7 @@ void Cpu::reset() {
   extIrq_ = false;
   devIrq_ = false;
   nmiPending_ = false;
+  soPending_ = false;
   iPollDelay_ = false;
   iPollValue_ = false;
   busCycles_ = 0;
@@ -253,10 +294,15 @@ void Cpu::setState(const CpuState& s) {
   y_ = s.y;
   sp_ = s.sp;
   p_ = static_cast<u8>(s.p | FlagU);
+  soPending_ = false;
 }
 
 StepResult Cpu::step() {
   busCycles_ = 0;
+  if (soPending_) {
+    p_ = static_cast<u8>(p_ | FlagV);
+    soPending_ = false;
+  }
 
   // Effective I flag for this instruction's interrupt poll. CLI/SEI/PLP defer their I-flag
   // change by one instruction (NMOS quirk), so the poll here can use the pre-change value.
@@ -359,9 +405,11 @@ StepResult Cpu::step() {
     case LDA: a_ = read(ea); setZN(a_); break;
     case LDX: x_ = read(ea); setZN(x_); break;
     case LDY: y_ = read(ea); setZN(y_); break;
+    case LAX: a_ = x_ = read(ea); setZN(a_); break;
     case STA: write(ea, a_); break;
     case STX: write(ea, x_); break;
     case STY: write(ea, y_); break;
+    case SAX: write(ea, static_cast<u8>(a_ & x_)); break;
     case TAX: x_ = a_; setZN(x_); break;
     case TAY: y_ = a_; setZN(y_); break;
     case TXA: a_ = x_; setZN(a_); break;
@@ -405,6 +453,22 @@ StepResult Cpu::step() {
       m = static_cast<u8>(m - 1);
       write(ea, m);
       setZN(m);
+      break;
+    }
+    case DCP: {
+      u8 m = read(ea);
+      write(ea, m);
+      m = static_cast<u8>(m - 1);
+      write(ea, m);
+      compare(a_, m);
+      break;
+    }
+    case ISC: {
+      u8 m = read(ea);
+      write(ea, m);
+      m = static_cast<u8>(m + 1);
+      write(ea, m);
+      sbc(m);
       break;
     }
     case INX: x_ = static_cast<u8>(x_ + 1); setZN(x_); break;
@@ -473,6 +537,47 @@ StepResult Cpu::step() {
       }
       break;
     }
+    case SLO: {
+      u8 m = read(ea);
+      write(ea, m);
+      setFlag(FlagC, (m & 0x80) != 0);
+      m = static_cast<u8>(m << 1);
+      write(ea, m);
+      a_ = static_cast<u8>(a_ | m);
+      setZN(a_);
+      break;
+    }
+    case RLA: {
+      const u8 cin = (p_ & FlagC) ? 1 : 0;
+      u8 m = read(ea);
+      write(ea, m);
+      setFlag(FlagC, (m & 0x80) != 0);
+      m = static_cast<u8>((m << 1) | cin);
+      write(ea, m);
+      a_ = static_cast<u8>(a_ & m);
+      setZN(a_);
+      break;
+    }
+    case SRE: {
+      u8 m = read(ea);
+      write(ea, m);
+      setFlag(FlagC, (m & 0x01) != 0);
+      m = static_cast<u8>(m >> 1);
+      write(ea, m);
+      a_ = static_cast<u8>(a_ ^ m);
+      setZN(a_);
+      break;
+    }
+    case RRA: {
+      const u8 cin = (p_ & FlagC) ? 0x80 : 0;
+      u8 m = read(ea);
+      write(ea, m);
+      setFlag(FlagC, (m & 0x01) != 0);
+      m = static_cast<u8>((m >> 1) | cin);
+      write(ea, m);
+      adc(m);
+      break;
+    }
     case JMP: pc_ = ea; break;
     case JSR: {
       const u16 ret = static_cast<u16>(pc_ - 1);
@@ -517,7 +622,9 @@ StepResult Cpu::step() {
     case CLV: setFlag(FlagV, false); break;
     case CLD: setFlag(FlagD, false); break;
     case SED: setFlag(FlagD, true); break;
-    case NOP: break;
+    case NOP:
+      if (mode != IMP) static_cast<void>(read(ea));
+      break;
     case BRK: {
       pc_ = static_cast<u16>(pc_ + 1);  // BRK is 2 bytes; skip the signature byte
       serviceInterrupt(0xFFFE, true);
