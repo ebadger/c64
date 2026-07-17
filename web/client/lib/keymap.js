@@ -14,6 +14,13 @@
 //   col7: 1 LEFT-ARROW CTRL 2 SPACE C= Q RUN/STOP
 
 const LSHIFT = [1, 7];
+const HOST_SHIFT_CODES = new Set(["ShiftLeft", "ShiftRight"]);
+
+// Common host punctuation chords whose C64 keys are at different physical positions.
+const SHIFTED_HOST_ALIASES = new Map([
+  ["Quote", { positions: [[7, 3]], consumeShift: false }], // " = C64 Shift+2
+  ["Digit8", { positions: [[6, 1]], consumeShift: true }], // * = dedicated C64 key
+]);
 
 // code -> one or more [column, row] matrix positions. A few keys inject LEFT SHIFT so a single
 // modern key reaches a shifted C64 position (e.g. the two extra cursor directions).
@@ -67,6 +74,7 @@ export const KEY_HELP = Object.freeze([
   { keys: "Esc", c64: "RUN/STOP" },
   { keys: "Home", c64: "CLR/HOME" },
   { keys: "F1 F3 F5 F7", c64: "Function keys" },
+  { keys: "Shift+Quote / Shift+8", c64: "\" / *" },
   { keys: "PageUp", c64: "RESTORE (NMI)" },
   { keys: "Numpad 8/2/4/6 + 0", c64: "Joystick 2 up/down/left/right + fire" },
 ]);
@@ -78,8 +86,17 @@ export const KEY_HELP = Object.freeze([
  */
 export function buildKeyboardColumns(pressedCodes) {
   const cols = new Uint8Array(8).fill(0xff);
-  for (const code of pressedCodes) {
-    const positions = KEYBOARD_MATRIX_MAP.get(code);
+  const pressed = new Set(pressedCodes);
+  const shifted = [...HOST_SHIFT_CODES].some((code) => pressed.has(code));
+  const activeAliases = shifted
+    ? [...SHIFTED_HOST_ALIASES.entries()].filter(([code]) => pressed.has(code))
+    : [];
+  const consumeShift = activeAliases.some(([, alias]) => alias.consumeShift);
+  const aliases = new Map(activeAliases);
+
+  for (const code of pressed) {
+    if (consumeShift && HOST_SHIFT_CODES.has(code)) continue;
+    const positions = aliases.get(code)?.positions || KEYBOARD_MATRIX_MAP.get(code);
     if (!positions) continue;
     for (const [col, row] of positions) {
       cols[col] &= ~(1 << row) & 0xff;

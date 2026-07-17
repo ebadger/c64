@@ -120,10 +120,10 @@
         </div>
 
         <p class="fidelity-note muted">
-          Fidelity is honestly labelled: the VIC-II renderer is line-based, the SID filter is an
-          approximation (not analog-perfect), and the disk drive is a high-level KERNAL LOAD/IEC
-          trap, not a cycle-level 1541. In-app Run enters at the SYS target rather than tokenizing
-          BASIC.
+          Fidelity is honestly labelled: the CPU faults on undocumented opcodes, the VIC-II
+          renderer is line-based, the SID filter is an approximation (not analog-perfect), and the
+          disk drive is a high-level KERNAL LOAD/IEC trap, not a cycle-level 1541. In-app Run enters
+          at the SYS target rather than tokenizing BASIC.
         </p>
       </section>
 
@@ -168,7 +168,11 @@
           <span>Mount a local .d64 (read-only)</span>
           <input id="d64-file" type="file" accept=".d64" />
         </label>
-        <p class="muted">Select a disk to inspect its directory. A file runs only when you choose it below.</p>
+        <p class="muted">
+          Select a disk to inspect its directory. A file runs only when you choose it below.
+          Standard drive-8 KERNAL LOAD is supported; fastloaders, custom drive code, and bit-level
+          disk access are not.
+        </p>
         <p id="d64-status" class="muted" aria-live="polite">No disk mounted.</p>
         <div id="d64-controls" class="media-controls" hidden>
           <label class="field">

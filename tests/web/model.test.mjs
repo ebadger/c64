@@ -82,6 +82,18 @@ test("keyboard matrix assembles active-low columns for the correct positions", (
   assert.deepEqual([...buildKeyboardColumns(new Set(["MetaLeft"]))], [...none]);
 });
 
+test("keyboard matrix translates modern quote and asterisk chords", () => {
+  const quote = buildKeyboardColumns(new Set(["ShiftLeft", "Quote"]));
+  assert.equal(quote[1], 0xff & ~(1 << 7), "quote holds C64 left Shift");
+  assert.equal(quote[7], 0xff & ~(1 << 3), "quote presses the C64 2 key");
+  assert.equal(quote[5], 0xff, "quote does not press the C64 colon key");
+
+  const asterisk = buildKeyboardColumns(new Set(["ShiftRight", "Digit8"]));
+  assert.equal(asterisk[6], 0xff & ~(1 << 1), "asterisk presses the dedicated C64 key");
+  assert.equal(asterisk[3], 0xff, "asterisk does not press the C64 8 key");
+  assert.equal(asterisk[6] & (1 << 4), 1 << 4, "host Shift is consumed");
+});
+
 test("joystick byte is active-low from mapped codes", () => {
   assert.equal(buildJoystick(new Set(), JOYSTICK2_MAP), 0xff);
   assert.equal(buildJoystick(new Set(["Numpad8"]), JOYSTICK2_MAP), 0xff & ~(1 << 0)); // up

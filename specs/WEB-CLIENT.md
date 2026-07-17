@@ -115,7 +115,11 @@ intentionally has its own `buildId`; the two golden records do not have to match
   uses a structurally detected first-line tokenized BASIC `SYS` target when present, otherwise
   requires an explicit hexadecimal (`$C000`/`0xC000`) or decimal (`49152`) uint16 entry address,
   then follows the same configure/mount/load/set-PC path as source Run. Reset restarts whichever
-  mode was most recently started: reset-vector BASIC boot, source build, or disk PRG.
+  mode was most recently started: reset-vector BASIC boot, source build, or disk PRG. The D64
+  controls visibly repeat the [`MEDIA.md`](./MEDIA.md) compatibility boundary: standard drive-8
+  KERNAL LOAD is supported, while fastloaders, custom drive code, and bit-level disk access are not.
+  The emulator fidelity note also states the [`EMULATOR.md`](./EMULATOR.md) CPU boundary:
+  undocumented NMOS opcodes stop execution with an explicit fault.
 - **Eject** clears the file input, directory, entry address, and in-memory selected bytes, and
   unmounts drive 8 from an already configured machine without stopping or resetting execution.
   Invalid replacement media reports a `media` error and preserves the prior valid disk.
@@ -151,10 +155,13 @@ mutates emulator state.
 Input uses physical `KeyboardEvent.code` values (not `key`, so layout/locale and key-repeat do
 not change the mapping) resolved to positions in the 8×8 C64 keyboard matrix, emitted to the core
 as eight active-low column bytes. The mapping is a committed table
-(`web/client/lib/keymap.js`). Joysticks are active-low (`bit0` up … `bit4` fire) from a declared
-key set (default port 2) and optional `Gamepad` snapshots taken each frame. `RESTORE` maps to the
-NMI input, not a printable key. Browser defaults are suppressed only while the emulator surface
-holds focus, and every blur/visibility-loss path calls release-all so no key can stick.
+(`web/client/lib/keymap.js`). Two declared shifted-code aliases bridge common host punctuation to
+different C64 positions: `Shift+Quote` emits C64 `Shift+2` (`"`), and `Shift+Digit8` emits the
+dedicated C64 `*` key while consuming host Shift. Joysticks are active-low (`bit0` up … `bit4`
+fire) from a declared key set (default port 2) and optional `Gamepad` snapshots taken each frame.
+`RESTORE` maps to the NMI input, not a printable key. Browser defaults are suppressed only while
+the emulator surface holds focus, and every blur/visibility-loss path calls release-all so no key
+can stick.
 
 ## Browser and security boundaries
 
