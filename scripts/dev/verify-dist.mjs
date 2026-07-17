@@ -60,9 +60,11 @@ try {
 if (JSON.stringify(distBundledRoms.manifest) !== JSON.stringify(sourceBundledRoms.manifest)) {
   fail("dist bundled-ROM manifest differs from the reviewed source manifest");
 }
-const approvedRomPaths = new Set(
-  Object.values(sourceBundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`),
-);
+const approvedRomPaths = new Set([
+  ...Object.values(sourceBundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`),
+  `roms/${sourceBundledRoms.manifest.drive.rom.path}`,
+  `roms/${sourceBundledRoms.manifest.drive.baseRom.path}`,
+]);
 const expectedRomFiles = sourceBundledRoms.files.map((path) => `roms/${path}`).sort();
 const actualRomFiles = listFiles(join(distDir, "roms"), distDir).sort();
 if (JSON.stringify(actualRomFiles) !== JSON.stringify(expectedRomFiles)) {

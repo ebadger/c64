@@ -29,7 +29,8 @@ AudioInfo {
 ```
 
 - Keyboard row bits and joystick bits are active-low and normalized before entering the
-  core. The bridge maps physical key codes separately from text input.
+  core. The bridge maps physical key codes and virtual C64 key positions separately from text
+  input, then combines them into one snapshot.
 - SID register traffic covers `$D400-$D41F`; CIA 1 covers `$DC00-$DC0F`; CIA 2 covers
   `$DD00-$DD0F`, including address mirrors.
 - The core emits mono floating-point samples in `[-1, 1]` at a configured output sample
@@ -75,7 +76,7 @@ AudioInfo {
 
 ## Data flow
 
-`DOM/gamepad events -> normalized InputSnapshot -> CIA port matrix -> CPU-visible registers`
+`DOM physical-key/virtual-key/gamepad events -> normalized InputSnapshot -> CIA port matrix -> CPU-visible registers`
 and `machine cycles -> SID/CIA state -> audio samples, interrupts, VIC bank, IEC lines ->
 emulator/web presentation`.
 
@@ -118,7 +119,7 @@ Fidelity notes (honestly labelled unsupported fidelity):
 |------|--------|-------|
 | CIA 1/2 registers and timers | Implemented | Ports/DDR, timers A/B (one-shot/continuous, chaining, PB6/PB7 output), ICR mask/latch/read-to-clear, force-load |
 | TOD and alarm | Implemented | BCD 10ths/sec/min/hr + AM/PM, alarm compare, hr-read latch, 50/60 Hz frame source |
-| Keyboard and joystick matrix | Implemented | Active-low 8x8 matrix (both scan directions) + two joysticks; browser mapping stays in the bridge |
+| Keyboard and joystick matrix | Implemented | Active-low 8x8 matrix (both scan directions) + two joysticks; physical and virtual browser mappings stay in the bridge |
 | CIA2 VIC bank and NMI | Implemented | Port A VIC-bank bits; CIA2 IRQ output wired to NMI; RESTORE modelled as an NMI edge |
 | SID voices and envelopes | Implemented | 3 voices, freq/PW, tri/saw/pulse/noise, gate/test, ADSR, ring mod, sync; open-bus reads differ 6581 vs 8580 |
 | SID filters and resampling | Implemented (approximate) | Register-complete filter + mixer/volume; deterministic integer resampling to the output rate; not analog-perfect |

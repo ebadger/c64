@@ -101,9 +101,9 @@ intentionally has its own `buildId`; the two golden records do not have to match
   order.
 - Initial UI areas: a compact machine toolbar; source editor and diagnostics; Build & Run,
   build-only, run-last-build, Boot BASIC, Stop, and Reset controls; machine profile; video and
-  audio; keyboard/joystick help; artifact downloads; share; gallery; ROM status; and D64
-  import/directory/run/eject. Reorganization for the sibling-site layout must not hide or remove
-  any C64-specific workflow.
+  audio; a collapsed virtual C64 keyboard directly below the display; keyboard/joystick help;
+  artifact downloads; share; gallery; ROM status; and D64 import/directory/run/eject.
+  Reorganization for the sibling-site layout must not hide or remove any C64-specific workflow.
 - Build runs through the dual-use assembler, preferably in a worker. The same-origin,
   manifest-verified Pascual's BASIC/KERNAL set with the MEGA65 PXL chargen loads by default.
   **Boot BASIC** is enabled when the ROM set is ready; source **Run** additionally requires a
@@ -155,9 +155,10 @@ intentionally has its own `buildId`; the two golden records do not have to match
 - The WASM core runs in bounded cycle batches. The browser uses `requestAnimationFrame` and
   audio-buffer demand to pace presentation; it never changes the selected machine clock or
   skips emulated cycles to match display refresh.
-- Input uses physical `KeyboardEvent.code` mappings and Gamepad snapshots, suppresses browser
-  defaults only while emulator focus is active, and always provides a release-all path on
-  blur/visibility loss.
+- Input combines physical `KeyboardEvent.code` mappings, virtual C64 matrix-key presses, and
+  Gamepad snapshots. Browser defaults are suppressed only while emulator display focus is active;
+  display blur releases held physical keys, while window blur, visibility loss, keyboard-panel
+  collapse, and Stop provide release-all paths for both physical and virtual input.
 - Audio begins only after a user gesture and recovers from suspended contexts visibly.
 - Canvas scaling preserves C64 aspect intent and pixel edges. Presentation may drop old
   completed frames when behind but cannot mutate emulator state.
@@ -176,7 +177,7 @@ preserves the C64 pixel aspect intent and keeps pixel edges crisp (`image-render
 integer-friendly scaling); presentation may drop old completed frames when behind but never
 mutates emulator state.
 
-### Physical keyboard and joystick mapping (declared)
+### Physical and virtual keyboard mapping (declared)
 
 Input uses physical `KeyboardEvent.code` values (not `key`, so layout/locale and key-repeat do
 not change the mapping) resolved to positions in the 8×8 C64 keyboard matrix, emitted to the core
@@ -186,8 +187,30 @@ different C64 positions: `Shift+Quote` emits C64 `Shift+2` (`"`), and `Shift+Dig
 dedicated C64 `*` key while consuming host Shift. Joysticks are active-low (`bit0` up … `bit4`
 fire) from a declared key set (default port 2) and optional `Gamepad` snapshots taken each frame.
 `RESTORE` maps to the NMI input, not a printable key. Browser defaults are suppressed only while
-the emulator surface holds focus, and every blur/visibility-loss path calls release-all so no key
-can stick.
+the emulator surface holds focus. Display focus moving within the emulator region releases
+physical input only;
+external blur and visibility-loss paths call release-all so no key can stick.
+
+The integrated virtual keyboard is a collapsed `<details>` panel directly below the canvas. Its
+key order follows the original C64 physical layout: the left-arrow/number row, QWERTY row,
+RUN/STOP + SHIFT LOCK home row, C= + dual-SHIFT bottom row, centered space bar, two physical
+cursor keys, and the separate vertical F1/F2 through F7/F8 column. Every actionable key is backed
+by a named matrix position from the same committed keymap; SHIFT LOCK mechanically models a
+persistent left SHIFT, and RESTORE drives the NMI input. It does not translate labels through the
+host keyboard layout or inject text.
+
+Touchscreen SHIFT, CTRL, and C= keys are one-shot modifiers: activating one toggles its visible
+latched state, and the next non-modifier virtual key sends the complete chord for a bounded
+presentation-layer pulse before consuming the latch. SHIFT LOCK remains active until explicitly
+toggled or release-all. Paired cursor and function keycaps expose their shifted legends (up/left
+and F2/F4/F6/F8) rather than inventing extra physical keys.
+
+Pointer/touch activation restores display focus without scrolling; keyboard or assistive-
+technology activation leaves focus on the key. A focus-only control immediately before the
+display moves to the virtual-keyboard summary, and physical `Shift+Tab` remains browser focus
+navigation so the emulator cannot trap keyboard users. The responsive layout preserves the C64
+row/function-column relationship at desktop widths and scales the whole keyboard within the
+machine panel at phone widths without page-level horizontal scrolling.
 
 ## Browser and security boundaries
 
@@ -232,7 +255,8 @@ can stick.
 ## Data flow
 
 `gallery/query/autosave/user edit -> SourceProject -> assembler worker -> PRG/D64 + diagnostics
--> downloads and WASM machine -> frame/audio -> UI`; and `bundled same-origin ROM manifest or
+-> downloads and WASM machine -> frame/audio -> UI`; `physical key or virtual key pointer event
+-> normalized active-low matrix/RESTORE snapshot -> WASM machine`; and `bundled same-origin ROM manifest or
 local ROM picker -> integrity validation -> atomic in-memory RomSet`, plus `local/curated D64
 -> validation -> directory selection -> PRG extraction + explicit/detected entry -> mounted
 read-only media and WASM machine`. Canonical content changes only through GitHub PRs.
@@ -295,7 +319,8 @@ commands live in `SETUP.md`.
 |------|--------|-------|
 | Static IDE shell | Implemented | Vanilla HTML/CSS/ES-module client under `web/client/` |
 | Worker assembler integration | Implemented | Module worker imports the same `src/` modules as Node tests; stale-result sequencing |
-| WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core |
+| WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core; physical and virtual keys share the active-low matrix path |
+| Integrated virtual C64 keyboard | Implemented | Collapsed responsive physical-layout panel with one-shot SHIFT/CTRL/C=, persistent SHIFT LOCK, RESTORE NMI, paired cursor/function legends, accessible focus escape, and release-all safety |
 | URL share/remix and autosave | Implemented | `?code`/`?src`/`?d64`, bearer-data warning, namespaced autosave/preferences |
 | Gallery and canonical PR flow | Implemented | `web/client/gallery.json` with a validated, reproducible border-flash entry |
 | Default and custom ROM selection | Implemented | Bundled, pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen and clean-room DOS-1541 load and verify by default; explicit memory-only complete custom C64 set override |
