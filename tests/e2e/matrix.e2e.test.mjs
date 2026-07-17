@@ -126,7 +126,7 @@ async function runJourney(browser, base, url, expectedPrgLen) {
     await page.click("#btn-stop");
 
     // Direct-entry Run remains deterministic and writes observable RAM.
-    await page.click("#btn-run");
+    await page.click("#btn-build-run");
     await page.waitForFunction(() => window.__c64.running() === true, null, { timeout: 8000 });
     const seq1 = await page.evaluate(() => window.__c64.frame().sequence);
     await page.waitForTimeout(250);
