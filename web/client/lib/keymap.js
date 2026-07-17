@@ -15,6 +15,166 @@
 
 const LSHIFT = [1, 7];
 
+function virtualKey(id, label, column, row, options = {}) {
+  return Object.freeze({
+    id,
+    label,
+    matrix: Object.freeze([Object.freeze([column, row])]),
+    shiftedLabel: options.shiftedLabel || "",
+    ariaLabel: options.ariaLabel || label,
+    className: options.className || "",
+    modifier: options.modifier || "",
+    lock: options.lock === true,
+  });
+}
+
+function restoreKey() {
+  return Object.freeze({
+    id: "restore",
+    label: "RESTORE",
+    shiftedLabel: "",
+    ariaLabel: "RESTORE (NMI)",
+    className: "restore",
+    modifier: "",
+    lock: false,
+    restore: true,
+  });
+}
+
+function spacer(className) {
+  return Object.freeze({ spacer: true, className });
+}
+
+// Original C64 physical key order. Function keys are a separate vertical column; F2/F4/F6/F8
+// and the up/left cursor directions are the shifted legends on the same physical keycaps.
+export const C64_VIRTUAL_KEYBOARD = Object.freeze({
+  rows: Object.freeze([
+    Object.freeze([
+      virtualKey("left-arrow", "←", 7, 1, { ariaLabel: "Left arrow" }),
+      virtualKey("digit-1", "1", 7, 0),
+      virtualKey("digit-2", "2", 7, 3),
+      virtualKey("digit-3", "3", 1, 0),
+      virtualKey("digit-4", "4", 1, 3),
+      virtualKey("digit-5", "5", 2, 0),
+      virtualKey("digit-6", "6", 2, 3),
+      virtualKey("digit-7", "7", 3, 0),
+      virtualKey("digit-8", "8", 3, 3),
+      virtualKey("digit-9", "9", 4, 0),
+      virtualKey("digit-0", "0", 4, 3),
+      virtualKey("plus", "+", 5, 0),
+      virtualKey("minus", "-", 5, 3),
+      virtualKey("pound", "£", 6, 0, { ariaLabel: "Pound sign" }),
+      virtualKey("home", "HOME", 6, 3, {
+        shiftedLabel: "CLR",
+        ariaLabel: "HOME; Shift CLR",
+        className: "compact",
+      }),
+      virtualKey("delete", "DEL", 0, 0, {
+        shiftedLabel: "INST",
+        ariaLabel: "Delete; Shift Insert",
+        className: "compact",
+      }),
+    ]),
+    Object.freeze([
+      virtualKey("control", "CTRL", 7, 2, {
+        ariaLabel: "Control",
+        className: "wide modifier",
+        modifier: "one-shot",
+      }),
+      virtualKey("key-q", "Q", 7, 6),
+      virtualKey("key-w", "W", 1, 1),
+      virtualKey("key-e", "E", 1, 6),
+      virtualKey("key-r", "R", 2, 1),
+      virtualKey("key-t", "T", 2, 6),
+      virtualKey("key-y", "Y", 3, 1),
+      virtualKey("key-u", "U", 3, 6),
+      virtualKey("key-i", "I", 4, 1),
+      virtualKey("key-o", "O", 4, 6),
+      virtualKey("key-p", "P", 5, 1),
+      virtualKey("at", "@", 5, 6, { ariaLabel: "At sign" }),
+      virtualKey("asterisk", "*", 6, 1, { ariaLabel: "Asterisk" }),
+      virtualKey("up-arrow", "↑", 6, 6, { ariaLabel: "Up arrow" }),
+      restoreKey(),
+    ]),
+    Object.freeze([
+      virtualKey("run-stop", "RUN/STOP", 7, 7, { className: "wide compact" }),
+      virtualKey("shift-lock", "SHIFT LOCK", 1, 7, {
+        ariaLabel: "Shift Lock",
+        className: "wide compact modifier",
+        lock: true,
+      }),
+      virtualKey("key-a", "A", 1, 2),
+      virtualKey("key-s", "S", 1, 5),
+      virtualKey("key-d", "D", 2, 2),
+      virtualKey("key-f", "F", 2, 5),
+      virtualKey("key-g", "G", 3, 2),
+      virtualKey("key-h", "H", 3, 5),
+      virtualKey("key-j", "J", 4, 2),
+      virtualKey("key-k", "K", 4, 5),
+      virtualKey("key-l", "L", 5, 2),
+      virtualKey("colon", ":", 5, 5, { ariaLabel: "Colon" }),
+      virtualKey("semicolon", ";", 6, 2, { ariaLabel: "Semicolon" }),
+      virtualKey("equal", "=", 6, 5, { ariaLabel: "Equals" }),
+      virtualKey("return", "RETURN", 0, 1, { className: "wide compact" }),
+    ]),
+    Object.freeze([
+      virtualKey("commodore", "C=", 7, 5, {
+        ariaLabel: "Commodore",
+        className: "wide modifier",
+        modifier: "one-shot",
+      }),
+      virtualKey("left-shift", "SHIFT", 1, 7, {
+        ariaLabel: "Left Shift",
+        className: "wide modifier",
+        modifier: "one-shot",
+      }),
+      virtualKey("key-z", "Z", 1, 4),
+      virtualKey("key-x", "X", 2, 7),
+      virtualKey("key-c", "C", 2, 4),
+      virtualKey("key-v", "V", 3, 7),
+      virtualKey("key-b", "B", 3, 4),
+      virtualKey("key-n", "N", 4, 7),
+      virtualKey("key-m", "M", 4, 4),
+      virtualKey("comma", ",", 5, 7, { ariaLabel: "Comma" }),
+      virtualKey("period", ".", 5, 4, { ariaLabel: "Period" }),
+      virtualKey("slash", "/", 6, 7, { ariaLabel: "Slash" }),
+      virtualKey("right-shift", "SHIFT", 6, 4, {
+        ariaLabel: "Right Shift",
+        className: "wide modifier",
+        modifier: "one-shot",
+      }),
+      virtualKey("cursor-vertical", "↓", 0, 7, {
+        shiftedLabel: "↑",
+        ariaLabel: "Cursor down; Shift cursor up",
+        className: "cursor",
+      }),
+      virtualKey("cursor-horizontal", "→", 0, 2, {
+        shiftedLabel: "←",
+        ariaLabel: "Cursor right; Shift cursor left",
+        className: "cursor",
+      }),
+    ]),
+    Object.freeze([
+      spacer("space-side"),
+      virtualKey("space", "SPACE", 7, 4, { className: "space" }),
+      spacer("space-side"),
+    ]),
+  ]),
+  functionKeys: Object.freeze([
+    virtualKey("f1", "F1", 0, 4, { shiftedLabel: "F2", ariaLabel: "F1; Shift F2" }),
+    virtualKey("f3", "F3", 0, 5, { shiftedLabel: "F4", ariaLabel: "F3; Shift F4" }),
+    virtualKey("f5", "F5", 0, 6, { shiftedLabel: "F6", ariaLabel: "F5; Shift F6" }),
+    virtualKey("f7", "F7", 0, 3, { shiftedLabel: "F8", ariaLabel: "F7; Shift F8" }),
+  ]),
+});
+
+const virtualKeys = [
+  ...C64_VIRTUAL_KEYBOARD.rows.flat().filter((key) => !key.spacer),
+  ...C64_VIRTUAL_KEYBOARD.functionKeys,
+];
+
+export const C64_VIRTUAL_KEY_MAP = new Map(virtualKeys.map((key) => [key.id, key]));
+
 // code -> one or more [column, row] matrix positions. A few keys inject LEFT SHIFT so a single
 // modern key reaches a shifted C64 position (e.g. the two extra cursor directions).
 export const KEYBOARD_MATRIX_MAP = new Map([
@@ -74,14 +234,22 @@ export const KEY_HELP = Object.freeze([
 /**
  * Build the 8 active-low keyboard column bytes from a set of currently-pressed codes.
  * @param {Set<string>|Iterable<string>} pressedCodes
+ * @param {Set<string>|Iterable<string>} [pressedVirtualKeys]
  * @returns {Uint8Array} length 8
  */
-export function buildKeyboardColumns(pressedCodes) {
+export function buildKeyboardColumns(pressedCodes, pressedVirtualKeys = []) {
   const cols = new Uint8Array(8).fill(0xff);
   for (const code of pressedCodes) {
     const positions = KEYBOARD_MATRIX_MAP.get(code);
     if (!positions) continue;
     for (const [col, row] of positions) {
+      cols[col] &= ~(1 << row) & 0xff;
+    }
+  }
+  for (const id of pressedVirtualKeys) {
+    const key = C64_VIRTUAL_KEY_MAP.get(id);
+    if (!key || !key.matrix) continue;
+    for (const [col, row] of key.matrix) {
       cols[col] &= ~(1 << row) & 0xff;
     }
   }

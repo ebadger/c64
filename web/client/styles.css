@@ -346,6 +346,29 @@ input[type="range"] {
   outline-offset: 2px;
 }
 
+.emulator-focus-exit {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.emulator-focus-exit:focus-visible {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 4px 9px;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
 .screen {
   display: block;
   width: 100%;
@@ -354,6 +377,176 @@ input[type="range"] {
   background: #000;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+
+.virtual-keyboard {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--dim);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.virtual-keyboard summary {
+  padding: 7px 9px;
+  color: var(--fg);
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.virtual-keyboard[open] summary {
+  border-bottom: 1px solid var(--dim);
+}
+
+.vk-summary-hint {
+  float: right;
+  color: var(--secondary-text);
+  letter-spacing: 0;
+}
+
+.virtual-keyboard-keys {
+  padding: 8px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.vk-layout {
+  display: flex;
+  min-width: 580px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vk-keyboard-body {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.vk-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vk-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+}
+
+.vk-key,
+.vk-spacer {
+  min-width: 24px;
+  flex: 1 1 0;
+}
+
+.vk-key {
+  display: flex;
+  min-height: 40px;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--dim);
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+.vk-key:hover,
+.vk-key:active {
+  background: var(--panel-hover);
+}
+
+.vk-key.wide {
+  flex-grow: 1.42;
+}
+
+.vk-key.compact {
+  font-size: 8px;
+  line-height: 1.05;
+}
+
+.vk-key.cursor {
+  font-size: 13px;
+}
+
+.vk-function-column {
+  display: flex;
+  min-width: 48px;
+  flex: 0 0 48px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vk-function-column .vk-key {
+  flex: 1 1 0;
+}
+
+.vk-space-row .space-side {
+  flex-grow: 5;
+}
+
+.vk-space-row .space {
+  flex-grow: 6;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.vk-key.is-latched,
+.vk-key.is-pressed {
+  background: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--fg);
+  color: var(--bg);
+}
+
+.vk-shifted {
+  color: var(--secondary-text);
+  font-size: 8px;
+  line-height: 1;
+}
+
+.vk-primary {
+  line-height: 1.05;
+}
+
+.vk-shift-active .vk-shifted {
+  color: var(--fg);
+}
+
+.vk-shift-active .vk-primary {
+  color: var(--secondary-text);
+}
+
+.vk-key.is-latched .vk-shifted,
+.vk-key.is-latched .vk-primary,
+.vk-key.is-pressed .vk-shifted,
+.vk-key.is-pressed .vk-primary {
+  color: var(--bg);
+}
+
+.vk-note {
+  margin: 0;
+  padding: 0 8px 8px;
+  color: var(--secondary-text);
+  font-size: 10px;
+  line-height: 1.3;
 }
 
 .controls-grid {
@@ -681,6 +874,47 @@ input[type="range"] {
 
   .panel-editor {
     min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .virtual-keyboard-keys {
+    padding: 6px;
+    overflow-x: hidden;
+  }
+
+  .vk-layout {
+    min-width: 0;
+    gap: 3px;
+  }
+
+  .vk-keyboard-body,
+  .vk-main,
+  .vk-row,
+  .vk-function-column {
+    gap: 3px;
+  }
+
+  .vk-key,
+  .vk-spacer {
+    min-width: 0;
+  }
+
+  .vk-key {
+    min-height: 36px;
+    overflow: hidden;
+    padding: 1px;
+    font-size: clamp(6px, 2.5vw, 10px);
+  }
+
+  .vk-key.compact,
+  .vk-key.modifier {
+    font-size: clamp(5px, 1.9vw, 8px);
+  }
+
+  .vk-function-column {
+    min-width: 34px;
+    flex-basis: 34px;
   }
 }
 

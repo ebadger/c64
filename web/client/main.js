@@ -16,6 +16,7 @@ import { MachineController } from "./lib/machine.js";
 import { CanvasRenderer } from "./lib/video.js";
 import { AudioPlayer } from "./lib/audio.js";
 import { InputController } from "./lib/input.js";
+import { VirtualKeyboard } from "./lib/virtualKeyboard.js";
 import { Pacer } from "./lib/pacing.js";
 import { Storage } from "./lib/storage.js";
 import { RomManager } from "./lib/roms.js";
@@ -60,6 +61,7 @@ let buildClient = null;
 let machine = null; // MachineController (lazy)
 let renderer = null;
 let input = null;
+let virtualKeyboard = null;
 let pacer = null;
 let machineLoadPromise = null;
 let pendingEdit = false; // an edit happened since the last build() request -> results are stale
@@ -133,7 +135,10 @@ function cacheElements() {
     "projectName:project-name", "editor", "btnBuildRun:btn-build-run", "btnBuild:btn-build",
     "btnRun:btn-run", "btnBootBasic:btn-boot-basic",
     "btnStop:btn-stop", "btnReset:btn-reset", "diagSummary:diagnostics-summary",
-    "diagList:diagnostics-list", "screen", "screenSurface:screen-surface", "runStatus:run-status",
+    "diagList:diagnostics-list", "emulator", "screen", "screenSurface:screen-surface",
+    "skipEmulatorInput:skip-emulator-input", "virtualKeyboard:virtual-keyboard",
+    "virtualKeyboardSummary:virtual-keyboard-summary", "virtualKeyboardKeys:virtual-keyboard-keys",
+    "runStatus:run-status",
     "selTiming:sel-timing", "selSid:sel-sid", "selJoyport:sel-joyport", "chkGamepad:chk-gamepad",
     "btnAudio:btn-audio", "audioStatus:audio-status", "vol", "selRomSource:sel-rom-source",
     "romStatus:rom-status", "romLegal:rom-legal", "romProvenanceLink:rom-provenance-link",
@@ -349,14 +354,28 @@ function onBuildResult(data) {
 function wireMachineControls() {
   renderer = new CanvasRenderer(els.screen);
   input = new InputController(els.screenSurface, {
+    inputRegion: els.emulator,
+    onReleasePhysical: () => {
+      if (machine && machine.ready) machine.setInput(input.snapshot());
+    },
     onReleaseAll: () => {
+      if (virtualKeyboard) virtualKeyboard.reset();
       if (machine && machine.ready) machine.releaseInput();
     },
     onFocusChange: (focused) => {
       els.screenSurface.classList.toggle("focused", focused);
     },
   });
+  virtualKeyboard = new VirtualKeyboard(els.virtualKeyboardKeys, input, {
+    details: els.virtualKeyboard,
+    summary: els.virtualKeyboardSummary,
+    focusTarget: els.screenSurface,
+  });
+  virtualKeyboard.mount();
   input.attach();
+  els.skipEmulatorInput.addEventListener("click", () => {
+    els.virtualKeyboardSummary.focus({ preventScroll: true });
+  });
 
   els.btnRun.addEventListener("click", () => runProgram());
   els.btnBootBasic.addEventListener("click", () => bootBasic());
