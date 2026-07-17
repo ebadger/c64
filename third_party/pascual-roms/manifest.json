@@ -136,8 +136,8 @@
     },
     "patch": {
       "path": "dos1541-c64-wildcards.patch",
-      "bytes": 558,
-      "sha256": "0ad5224b08295edb922b16fd394c8c4dca488edc38ad481a5cc58a903052e0f9"
+      "bytes": 530,
+      "sha256": "758a990a715021952ce3ea70bccce9639c8a5fe310a964d178bae7210cace401"
     },
     "rom": {
       "path": "dos1541.rom",
