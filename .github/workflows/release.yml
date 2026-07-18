@@ -79,7 +79,7 @@ jobs:
         env:
           C64_E2E_REQUIRE: "1"
           C64_INTEROP_REQUIRE: "1"
-        run: node --test tests/
+        run: node scripts/dev/run-node-tests.mjs tests
 
       - name: Example golden vectors
         run: node examples/build-example.mjs

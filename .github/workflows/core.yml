@@ -50,7 +50,7 @@ jobs:
         run: sh scripts/build/build-wasm.sh
 
       - name: Milestone-1 pipeline tests + headless native/WASM parity
-        run: node --test tests/
+        run: node scripts/dev/run-node-tests.mjs tests
 
       - name: Example golden vectors
         run: node examples/build-example.mjs
@@ -65,7 +65,7 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Browser E2E against the production WASM artifact
-        run: node --test tests/e2e/
+        run: node scripts/dev/run-node-tests.mjs tests/e2e
 
       - name: Operating-foundation checks
         run: |

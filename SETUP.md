@@ -30,12 +30,12 @@ project-owned test gate (which includes the non-bypassable pipeline critical-pat
 From the repository root:
 
 ```sh
-node --test tests/                     # full pipeline test suite (production modules in src/)
+node scripts/dev/run-node-tests.mjs tests  # full test suite (production modules)
 node examples/build-example.mjs        # verify committed example golden vectors (buildId/PRG/D64)
 node examples/build-example.mjs --write  # regenerate example expectations after intended changes
 ```
 
-`npm test` runs the same suite (`node --test tests/`). The pipeline modules in `src/` are
+`npm test` runs the same cross-version test launcher. The pipeline modules in `src/` are
 dependency-light ES modules; the identical files run in modern browsers and in Node.js. The
 suite also includes headless smoke tests for the web client's pure modules (`tests/web-*.test.mjs`):
 the base64url share codec, the gallery entry/build-id guard, the worker build core, storage
@@ -99,12 +99,12 @@ PATH, then build and test:
 
 ```sh
 sh scripts/build/build-wasm.sh          # emits build/wasm/c64core.mjs + c64core.wasm
-node --test tests/wasm/                  # headless native/WASM parity + smoke (needs both builds)
+node scripts/dev/run-node-tests.mjs tests/wasm  # native/WASM parity + smoke (needs both builds)
 ```
 
 `tests/wasm/parity.test.mjs` runs the native `scenario_dump` and the WASM build over the same
 C++ scenario suite and asserts their canonical JSON is byte-identical. The WASM tests skip
-cleanly when an artifact is not built, so `node --test tests/` never fails for a missing build.
+cleanly when an artifact is not built, so the full test launcher never fails for a missing build.
 
 Never add copyrighted Commodore ROMs to satisfy a local or CI build. Use approved
 redistributable replacements, the synthetic generated test ROMs in the core, or user-supplied
@@ -131,7 +131,7 @@ files stay in memory and are never uploaded, stored, or logged.
 Test and verify:
 
 ```sh
-node --test tests/web/               # environment-free web-client logic (URL/share/ROM/gallery/…)
+node scripts/dev/run-node-tests.mjs tests/web  # environment-free web-client logic
 node web/client/tools/build-gallery.mjs        # verify gallery.json golden vectors
 node web/client/tools/build-gallery.mjs --write # regenerate gallery.json after intended changes
 ```
@@ -145,7 +145,7 @@ WASM build and Playwright (an opt-in dev-only tool) and skip cleanly when either
 PLAYWRIGHT_VERSION="$(grep -Eo '^[0-9.]+' scripts/build/playwright-version.txt | head -n1)"
 npm i --no-save --no-package-lock "playwright@$PLAYWRIGHT_VERSION"
 npx playwright install chromium firefox webkit
-node --test tests/e2e/               # full matrix + deep journey against the production dist bytes
+node scripts/dev/run-node-tests.mjs tests/e2e  # full matrix against production dist bytes
 ```
 
 On the release path CI sets `C64_E2E_REQUIRE=1` so a missing artifact or required browser **fails**
@@ -161,7 +161,7 @@ built first (the build fails, by design, if it is missing):
 ```sh
 node scripts/build/build-dist.mjs                 # clean, flattened, base-path-agnostic dist/
 node scripts/dev/verify-dist.mjs                  # manifest hashes, required files, CSP, no leaks
-node --test tests/dist/                           # reference/MIME/determinism/CSP invariants
+node scripts/dev/run-node-tests.mjs tests/dist    # reference/MIME/determinism/CSP invariants
 node scripts/build/build-dist.mjs --allow-missing-wasm   # inspection-only dev build (NOT releasable)
 ```
 
@@ -180,8 +180,8 @@ or set `C64_C1541=/path/to/c1541`. It verifies 35-track directory metadata and b
 PRG bytes; provenance is in [`tests/interop/PROVENANCE.md`](./tests/interop/PROVENANCE.md).
 
 ```sh
-node --test tests/interop/            # skips locally when c1541 is absent
-C64_INTEROP_REQUIRE=1 node --test tests/interop/   # release gate: FAIL (not skip) if c1541 missing
+node scripts/dev/run-node-tests.mjs tests/interop  # skips locally when c1541 is absent
+C64_INTEROP_REQUIRE=1 node scripts/dev/run-node-tests.mjs tests/interop  # fail if missing
 ```
 
 ## Release pipeline and GitHub Pages

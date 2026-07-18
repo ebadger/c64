@@ -3,7 +3,7 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-17 — 257 strict Node/browser/WASM/interop tests, 17 native suites,
+_Last verified: 2026-07-17 — 258 strict Node/browser/WASM/interop tests, 17 native suites,
 drive-ROM/dist integrity_
 
 ## Environments
@@ -19,7 +19,7 @@ The deterministic source-to-artifact pipeline (assembler → PRG → D64) runs u
 with no dependency install. From the repository root:
 
 ```sh
-node --test tests/                 # full pipeline + web-client tests (uses production modules in src/ and web/client/lib/)
+node scripts/dev/run-node-tests.mjs tests  # full pipeline + web-client tests
 node examples/build-example.mjs    # verify example golden vectors
 node web/client/tools/build-gallery.mjs  # verify gallery.json golden vectors
 node scripts/dev/serve.mjs         # serve the static browser IDE at http://127.0.0.1:8080/web/client/
@@ -48,7 +48,7 @@ install). In short:
 ```sh
 sh scripts/build/build-native.sh        # native CMake build + CTest (17 suites)
 sh scripts/build/build-wasm.sh          # production build/wasm/c64core.mjs + c64core.wasm
-node --test tests/wasm/                  # headless native/WASM byte-identical parity + smoke
+node scripts/dev/run-node-tests.mjs tests/wasm  # native/WASM byte-identical parity + smoke
 ```
 
 Implemented and verifiable now: the complete documented NMOS 6510 CPU plus the declared stable
@@ -78,7 +78,7 @@ sh -n scripts/dev/pre-push-tests.sh
 sh -n scripts/dev/test-critical-path.sh
 node --check .github/extensions/compliance-hooks/extension.mjs
 node --test .github/extensions/compliance-hooks/policy.test.mjs
-node --test tests/
+node scripts/dev/run-node-tests.mjs tests
 node examples/build-example.mjs
 ```
 
@@ -119,7 +119,8 @@ repository or CI data.
 | `scripts/dev/install-hooks.sh` | Set `core.hooksPath=.githooks`. |
 | `scripts/dev/check-learnings-budget.sh` | Enforce the durable-rules budget. |
 | `scripts/dev/pre-push-tests.sh` | Run operating validations and, when critical-path files change, the non-bypassable pipeline eval. |
-| `scripts/dev/test-critical-path.sh` | Product critical-path eval: full `node --test tests/` plus example golden-vector verification. |
+| `scripts/dev/run-node-tests.mjs` | Deterministically enumerate test files before invoking Node, preserving Node 18+ compatibility. |
+| `scripts/dev/test-critical-path.sh` | Product critical-path eval: full Node suite plus example golden-vector verification. |
 | `scripts/dev/review-template-updates.mjs` | Check canonical policy changes and record reviewed checkpoints. |
 | `scripts/build/build-drive-rom.mjs` | Reproduce or verify the reviewed wildcard-compatible DOS-1541 ROM from the exact pinned upstream binary. |
 | `scripts/build/build-dist.mjs` | Assemble the clean, flattened, base-path-agnostic production `dist/` with a sha256 manifest. |

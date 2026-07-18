@@ -21,5 +21,7 @@ test("CI browser gates install the repository-pinned Playwright version", () => 
     assert.match(source, /scripts\/build\/playwright-version\.txt/);
     assert.ok(source.includes(pinnedReference), `${workflow} must install the pinned Playwright output`);
     assert.match(source, /npx playwright --version/);
+    assert.match(source, /node scripts\/dev\/run-node-tests\.mjs tests/);
+    assert.doesNotMatch(source, /node --test tests\//);
   }
 });

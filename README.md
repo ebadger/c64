@@ -130,8 +130,8 @@ machine.
 The source-to-artifact pipeline runs under Node.js 18+ with no dependency install:
 
 ```sh
-node --test tests/                 # full pipeline + web + headless WASM tests (WASM/E2E skip if unbuilt)
-node --test tests/web/             # environment-free web-client logic tests only
+node scripts/dev/run-node-tests.mjs tests      # full suite (WASM/E2E skip if unbuilt)
+node scripts/dev/run-node-tests.mjs tests/web  # environment-free web-client logic tests only
 node examples/build-example.mjs    # verify example golden vectors
 node web/client/tools/build-gallery.mjs  # verify gallery.json golden vectors
 ```
@@ -143,13 +143,13 @@ pinned Emscripten 3.1.74 install):
 ```sh
 sh scripts/build/build-native.sh   # native CMake build + CTest
 sh scripts/build/build-wasm.sh     # production build/wasm/c64core.mjs + c64core.wasm
-node --test tests/wasm/            # byte-identical native/WASM parity + smoke
+node scripts/dev/run-node-tests.mjs tests/wasm  # byte-identical native/WASM parity + smoke
 PLAYWRIGHT_VERSION="$(grep -Eo '^[0-9.]+' scripts/build/playwright-version.txt | head -n1)"
 npm i --no-save --no-package-lock "playwright@$PLAYWRIGHT_VERSION"
 npx playwright install chromium firefox webkit
-node --test tests/e2e/            # browser matrix E2E against the production dist bytes
+node scripts/dev/run-node-tests.mjs tests/e2e  # browser matrix E2E against production dist bytes
 node scripts/build/build-dist.mjs && node scripts/dev/verify-dist.mjs   # production dist + integrity
-sudo apt-get install -y vice && node --test tests/interop/   # external D64 interop (Linux; VICE c1541)
+sudo apt-get install -y vice && node scripts/dev/run-node-tests.mjs tests/interop
 ```
 
 The full release gate (all of the above, non-skipping, across the pinned browser matrix and with

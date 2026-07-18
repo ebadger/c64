@@ -329,7 +329,10 @@ cleanly when the artifact or a browser binary is absent; on the release path CI 
 `C64_E2E_REQUIRE` so a missing artifact or required browser **fails** rather than skips. Exact
 commands live in `SETUP.md`. Runtime-progression checks poll bounded observable machine state
 instead of sleeping for a fixed wall-clock interval, so a slow headless browser cannot turn a
-working build into a spurious deployment-gate failure.
+working build into a spurious deployment-gate failure. Repository test entrypoints pass test
+directories through `scripts/dev/run-node-tests.mjs`, which deterministically enumerates test files
+before invoking the Node test runner so the declared Node 18+ support does not depend on
+version-specific directory-argument behavior.
 
 ## Implementation Status
 
