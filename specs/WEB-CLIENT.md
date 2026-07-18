@@ -262,13 +262,14 @@ machine panel at phone widths without page-level horizontal scrolling.
   (`/`) and the GitHub Pages project base (`/c64/`), asserting base-path independence and honest
   optional-capability fallback (see `tests/e2e/matrix.e2e.test.mjs`).
 - The site uses a restrictive static Content Security Policy compatible with same-origin
-  workers/WASM and no third-party scripts. The concrete policy, delivered by a `<meta
-  http-equiv>` tag (Pages-compatible) and echoed by the dev server, is:
+  workers/WASM and no third-party scripts. The concrete production policy is delivered by a
+  `<meta http-equiv>` tag because GitHub Pages cannot configure repository-specific response
+  headers:
 
   ```text
   default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self';
   style-src 'self'; img-src 'self'; connect-src 'self'; font-src 'self';
-  object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  object-src 'none'; base-uri 'none'; form-action 'none'
   ```
 
   `'wasm-unsafe-eval'` is the minimum needed to compile the same-origin WebAssembly module; no
@@ -278,7 +279,11 @@ machine panel at phone widths without page-level horizontal scrolling.
   it therefore loads under this policy without any `'unsafe-eval'` relaxation (see
   `core/CMakeLists.txt` and [`EMULATOR.md`](./EMULATOR.md)). A dist reference test rejects any
   absolute/external asset URL and the browser-matrix E2E runs under the deployed CSP with zero
-  console CSP violations.
+  console CSP violations. `frame-ancestors` is intentionally absent from the meta policy because
+  browsers ignore that directive there and report it as an error. The local dev/E2E server adds
+  `frame-ancestors 'none'` in its effective HTTP CSP response header. GitHub Pages offers no
+  equivalent custom-header control, so production anti-framing cannot be enforced on this host;
+  the remaining CSP directives still apply.
 - Source is treated as data, never inserted as HTML or evaluated as JavaScript.
 - Bundled C64 and drive ROM replacements are committed release assets fetched only from the same app origin at runtime.
   Their pinned source revision, license, sizes, and hashes ship beside them; production
@@ -319,8 +324,10 @@ shared assembler `pipeline/` (from `src/`), the `emulator/` wrapper, the product
 `wasm/c64core.{mjs,wasm}`, `gallery.json` and its referenced example sources, a
 manifest-verified `roms/` subtree containing only the approved Pascual C64 and 1541 ROM sets and their
 per-component licenses/notices/provenance/corresponding source, a `THIRD-PARTY-NOTICES.md` inventory, and a content-derived
-`asset-manifest.json` (sha256 + byte size + MIME per file). It emits no source maps, private
-inputs, Commodore ROM dumps, or user-supplied bytes.
+`asset-manifest.json` (sha256 + byte size + expected GitHub Pages MIME per file). GitHub Pages
+serves curated `.asm` source as `text/x-asm`; the manifest records that host-controlled value
+rather than claiming `text/plain`. The build emits no source maps, private inputs, Commodore
+ROM dumps, or user-supplied bytes.
 
 - **Base-path independence.** Every asset reference resolves relatively (ES module specifiers and
   `import.meta.url` math, relative `fetch`/`new URL`, relative HTML `href`/`src`), so the same
@@ -348,8 +355,9 @@ inputs, Commodore ROM dumps, or user-supplied bytes.
 The static app is served for local development and E2E by a dependency-light Node static server
 (`scripts/dev/serve.mjs`). For local dev it roots at the repository so `/web/client/`, `/src/`,
 `/web/emulator/`, `/examples/`, and `/build/wasm/` are same-origin; the browser E2E instead serves
-the assembled `dist/` (the actual deployable bytes). It sets correct MIME types
-(`application/wasm`, `text/javascript`) and echoes the CSP. End-to-end tests
+the assembled `dist/` (the actual deployable bytes). It sets MIME types that match Pages,
+including `text/x-asm`, and sends the meta policy plus effective `frame-ancestors 'none'` as an
+HTTP CSP response header. End-to-end tests
 (`tests/e2e/`, Playwright, an opt-in dev-only tool) drive the real app against the **actual
 production WASM artifact** in `dist/` across the Chromium/Firefox/WebKit matrix. Locally they skip
 cleanly when the artifact or a browser binary is absent; on the release path CI sets

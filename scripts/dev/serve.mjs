@@ -29,7 +29,7 @@ const MIME = {
   ".json": "application/json; charset=utf-8",
   ".wasm": "application/wasm",
   ".map": "application/json; charset=utf-8",
-  ".asm": "text/plain; charset=utf-8",
+  ".asm": "text/x-asm",
   ".txt": "text/plain; charset=utf-8",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
