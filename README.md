@@ -15,8 +15,8 @@ a static GitHub Pages application with no runtime backend, accounts, database, o
 > 1541 CPU, selected 6522 VIA surface, wired IEC, and deterministic GCR tracks — compiled
 > once to a production WebAssembly artifact and proven by native and byte-identical headless
 > WASM parity tests; the **static browser IDE** (`web/client/`) that integrates the production
-> assembler in a worker and the production WASM machine through a breadbin-inspired C64 product
-> shell, emulator-first responsive workspace, integrated physical-layout C64 virtual keyboard,
+> assembler in a worker and the production WASM machine through a breadbin-inspired C64 Studio
+> shell with a 1702-inspired monitor enclosure, emulator-first responsive workspace, integrated physical-layout C64 virtual keyboard,
 > exact-result Build & Run, compact sample selector, Boot BASIC, direct-entry run/stop/reset,
 > presentation, input, D64 directory/run/eject controls,
 > bundled Pascual/custom-ROM handling, sharing, gallery, and downloads; and the **release

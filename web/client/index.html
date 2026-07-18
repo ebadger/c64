@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>C64 Development System — 6510 Emulator &amp; Editor</title>
-    <meta name="application-name" content="C64 Development System" />
+    <title>C64 Studio — 6510 Emulator &amp; Editor</title>
+    <meta name="application-name" content="C64 Studio" />
     <meta
       name="description"
-      content="A breadbin-inspired, deterministic browser-based NMOS 6510 assembler, C64 emulator, and PRG/D64 development environment."
+      content="C64 Studio is a breadbin-inspired, deterministic browser-based NMOS 6510 assembler, C64 emulator, and PRG/D64 development environment."
     />
     <!-- Restrictive static CSP: same-origin modules/worker/WASM/audio only; no third-party
          scripts, no inline scripts/styles, no eval beyond WASM compilation. See WEB-CLIENT.md. -->
@@ -25,7 +25,7 @@
         <span class="brand-badge" aria-hidden="true">C64</span>
         <div class="brand-copy">
           <span class="brand-kicker">Personal computer</span>
-          <h1>C64 Development System</h1>
+          <h1>C64 Studio</h1>
           <span class="tagline">6510 emulator + assembler · browser-only · nothing uploaded</span>
         </div>
         <span class="brand-rainbow" aria-hidden="true"></span>
@@ -88,7 +88,20 @@
             role="application"
             aria-label="Emulator display (focus to send keyboard and joystick input)"
           >
-            <canvas id="screen" class="screen" width="384" height="284"></canvas>
+            <div class="monitor-bezel">
+              <canvas id="screen" class="screen" width="384" height="284"></canvas>
+            </div>
+            <div class="monitor-controls" aria-hidden="true">
+              <span class="monitor-label">
+                <strong>C64 Studio</strong>
+                <small>Color monitor</small>
+              </span>
+              <span class="monitor-door"></span>
+              <span class="monitor-power">
+                <span class="monitor-power-led"></span>
+                Power
+              </span>
+            </div>
           </div>
           <details id="virtual-keyboard" class="virtual-keyboard">
             <summary id="virtual-keyboard-summary">
@@ -283,7 +296,7 @@
     </main>
 
     <footer class="app-footer">
-      <strong class="footer-badge">C64 Development System</strong>
+      <strong class="footer-badge">C64 Studio</strong>
       <span>
         NMOS 6510 core compiled to WebAssembly with deterministic PRG/D64 assembly. Click the screen
         to send keyboard and joystick input; use <strong>Build &amp; Run</strong> or

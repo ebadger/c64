@@ -216,14 +216,19 @@ test("index.html has the restrictive CSP and no inline script/style", () => {
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]*\S[^<]*<\/script>/.test(html), "no inline script body");
 });
 
-test("the production shell uses the breadbin-inspired emulator-first workspace", () => {
+test("the production shell uses the breadbin and 1702-inspired emulator-first workspace", () => {
   const html = readFileSync(join(out, "index.html"), "utf8");
   const css = readFileSync(join(out, "styles.css"), "utf8");
 
   assert.ok(html.indexOf('id="emulator"') < html.indexOf('id="ide"'), "emulator precedes the editor");
-  assert.match(html, /<h1>C64 Development System<\/h1>/);
+  assert.match(html, /<title>C64 Studio — 6510 Emulator &amp; Editor<\/title>/);
+  assert.match(html, /<meta name="application-name" content="C64 Studio" \/>/);
+  assert.match(html, /<h1>C64 Studio<\/h1>/);
+  assert.match(html, /class="footer-badge">C64 Studio<\/strong>/);
   assert.equal([...html.matchAll(/class="brand-badge"/g)].length, 1, "single product badge");
   assert.equal([...html.matchAll(/class="brand-rainbow"/g)].length, 1, "single product stripe");
+  assert.equal([...html.matchAll(/class="monitor-bezel"/g)].length, 1, "single monitor bezel");
+  assert.equal([...html.matchAll(/class="monitor-controls" aria-hidden="true"/g)].length, 1, "decorative monitor controls");
   for (const id of [
     "btn-build-run",
     "btn-build",
@@ -246,6 +251,8 @@ test("the production shell uses the breadbin-inspired emulator-first workspace",
   assert.match(css, /--case-light:\s*#e6d7ae;/);
   assert.match(css, /--keycap:\s*#493a33;/);
   assert.match(css, /--key-legend:\s*#f4e8c7;/);
+  assert.match(css, /--monitor-case:\s*#d7c9a5;/);
+  assert.match(css, /--monitor-bezel:\s*#272321;/);
   assert.match(css, /--screen-blue:\s*#403e93;/);
   assert.match(css, /--screen-ink:\s*#b7b5ff;/);
   assert.match(css, /--display:\s*"Arial Rounded MT Bold"/);
@@ -266,7 +273,11 @@ test("the production shell uses the breadbin-inspired emulator-first workspace",
   assert.ok(contrastRatio(editorText, editorBackground) >= 4.5, "editor text contrasts on editor");
   assert.ok(contrastRatio("#b7b5ff", "#403e93") >= 4.5, "diagnostic text contrasts on C64 blue");
   assert.match(css, /\.brand-rainbow\s*\{[^}]*linear-gradient\(/s);
-  assert.match(css, /\.screen-surface\s*\{[^}]*border:\s*2px solid #1d1613;/s);
+  assert.match(css, /\.screen-surface\s*\{[^}]*border:\s*2px solid var\(--case-edge\);/s);
+  assert.match(css, /\.monitor-bezel\s*\{[^}]*border-radius:\s*21px \/ 17px;/s);
+  assert.match(css, /\.monitor-controls\s*\{[^}]*display:\s*grid;/s);
+  assert.match(css, /\.monitor-door\s*\{[^}]*background:\s*linear-gradient\(/s);
+  assert.match(css, /\.monitor-power-led\s*\{[^}]*background:\s*#cf4135;/s);
   assert.match(css, /\.vk-key\s*\{[^}]*background:\s*linear-gradient\(/s);
   assert.match(css, /\.editor\s*\{[^}]*background:\s*var\(--editor-bg\);/s);
   assert.match(css, /\.editor\s*\{[^}]*color:\s*var\(--editor-text\);/s);
@@ -279,6 +290,11 @@ test("the production shell uses the breadbin-inspired emulator-first workspace",
     html.indexOf('id="skip-emulator-input"') < html.indexOf('id="screen-surface"')
       && html.indexOf('id="screen-surface"') < html.indexOf('id="virtual-keyboard"'),
     "focus escape, display, and virtual keyboard stay in source order",
+  );
+  assert.ok(
+    html.indexOf('class="monitor-bezel"') < html.indexOf('id="screen"')
+      && html.indexOf('id="screen"') < html.indexOf('class="monitor-controls"'),
+    "the existing canvas stays inside the monitor enclosure",
   );
   assert.match(css, /\.vk-function-column\s*\{[^}]*flex-direction:\s*column;/s);
   assert.match(css, /\.vk-space-row \.space\s*\{[^}]*flex-grow:\s*6;/s);
