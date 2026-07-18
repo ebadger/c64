@@ -45,8 +45,8 @@ import { buildKernalRom } from "./build-kernal-rom.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = resolve(here, "..", "..");
 
-// Content types the site expects, kept in sync with scripts/dev/serve.mjs so local dev and the
-// eventual Pages deployment agree. Exported for the reference/MIME tests.
+// Content types GitHub Pages serves, kept in sync with scripts/dev/serve.mjs so local dev and
+// production metadata agree. Exported for the reference/MIME tests.
 export const CONTENT_TYPES = Object.freeze({
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -54,7 +54,7 @@ export const CONTENT_TYPES = Object.freeze({
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".wasm": "application/wasm",
-  ".asm": "text/plain; charset=utf-8",
+  ".asm": "text/x-asm",
   ".md": "text/markdown; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
   ".d64": "application/octet-stream",
@@ -133,6 +133,29 @@ const BUNDLED_ROM_ROLES = Object.freeze({
   kernal: { bytes: 8192, upstreamPath: "bin/kernal_c64.bin" },
   chargen: { bytes: 4096, upstreamPath: "bin/chargen.bin" },
 });
+const APPROVED_UPSTREAM_KERNAL = Object.freeze({
+  revision: "45da60da4d39f9f3950cdf957996c1743c53bb6e",
+  path: "kernal-upstream.rom",
+  upstreamPath: "bin/kernal_c64.bin",
+  bytes: 8192,
+  sha256: "5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414",
+  license: {
+    id: "MIT",
+    path: "LICENSE.txt",
+    bytes: 1081,
+    sha256: "51fd03770723656523a3fe7e3fdaa403b6a7912009c7af671201b80fa80c185e",
+  },
+  provenance: {
+    path: "PROVENANCE.md",
+    bytes: 4830,
+    sha256: "ce3197dcf5d065257037ef9db6aed13e1d283bea01a239991a95d0764c148760",
+  },
+  sourceArchive: {
+    path: "pascuals-basic-45da60da4d39f9f3950cdf957996c1743c53bb6e.tar.gz",
+    bytes: 165027,
+    sha256: "8cab283a172f3eb1473320e4be65894ec43d68ef0ff29c68c486f2d98ad665b2",
+  },
+});
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -157,7 +180,7 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
   if (
     !manifest || manifest.schema !== 4 || manifest.id !== "pascuals-basic-c64" ||
     manifest.upstreamRepository !== "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC" ||
-    typeof manifest.title !== "string" || !/^[0-9a-f]{40}$/.test(manifest.revision || "") ||
+    typeof manifest.title !== "string" || manifest.revision !== APPROVED_UPSTREAM_KERNAL.revision ||
     typeof manifest.upstreamRepository !== "string" || typeof manifest.sourceUrl !== "string" ||
     !manifest.roles || !manifest.sourceArchive || !manifest.licenses || !manifest.drive ||
     !Array.isArray(manifest.redistributionFiles)
@@ -186,8 +209,10 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
     integrityFiles.push({ label: `${role} ROM`, ...entry });
     if (role === "kernal") {
       if (
-        entry.basePath !== "kernal-upstream.rom" ||
-        !/^[0-9a-f]{64}$/.test(entry.baseSha256 || "") ||
+        entry.basePath !== APPROVED_UPSTREAM_KERNAL.path ||
+        entry.upstreamPath !== APPROVED_UPSTREAM_KERNAL.upstreamPath ||
+        entry.bytes !== APPROVED_UPSTREAM_KERNAL.bytes ||
+        entry.baseSha256 !== APPROVED_UPSTREAM_KERNAL.sha256 ||
         !entry.patch ||
         entry.patch.path !== "kernal-c64-load-compat.patch" ||
         !Number.isSafeInteger(entry.patch.bytes) ||
@@ -207,16 +232,15 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
   }
   const sourceArchive = manifest.sourceArchive;
   if (
-    !safeSingleFilename(sourceArchive.path) || !sourceArchive.path.endsWith(".tar.gz") ||
-    sourceArchive.path !== `pascuals-basic-${manifest.revision}.tar.gz` ||
-    !Number.isSafeInteger(sourceArchive.bytes) || sourceArchive.bytes <= 0 ||
-    !/^[0-9a-f]{64}$/.test(sourceArchive.sha256 || "")
+    sourceArchive.path !== APPROVED_UPSTREAM_KERNAL.sourceArchive.path ||
+    sourceArchive.bytes !== APPROVED_UPSTREAM_KERNAL.sourceArchive.bytes ||
+    sourceArchive.sha256 !== APPROVED_UPSTREAM_KERNAL.sourceArchive.sha256
   ) {
     throw new Error("build-dist: invalid bundled ROM sourceArchive manifest entry");
   }
   integrityFiles.push({ label: "source archive", ...sourceArchive });
   const expectedLicenses = {
-    package: { id: "MIT", path: "LICENSE.txt" },
+    package: { id: APPROVED_UPSTREAM_KERNAL.license.id, path: APPROVED_UPSTREAM_KERNAL.license.path },
     basic: { id: "MIT", path: "LICENSE-microsoft.txt" },
     chargen: {
       id: "LGPL-3.0-or-later",
@@ -253,6 +277,16 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
     JSON.stringify(redistributionPaths.sort()) !== JSON.stringify(expectedRedistributionPaths)
   ) {
     throw new Error("build-dist: bundled ROM redistribution file list is incomplete or contains extras");
+  }
+  for (const approved of [APPROVED_UPSTREAM_KERNAL.license, APPROVED_UPSTREAM_KERNAL.provenance]) {
+    const entry = manifest.redistributionFiles.find((candidate) => candidate.path === approved.path);
+    if (
+      !entry ||
+      entry.bytes !== approved.bytes ||
+      entry.sha256 !== approved.sha256
+    ) {
+      throw new Error(`build-dist: upstream KERNAL approval metadata differs for ${approved.path}`);
+    }
   }
 
   const drive = manifest.drive;
@@ -370,7 +404,13 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
   if (new Set(files).size !== files.length || files.some((path) => !safeSingleFilename(path))) {
     throw new Error("build-dist: bundled ROM manifest contains duplicate or unsafe file paths");
   }
-  return { manifest, files };
+  const romImagePaths = [
+    ...Object.values(manifest.roles).map((entry) => entry.path),
+    kernal.basePath,
+    drive.rom.path,
+    drive.baseRom.path,
+  ];
+  return { manifest, files, romImagePaths };
 }
 
 function applyRewrites(relSource, text) {

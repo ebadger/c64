@@ -60,11 +60,7 @@ try {
 if (JSON.stringify(distBundledRoms.manifest) !== JSON.stringify(sourceBundledRoms.manifest)) {
   fail("dist bundled-ROM manifest differs from the reviewed source manifest");
 }
-const approvedRomPaths = new Set([
-  ...Object.values(sourceBundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`),
-  `roms/${sourceBundledRoms.manifest.drive.rom.path}`,
-  `roms/${sourceBundledRoms.manifest.drive.baseRom.path}`,
-]);
+const approvedRomPaths = new Set(sourceBundledRoms.romImagePaths.map((path) => `roms/${path}`));
 const expectedRomFiles = sourceBundledRoms.files.map((path) => `roms/${path}`).sort();
 const actualRomFiles = listFiles(join(distDir, "roms"), distDir).sort();
 if (JSON.stringify(actualRomFiles) !== JSON.stringify(expectedRomFiles)) {
@@ -96,6 +92,7 @@ for (const f of manifest.files) {
 const html = readFileSync(join(distDir, "index.html"), "utf8");
 if (!/http-equiv="Content-Security-Policy"/.test(html)) fail("index.html is missing the CSP meta tag");
 if (/'unsafe-eval'/.test(html) || /'unsafe-inline'/.test(html)) fail("index.html CSP relaxes eval/inline");
+if (/frame-ancestors/i.test(html)) fail("index.html puts frame-ancestors in a meta CSP, where browsers ignore it");
 
 const loader = readFileSync(join(distDir, "wasm", "c64core.mjs"), "utf8");
 if (/\beval\s*\(/.test(loader) || /new Function\s*\(/.test(loader)) {

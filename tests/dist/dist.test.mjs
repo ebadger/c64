@@ -57,12 +57,7 @@ function contrastRatio(a, b) {
 const out = freshOut("c64-dist-a-");
 const { manifest, wasmIncluded } = buildDist({ repoRoot, outDir: out, requireWasm: false });
 const bundledRoms = verifyBundledRomAssets(out, "roms");
-const approvedRomPaths = new Set([
-  ...Object.values(bundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`),
-  `roms/${bundledRoms.manifest.roles.kernal.basePath}`,
-  `roms/${bundledRoms.manifest.drive.rom.path}`,
-  `roms/${bundledRoms.manifest.drive.baseRom.path}`,
-]);
+const approvedRomPaths = new Set(bundledRoms.romImagePaths.map((path) => `roms/${path}`));
 
 test.after(() => rmSync(out, { recursive: true, force: true }));
 
@@ -204,6 +199,7 @@ test("MIME expectations match the served content types", () => {
   assert.equal(CONTENT_TYPES[".html"], "text/html; charset=utf-8");
   assert.equal(CONTENT_TYPES[".json"], "application/json; charset=utf-8");
   assert.equal(CONTENT_TYPES[".css"], "text/css; charset=utf-8");
+  assert.equal(CONTENT_TYPES[".asm"], "text/x-asm");
   assert.equal(CONTENT_TYPES[".rom"], "application/octet-stream");
   assert.equal(CONTENT_TYPES[".gz"], "application/gzip");
 });
@@ -214,6 +210,7 @@ test("index.html has the restrictive CSP and no inline script/style", () => {
   assert.match(html, /script-src 'self' 'wasm-unsafe-eval'/, "script-src limited to self + wasm compile");
   assert.ok(!/'unsafe-inline'/.test(html), "no 'unsafe-inline'");
   assert.ok(!/'unsafe-eval'/.test(html), "no 'unsafe-eval'");
+  assert.doesNotMatch(html, /frame-ancestors/i, "meta CSP omits the unsupported frame-ancestors directive");
   // The only script is the module entry; no inline script bodies.
   assert.match(html, /<script type="module" src="main\.js"><\/script>/);
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]*\S[^<]*<\/script>/.test(html), "no inline script body");
@@ -359,6 +356,35 @@ test("bundled ROM production verification rejects a changed role image", () => {
     changed[0] ^= 0xff;
     writeFileSync(basicPath, changed);
     assert.throws(() => verifyBundledRomAssets(root), /failed size\/sha256 verification/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("upstream KERNAL approval is pinned to its exact path, hash, license, provenance, and source", () => {
+  const root = freshOut("c64-upstream-kernal-approval-");
+  try {
+    const target = join(root, "third_party", "pascual-roms");
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(join(repoRoot, "third_party", "pascual-roms"), target, { recursive: true });
+    const manifestPath = join(target, "manifest.json");
+    const original = JSON.parse(readFileSync(manifestPath, "utf8"));
+    assert.ok(bundledRoms.romImagePaths.includes(original.roles.kernal.basePath));
+
+    for (const mutate of [
+      (manifest) => { manifest.roles.kernal.basePath = "other-upstream.rom"; },
+      (manifest) => { manifest.roles.kernal.baseSha256 = "0".repeat(64); },
+      (manifest) => { manifest.licenses.package.id = "LicenseRef-Other"; },
+      (manifest) => {
+        manifest.redistributionFiles.find((entry) => entry.path === "PROVENANCE.md").sha256 = "0".repeat(64);
+      },
+      (manifest) => { manifest.sourceArchive.sha256 = "0".repeat(64); },
+    ]) {
+      const changed = structuredClone(original);
+      mutate(changed);
+      writeFileSync(manifestPath, JSON.stringify(changed, null, 2) + "\n");
+      assert.throws(() => verifyBundledRomAssets(root), /bundled (?:ROM|KERNAL)|upstream KERNAL/);
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

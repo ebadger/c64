@@ -138,14 +138,21 @@ provenance record. Production assembly permits exactly the manifest-addressed im
 archive, and redistribution files; missing, extra, unsafe, or integrity-mismatched assets
 fail the build.
 
-The published KERNAL is preserved as `kernal-upstream.rom`. c64 applies the auditable
-`kernal-c64-load-compat.patch` and an equivalent deterministic byte patch to that exact
-binary. Standard secondary-address loads retain their embedded address. When that embedded
-address equals BASIC `TXTTAB`, the BASIC `LOAD` command also updates `VARTAB` from the returned
-end address and relinks the program, matching the existing secondary-address-zero BASIC path.
-Secondary-address machine-code loads at any other address leave BASIC boundaries unchanged.
-The runtime `kernal.rom` remains 8192 bytes with the runtime digest above. The build verifies
-the upstream digest, every replaced instruction range, and the zero-filled routine site.
+The published KERNAL is preserved as `kernal-upstream.rom`. It is an approved shipped ROM
+image only at the pinned path, 8192-byte size, upstream digest above, Pascual project MIT
+license (`LICENSE.txt`), and provenance record (`PROVENANCE.md`) tied to the pinned revision
+and corresponding source archive. Production verification rejects any other `.rom` path and
+independently checks those exact approval fields plus every manifest-addressed file's bytes
+and digest before admitting the upstream image to `dist/`.
+
+c64 applies the auditable `kernal-c64-load-compat.patch` and an equivalent deterministic byte
+patch to that exact binary. Standard secondary-address loads retain their embedded address.
+When that embedded address equals BASIC `TXTTAB`, the BASIC `LOAD` command also updates
+`VARTAB` from the returned end address and relinks the program, matching the existing
+secondary-address-zero BASIC path. Secondary-address machine-code loads at any other address
+leave BASIC boundaries unchanged. The runtime `kernal.rom` remains 8192 bytes with the runtime
+digest above. The build verifies the upstream digest, every replaced instruction range, and
+the zero-filled routine site.
 
 Upstream describes this revision as a full Microsoft 6502 BASIC-derived interpreter with a
 screen editor and IEC `LOAD`/`SAVE`/`VERIFY`. c64 treats those as upstream claims and asserts
@@ -185,8 +192,10 @@ so assembler-version layout differences cannot silently alter the deployed firmw
   hashed locally, and remain in browser memory for the session.
 - The client loads the bundled manifest, all three C64 role files, the drive ROM, corresponding source archives, and
   every redistribution file from the same static app origin at startup. It validates manifest
-  shape plus every byte count and exact SHA-256 before replacing the active set. A partial or
-  mismatched package is rejected atomically.
+  shape plus every byte count and exact SHA-256 before replacing the active set. The production
+  allowlist additionally treats the manifest-addressed upstream KERNAL as a reproduction input
+  only when its pinned path, hash, license, provenance, revision, and corresponding-source
+  identity all match the reviewed approval. A partial or mismatched package is rejected atomically.
 - The ROM-source control defaults to **Bundled Pascual's BASIC/KERNAL and DOS-1541**. Choosing **Custom local
   ROM files** clears the bundled set and requires a complete BASIC/KERNAL/CHARGEN trio; it
   never silently mixes a custom C64 role with roles from the bundled C64 set. The independently

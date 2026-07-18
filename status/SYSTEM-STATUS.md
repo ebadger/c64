@@ -3,8 +3,9 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-18 — 258 strict Node/browser/WASM/interop tests, 17 native suites,
-KERNAL/drive-ROM/dist integrity_
+_Last verified: 2026-07-18 — same-main release run 29647165531 passed native/WASM/full
+browser/interop gates; repaired local release path passed 262 Node tests (257 pass, 5
+tool-dependent skips), 5 compliance tests, and KERNAL/drive-ROM/dist integrity_
 
 ## Environments
 
@@ -100,7 +101,7 @@ in `SETUP.md`).
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
 | CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + repository-pinned Playwright browser matrix + external interop + dist build/integrity + Pages deploy on main + exact deployed-manifest/critical-byte smoke with bounded propagation retries) and `.github/workflows/core.yml` (fast per-branch feedback) |
 | Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, integrated C64-layout virtual keyboard, Boot BASIC, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned Pascual C64 and DOS-1541 ROMs, and complete memory-only custom C64-set override |
-| Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and the exact Pascual binary/license/notice/source allowlist; WASM required (fail-not-skip) |
+| Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/Pages MIME/determinism/CSP and the exact Pascual binary/license/notice/source allowlist, including the pinned upstream KERNAL reproduction image; WASM required (fail-not-skip) |
 | Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic, including the 66-key C64 layout and virtual matrix interaction) and `tests/e2e/` (the `scripts/build/playwright-version.txt` Chromium/Firefox/WebKit revisions against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI). The deep E2E uses bounded polling for observable machine state rather than fixed sleeps or browser pacing state as proof that a batch executed. |
 | External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
 | GitHub Pages deploy | Implemented and live — `release.yml` deploys the gated `dist/` on merged `main` via official Pages actions, then rejects stale or partial publication unless the exact built manifest and critical bytes are served |
@@ -175,3 +176,8 @@ repository or CI data.
   the full journey against the production `dist` bytes at `/` and `/c64/`; capability
   detection/fallback is tested honestly. It does not exercise physical devices or non-Playwright
   browser builds.
+- GitHub Pages controls static response headers: it serves `.asm` sources as `text/x-asm`, which
+  the production asset manifest now records. Pages does not provide repository-defined CSP
+  response headers, so the supported directives are enforced by meta CSP while production
+  anti-framing cannot be enforced; the HTTP-only directive remains active on the local dev/E2E
+  server.
