@@ -13,6 +13,9 @@
   --case-light: #e6d7ae;
   --case-dark: #9a8969;
   --case-edge: #76664f;
+  --monitor-case: #d7c9a5;
+  --monitor-case-shadow: #a39370;
+  --monitor-bezel: #272321;
   --ink: #30271f;
   --keycap: #493a33;
   --keycap-top: #5e4e45;
@@ -658,23 +661,146 @@ input[type="range"] {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  padding: clamp(10px, 2.4vw, 18px);
-  border: 2px solid #1d1613;
-  border-radius: 9px;
-  justify-content: center;
+  padding: clamp(9px, 1.8vw, 13px) clamp(9px, 1.8vw, 13px) 7px;
+  border: 2px solid var(--case-edge);
+  border-radius: 17px 17px 11px 11px;
+  flex-direction: column;
+  gap: 7px;
   background:
-    radial-gradient(circle at 50% 45%, #312723, #17110f 72%),
-    #17110f;
+    linear-gradient(145deg, rgb(255 255 255 / 24%), transparent 36%),
+    linear-gradient(180deg, #e6d9b7, var(--monitor-case));
   box-shadow:
-    inset 0 0 0 4px #332722,
-    inset 0 8px 18px rgb(0 0 0 / 62%),
-    0 2px rgb(255 255 255 / 22%);
+    inset 0 1px rgb(255 255 255 / 62%),
+    inset 0 -2px rgb(91 72 51 / 18%),
+    0 5px 0 var(--monitor-case-shadow),
+    0 8px 12px rgb(49 35 26 / 28%);
   outline: none;
 }
 
 .screen-surface:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 4px;
+}
+
+.monitor-bezel {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding: clamp(6px, 1.2vw, 9px);
+  border: 2px solid #171412;
+  border-radius: 21px / 17px;
+  background:
+    radial-gradient(circle at 50% 44%, #3a3430, var(--monitor-bezel) 72%),
+    var(--monitor-bezel);
+  box-shadow:
+    inset 0 0 0 3px #3b3531,
+    inset 0 7px 13px rgb(0 0 0 / 58%),
+    0 2px rgb(255 255 255 / 26%);
+}
+
+.monitor-bezel::after {
+  position: absolute;
+  z-index: 1;
+  inset: clamp(7px, 1.4vw, 10px);
+  border-radius: 16px / 13px;
+  box-shadow:
+    inset 0 0 18px rgb(0 0 0 / 55%),
+    inset 0 0 2px rgb(255 255 255 / 18%);
+  content: "";
+  pointer-events: none;
+}
+
+.monitor-controls {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 3px 2px 0;
+  border-top: 1px solid rgb(92 74 54 / 42%);
+  align-items: center;
+  grid-template-columns: auto minmax(48px, 1fr) auto;
+  gap: 9px;
+  color: #514632;
+  box-shadow: inset 0 1px rgb(255 255 255 / 34%);
+}
+
+.monitor-label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  font-family: var(--display);
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.monitor-label strong {
+  font-size: 8px;
+  letter-spacing: 0.7px;
+}
+
+.monitor-label small {
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 6px;
+  letter-spacing: 0.5px;
+}
+
+.monitor-door {
+  position: relative;
+  width: min(100%, 220px);
+  min-width: 0;
+  height: 21px;
+  margin: 0 auto;
+  border: 1px solid #887959;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #cbbd98, #b9aa86);
+  box-shadow:
+    inset 0 2px 4px rgb(79 60 42 / 18%),
+    0 1px rgb(255 255 255 / 42%);
+}
+
+.monitor-door::before {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: min(42%, 62px);
+  height: 8px;
+  border: 1px solid #7b6b50;
+  border-radius: 999px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgb(74 58 43 / 45%) 0,
+    rgb(74 58 43 / 45%) 2px,
+    rgb(255 255 255 / 14%) 2px,
+    rgb(255 255 255 / 14%) 5px
+  );
+  box-shadow: inset 0 1px 2px rgb(64 48 35 / 30%);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.monitor-power {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.monitor-power-led {
+  width: 7px;
+  height: 7px;
+  border: 1px solid #6d251f;
+  border-radius: 50%;
+  background: #cf4135;
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 35%),
+    0 0 4px rgb(207 65 53 / 52%);
 }
 
 .emulator-focus-exit {
@@ -706,10 +832,11 @@ input[type="range"] {
   min-width: 0;
   max-width: 100%;
   height: auto;
-  border: 3px solid #090706;
-  border-radius: 3px;
+  border: 2px solid #070605;
+  border-radius: 15px / 12px;
+  overflow: hidden;
   background: #000;
-  box-shadow: 0 0 10px rgb(0 0 0 / 72%);
+  box-shadow: 0 0 8px rgb(0 0 0 / 78%);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
@@ -1349,7 +1476,37 @@ input[type="range"] {
   }
 
   .screen-surface {
-    padding: 8px;
+    padding: 7px 7px 5px;
+    border-radius: 13px 13px 9px 9px;
+    gap: 5px;
+  }
+
+  .monitor-bezel {
+    padding: 5px;
+    border-radius: 15px / 12px;
+  }
+
+  .monitor-bezel::after {
+    inset: 6px;
+    border-radius: 11px / 9px;
+  }
+
+  .monitor-controls {
+    min-height: 24px;
+    gap: 6px;
+  }
+
+  .monitor-label strong {
+    font-size: 7px;
+  }
+
+  .monitor-door {
+    height: 18px;
+  }
+
+  .monitor-door::before {
+    top: 4px;
+    height: 7px;
   }
 
   .virtual-keyboard-keys {

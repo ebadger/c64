@@ -95,13 +95,20 @@ intentionally has its own `buildId`; the two golden records do not have to match
   (`#f4e8c7`), C64-inspired blue/periwinkle screen accents (`#403e93` / `#b7b5ff`), and a
   five-color product stripe. Geometric system sans-serif fallbacks are used for product labels
   and controls; source, diagnostics, and key legends use local system monospace fallbacks.
-  The wordmark and stripe are HTML/CSS, not a bundled logo, font, image, or claim of official
-  Commodore affiliation. The client loads no external font or style dependency.
+  The product name in the document title, wordmark, and footer is **C64 Studio**. Its wordmark and
+  stripe are HTML/CSS, not a bundled logo, font, image, or claim of official Commodore affiliation.
+  The client loads no external font or style dependency.
 - Molded ridges, bevels, shadows, and stripe colors are decorative. Normal-size text maintains at
   least 4.5:1 contrast on its declared case, keycap, editor, and diagnostic surfaces; focus remains
-  visibly distinct without relying on color alone. Controls read as tactile keys, while the
-  emulator display stays inside a dark inset bezel and the virtual keyboard uses the same case and
-  keycap materials as the surrounding machine deck.
+  visibly distinct without relying on color alone. Controls read as tactile keys and the virtual
+  keyboard uses the same case and keycap materials as the surrounding machine deck.
+- The emulator canvas sits in a CSS-only enclosure inspired by the Commodore 1702 monitor: a warm
+  cream molded cabinet, charcoal rounded CRT bezel, recessed lower control door, and red power lamp.
+  The treatment is an original visual homage, not a bundled monitor image, exact replica, trademark
+  logo, hardware-fidelity claim, or claim of official affiliation. Lower-deck labels and controls
+  are decorative and hidden from assistive technology. `#screen-surface` remains the keyboard/focus
+  target, the canvas remains the only pixel output, and the enclosure must preserve the existing
+  responsive canvas and no-horizontal-page-scroll contracts.
 - On wide screens the emulator is the left, screen-first column (up to 640 CSS pixels) and the
   assembler is the flexible right column (up to 780 CSS pixels), with C64-specific utility panels
   below. The two columns wrap without horizontal page scrolling, and the narrow layout keeps
