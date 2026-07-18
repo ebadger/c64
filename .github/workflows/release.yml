@@ -124,18 +124,23 @@ jobs:
       - name: Checkout post-deploy smoke checker
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
       - name: Deploy to GitHub Pages
         id: deploy
         uses: actions/deploy-pages@v4
 
       - name: Post-deploy smoke check
         env:
+          PAGES_URL: ${{ steps.deploy.outputs.page_url }}
           EXPECTED_MANIFEST_SHA256: ${{ needs['build-and-gate'].outputs.asset_manifest_sha256 }}
         run: |
-          url="${{ steps.deploy.outputs.page_url }}"
-          echo "Deployed to $url"
+          echo "Deployed to $PAGES_URL"
           node scripts/dev/smoke-pages-deployment.mjs \
-            --url "$url" \
+            --url "$PAGES_URL" \
             --expected-manifest-sha256 "$EXPECTED_MANIFEST_SHA256" \
             --attempts 12 \
             --delay-ms 10000
