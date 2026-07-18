@@ -26,6 +26,8 @@ concurrency:
 jobs:
   build-and-gate:
     runs-on: ubuntu-latest
+    outputs:
+      asset_manifest_sha256: ${{ steps.dist_identity.outputs.sha256 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,6 +88,10 @@ jobs:
       - name: Verify dist integrity + smoke (manifest hashes, CSP, no leaks)
         run: node scripts/dev/verify-dist.mjs
 
+      - name: Record production artifact identity
+        id: dist_identity
+        run: echo "sha256=$(sha256sum dist/asset-manifest.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
       - name: Operating-foundation checks
         run: |
           sh scripts/dev/check-learnings-budget.sh
@@ -104,6 +110,7 @@ jobs:
     needs: build-and-gate
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
@@ -114,20 +121,26 @@ jobs:
       group: pages
       cancel-in-progress: false
     steps:
+      - name: Checkout post-deploy smoke checker
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
       - name: Deploy to GitHub Pages
         id: deploy
         uses: actions/deploy-pages@v4
 
       - name: Post-deploy smoke check
+        env:
+          PAGES_URL: ${{ steps.deploy.outputs.page_url }}
+          EXPECTED_MANIFEST_SHA256: ${{ needs['build-and-gate'].outputs.asset_manifest_sha256 }}
         run: |
-          url="${{ steps.deploy.outputs.page_url }}"
-          echo "Deployed to $url"
-          code=""
-          for i in 1 2 3 4 5 6; do
-            code=$(curl -sSL -o body.html -w "%{http_code}" "$url" || true)
-            if [ "$code" = "200" ] && grep -qi "browser IDE" body.html; then
-              echo "smoke ok ($code)"; exit 0
-            fi
-            echo "attempt $i: HTTP $code, retrying…"; sleep 10
-          done
-          echo "post-deploy smoke check failed (last HTTP $code)"; exit 1
+          echo "Deployed to $PAGES_URL"
+          node scripts/dev/smoke-pages-deployment.mjs \
+            --url "$PAGES_URL" \
+            --expected-manifest-sha256 "$EXPECTED_MANIFEST_SHA256" \
+            --attempts 12 \
+            --delay-ms 10000

@@ -20,7 +20,8 @@ execution — compiled once to a production WebAssembly artifact and exercised b
 headless WASM parity tests. The static browser IDE (`web/client/`) integrates the production
 assembler worker and production WASM machine with a validated examples gallery, and a deterministic
 `dist/` build plus a GitHub Actions release pipeline deploy the gated bundle to GitHub Pages on
-merged `main`; the Pages site is live at `https://ebadger.github.io/c64/`. Device and media fidelity is honestly
+merged `main` and verifies the exact manifest identity and critical deployed bytes after bounded
+propagation retries; the Pages site is live at `https://ebadger.github.io/c64/`. Device and media fidelity is honestly
 labelled in the layer specs (line-based VIC renderer, approximate SID filter, and bounded
 instruction-atomic cross-clock skew in the digital 1541 drive).
 
@@ -119,4 +120,4 @@ There is no runtime API, account system, database, or secret.
 | ROM asset handling | Implemented — pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen and clean-room Pascual DOS-1541 defaults with exact integrity/provenance/source gates; explicit complete custom C64 set override remains memory-only with unknown-digest confirmation |
 | Web client, examples, and gallery | Implemented — 3RIC-compatible terminal shell with an emulator-first responsive workspace, integrated physical-layout C64 virtual keyboard, exact-result Build & Run, sample selector, build worker, reset-vector BASIC boot, deterministic direct-entry Run, machine presentation/input, disk controls, sharing, downloads, and a validated `gallery.json`; the milestone-1 example visibly cycles its border while running |
 | Native/WASM tests and build pipeline | Implemented — CMake native build/CTest, pinned Emscripten production `.wasm`, headless parity, and CI workflows |
-| Production dist build + GitHub Pages deployment | Implemented and live — deterministic `dist/` build (`scripts/build/build-dist.mjs`), dist reference/integrity tests, external D64 interoperability (VICE `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and `.github/workflows/release.yml` deploying the gated artifact on merged `main` |
+| Production dist build + GitHub Pages deployment | Implemented and live — deterministic `dist/` build (`scripts/build/build-dist.mjs`), dist reference/integrity tests, external D64 interoperability (VICE `c1541`), a pinned Chromium/Firefox/WebKit browser matrix, and `.github/workflows/release.yml` deploying the gated artifact on merged `main` with an exact-manifest/critical-byte post-deploy smoke |

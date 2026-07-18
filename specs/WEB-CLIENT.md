@@ -298,6 +298,13 @@ inputs, Commodore ROM dumps, or user-supplied bytes.
 - **Release gate.** The production WASM artifact is **required** by default; the build fails (never
   silently skips) when `build/wasm/c64core.{mjs,wasm}` is missing. `--allow-missing-wasm` is for
   inspection-only dev builds and is never used on the release path.
+- **Post-deploy identity gate.** The release build records the sha256 of its generated
+  `asset-manifest.json` and passes that identity to the Pages deploy job. After deployment, a
+  reusable smoke check uses cache-busting requests and bounded retries to require that Pages serves
+  that exact manifest, a valid releasable manifest structure, and byte/hash/MIME-correct critical
+  artifacts (`index.html`, its direct stylesheet/module references, the production WASM binary, and
+  the bundled 1541 ROM). A stale but otherwise healthy prior deployment, presentation-copy match,
+  partial propagation, malformed manifest, or arbitrary HTTP 200 response fails the release.
 - Reference/MIME/determinism/CSP invariants are enforced by `tests/dist/`.
 
 ### Local development and end-to-end testing
@@ -326,4 +333,4 @@ commands live in `SETUP.md`.
 | Default and custom ROM selection | Implemented | Bundled, pinned Pascual BASIC/KERNAL + MEGA65 PXL chargen and clean-room DOS-1541 load and verify by default; explicit memory-only complete custom C64 set override |
 | BASIC boot and direct-entry execution | Implemented | Reset-vector Boot BASIC is distinct from deterministic source/disk PRG entry; Stop preserves machine state and Reset restarts the active mode |
 | D64 import controls | Implemented | Immediate directory validation, BASIC boot with selected media, selected-PRG run with explicit/detected entry, reset continuity, and live drive-8 eject |
-| GitHub Pages deployment | Implemented and live | Deterministic `dist/` build (`scripts/build/build-dist.mjs`) + release workflow (`.github/workflows/release.yml`) deploy the gated artifact to Pages on merged `main` |
+| GitHub Pages deployment | Implemented and live | Deterministic `dist/` build (`scripts/build/build-dist.mjs`) + release workflow (`.github/workflows/release.yml`) deploy the gated artifact to Pages on merged `main`, then require its exact manifest identity and critical bytes through a bounded propagation smoke |
