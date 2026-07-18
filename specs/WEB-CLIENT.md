@@ -109,6 +109,16 @@ intentionally has its own `buildId`; the two golden records do not have to match
   are decorative and hidden from assistive technology. `#screen-surface` remains the keyboard/focus
   target, the canvas remains the only pixel output, and the enclosure must preserve the existing
   responsive canvas and no-horizontal-page-scroll contracts.
+- A visible **Full screen** toggle in the monitor header uses the standard Fullscreen API to expand
+  the monitor frame, remains available as **Exit full screen**, and synchronizes with browser- or
+  Escape-initiated exits through `fullscreenchange`. In fullscreen, the bezel consumes the
+  available viewport while the canvas uses contain scaling and letterboxing as needed, preserving
+  the live framebuffer aspect ratio and crisp pixel rendering rather than stretching video.
+  Because the virtual keyboard is intentionally outside the fullscreen monitor frame, its
+  page-level skip-input control is removed from the fullscreen tab order; the visible toggle and
+  browser Escape action return keyboard users to the page.
+  Fullscreen is optional: when unavailable the control is disabled and labelled honestly, and a
+  rejected enter/exit request produces an explicit `capability/fullscreen` UI error.
 - On wide screens the emulator is the left, screen-first column (up to 640 CSS pixels) and the
   assembler is the flexible right column (up to 780 CSS pixels), with C64-specific utility panels
   below. The two columns wrap without horizontal page scrolling, and the narrow layout keeps
@@ -177,11 +187,12 @@ intentionally has its own `buildId`; the two golden records do not have to match
   display blur releases held physical keys, while window blur, visibility loss, keyboard-panel
   collapse, and Stop provide release-all paths for both physical and virtual input.
 - Audio begins only after a user gesture and recovers from suspended contexts visibly.
-- Canvas scaling preserves C64 aspect intent and pixel edges. PAL's 384x284 and NTSC's 384x235
-  framebuffers both use a stable 384:284 CSS presentation viewport: switching timing profiles
-  resizes the canvas backing buffer but not the monitor or its displayed viewport, and the complete
-  source frame is scaled without cropping. Presentation may drop old completed frames when behind
-  but cannot mutate emulator state.
+- In-page canvas scaling preserves C64 aspect intent and pixel edges. PAL's 384x284 and NTSC's
+  384x235 framebuffers both use a stable 384:284 CSS presentation viewport: switching timing
+  profiles resizes the canvas backing buffer but not the monitor or its displayed viewport, and the
+  complete source frame is scaled without cropping. Fullscreen keeps the complete frame visible
+  with contain scaling against the available viewport, as specified above. Presentation may drop
+  old completed frames when behind but cannot mutate emulator state.
 - Download controls create client-side `Blob` URLs, click a sanitized filename, and revoke
   the URL after use.
 - Assembly errors, bundled-ROM manifest/fetch/integrity failures, missing custom ROMs,
@@ -240,7 +251,9 @@ machine panel at phone widths without page-level horizontal scrolling.
   capabilities degrade gracefully instead of blocking the app: **Web Audio** is optional — when it
   is absent (e.g. some headless WebKit builds) the emulator still loads, builds, runs video,
   accepts input, and downloads artifacts, but the audio control is disabled and honestly labelled
-  ("Audio unavailable in this browser"). Capability status is computed before initialization.
+  ("Audio unavailable in this browser"). The Fullscreen API is likewise optional and affects only
+  the monitor expansion control. Required and Web Audio capability status is computed before
+  initialization; the fullscreen controller verifies its element/document methods when mounted.
 - The release browser matrix installs the exact Playwright version declared in
   `scripts/build/playwright-version.txt`, pins its **Chromium, Firefox, and WebKit** revisions, and
   drives the full user journey against the production `dist/` bytes at both the localhost root
@@ -352,7 +365,7 @@ version-specific directory-argument behavior.
 |------|--------|-------|
 | Static IDE shell | Implemented | Responsive breadbin-inspired C64 product shell in vanilla HTML/CSS/ES modules under `web/client/` |
 | Worker assembler integration | Implemented | Module worker imports the same `src/` modules as Node tests; stale-result sequencing |
-| WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core; physical and virtual keys share the active-low matrix path |
+| WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core; aspect-preserving fullscreen monitor presentation; physical and virtual keys share the active-low matrix path |
 | Integrated virtual C64 keyboard | Implemented | Collapsed responsive physical-layout panel with one-shot SHIFT/CTRL/C=, persistent SHIFT LOCK, RESTORE NMI, paired cursor/function legends, accessible focus escape, and release-all safety |
 | URL share/remix and autosave | Implemented | `?code`/`?src`/`?d64`, bearer-data warning, namespaced autosave/preferences |
 | Gallery and canonical PR flow | Implemented | `web/client/gallery.json` with a validated, reproducible border-flash entry |
