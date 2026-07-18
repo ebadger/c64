@@ -61,4 +61,19 @@ test("PAL and NTSC frames keep one viewport while using their native backing siz
   assert.equal(canvas.style.aspectRatio, aspect);
   assert.equal(created.length, 2);
   assert.equal(painted.length, 2);
+
+  assert.equal(renderer.draw({
+    width: 384,
+    height: 235,
+    sequence: 7,
+    pixels: new Uint8Array(384 * 235),
+  }), false);
+  renderer.resetFrameTracking();
+  assert.equal(renderer.draw({
+    width: 384,
+    height: 235,
+    sequence: 7,
+    pixels: new Uint8Array(384 * 235),
+  }), true, "a new same-profile session may restart at the same frame sequence");
+  assert.equal(painted.length, 3);
 });

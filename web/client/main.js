@@ -506,6 +506,7 @@ function startMachineSession(controller, activeSession, status) {
   state.activeSession = activeSession;
   input.setJoystickPort(Number(els.selJoyport.value));
   input.setGamepadEnabled(els.chkGamepad.checked);
+  renderer.resetFrameTracking();
 
   pacer = new Pacer(
     { machine: controller, renderer, audio, input },
@@ -550,6 +551,7 @@ function resetProgram() {
     errorBus.error(reset.error.category, reset.error.code, reset.error.message);
     return;
   }
+  renderer.resetFrameTracking();
   if (wasRunning) {
     pacer.start();
   } else {

@@ -191,8 +191,10 @@ intentionally has its own `buildId`; the two golden records do not have to match
   384x235 framebuffers both use a stable 384:284 CSS presentation viewport: switching timing
   profiles resizes the canvas backing buffer but not the monitor or its displayed viewport, and the
   complete source frame is scaled without cropping. Fullscreen keeps the complete frame visible
-  with contain scaling against the available viewport, as specified above. Presentation may drop
-  old completed frames when behind but cannot mutate emulator state.
+  with contain scaling against the available viewport, as specified above. Starting or resetting
+  a machine invalidates presentation sequence tracking because core frame counters are
+  session-local. Presentation may drop old completed frames when behind but cannot mutate emulator
+  state.
 - Download controls create client-side `Blob` URLs, click a sanitized filename, and revoke
   the URL after use.
 - Assembly errors, bundled-ROM manifest/fetch/integrity failures, missing custom ROMs,
@@ -203,9 +205,9 @@ intentionally has its own `buildId`; the two golden records do not have to match
 
 The canvas renderer maps each 4-bit VIC-II colour index through a fixed declared 16-entry RGBA
 palette (the widely used "Pepto" PAL colodore-derived values). Palette selection is
-presentation only and never affects machine state or collision logic (per `VIC-II.md`). Scaling
-uses the stable 384:284 presentation viewport for both timing profiles and keeps pixel edges crisp
-(`image-rendering: pixelated`, integer-friendly scaling); presentation may drop old completed
+presentation only and never affects machine state or collision logic (per `VIC-II.md`). In-page
+scaling uses the stable 384:284 presentation viewport for both timing profiles and keeps pixel edges
+crisp (`image-rendering: pixelated`, integer-friendly scaling); presentation may drop old completed
 frames when behind but never mutates emulator state.
 
 ### Physical and virtual keyboard mapping (declared)

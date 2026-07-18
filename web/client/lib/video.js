@@ -48,6 +48,11 @@ export class CanvasRenderer {
     return true;
   }
 
+  /** Allow the next frame after a machine's session-local sequence counter restarts. */
+  resetFrameTracking() {
+    this._lastSequence = -1;
+  }
+
   /** Paint a solid palette-indexed colour (e.g., black) to indicate stopped/blank state. */
   clear(colorIndex = 0) {
     if (!this._image) this._ensureSize(this._canvas.width || 384, this._canvas.height || 284);
