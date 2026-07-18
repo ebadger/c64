@@ -34,6 +34,10 @@ jobs:
         id: emsdk
         run: echo "version=$(grep -Eo '^[0-9.]+' scripts/build/emscripten-version.txt | head -n1)" >> "$GITHUB_OUTPUT"
 
+      - name: Read pinned Playwright version
+        id: playwright
+        run: echo "version=$(grep -Eo '^[0-9.]+' scripts/build/playwright-version.txt | head -n1)" >> "$GITHUB_OUTPUT"
+
       - name: Set up Emscripten (pinned)
         uses: mymindstorm/setup-emsdk@v14
         with:
@@ -54,9 +58,10 @@ jobs:
       - name: Gallery golden vectors
         run: node web/client/tools/build-gallery.mjs
 
-      - name: Install Playwright chromium (browser E2E)
+      - name: Install pinned Playwright chromium (browser E2E)
         run: |
-          npm i --no-save playwright
+          npm i --no-save --no-package-lock "playwright@${{ steps.playwright.outputs.version }}"
+          npx playwright --version
           npx playwright install --with-deps chromium
 
       - name: Browser E2E against the production WASM artifact

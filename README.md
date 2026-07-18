@@ -144,7 +144,9 @@ pinned Emscripten 3.1.74 install):
 sh scripts/build/build-native.sh   # native CMake build + CTest
 sh scripts/build/build-wasm.sh     # production build/wasm/c64core.mjs + c64core.wasm
 node --test tests/wasm/            # byte-identical native/WASM parity + smoke
-npm i --no-save playwright && npx playwright install chromium firefox webkit
+PLAYWRIGHT_VERSION="$(grep -Eo '^[0-9.]+' scripts/build/playwright-version.txt | head -n1)"
+npm i --no-save --no-package-lock "playwright@$PLAYWRIGHT_VERSION"
+npx playwright install chromium firefox webkit
 node --test tests/e2e/            # browser matrix E2E against the production dist bytes
 node scripts/build/build-dist.mjs && node scripts/dev/verify-dist.mjs   # production dist + integrity
 sudo apt-get install -y vice && node --test tests/interop/   # external D64 interop (Linux; VICE c1541)

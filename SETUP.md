@@ -142,7 +142,8 @@ WebKit) at both the localhost root (`/`) and the GitHub Pages project base (`/c6
 WASM build and Playwright (an opt-in dev-only tool) and skip cleanly when either is missing:
 
 ```sh
-npm i --no-save playwright
+PLAYWRIGHT_VERSION="$(grep -Eo '^[0-9.]+' scripts/build/playwright-version.txt | head -n1)"
+npm i --no-save --no-package-lock "playwright@$PLAYWRIGHT_VERSION"
 npx playwright install chromium firefox webkit
 node --test tests/e2e/               # full matrix + deep journey against the production dist bytes
 ```
@@ -188,9 +189,10 @@ C64_INTEROP_REQUIRE=1 node --test tests/interop/   # release gate: FAIL (not ski
 `.github/workflows/release.yml` is the authoritative release gate. On pull requests it runs every
 gate (foundation, Node/golden, native + CTest, production WASM, `require-release-artifacts`, the full
 browser matrix, external interop, and the production dist build + integrity) with the same pinned
-tools — Emscripten `3.1.74`, Node 18, Playwright Chromium/Firefox/WebKit, and VICE `c1541` — and
-uploads the static `dist/` as a Pages artifact for inspection only. On a push to `main` it rebuilds
-from source and deploys the exact gated artifact to GitHub Pages via the official actions (least
-permissions, concurrency-serialized, with a post-deploy smoke check). Nothing auto-merges. The live
-site is `https://ebadger.github.io/c64/`; it changes only after a successful `main` deployment.
-`core.yml` remains a fast per-branch feedback lane.
+tools — Emscripten `3.1.74`, Node 18, the Playwright version in
+`scripts/build/playwright-version.txt` (including its Chromium/Firefox/WebKit revisions), and VICE
+`c1541` — and uploads the static `dist/` as a Pages artifact for inspection only. On a push to
+`main` it rebuilds from source and deploys the exact gated artifact to GitHub Pages via the official
+actions (least permissions, concurrency-serialized, with a post-deploy smoke check). Nothing
+auto-merges. The live site is `https://ebadger.github.io/c64/`; it changes only after a successful
+`main` deployment. `core.yml` remains a fast per-branch feedback lane.

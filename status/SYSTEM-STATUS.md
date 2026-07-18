@@ -3,7 +3,7 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-17 — 256 strict Node/browser/WASM/interop tests, 17 native suites,
+_Last verified: 2026-07-17 — 257 strict Node/browser/WASM/interop tests, 17 native suites,
 drive-ROM/dist integrity_
 
 ## Environments
@@ -97,10 +97,10 @@ in `SETUP.md`).
 | Native CMake build + CTest | Implemented — `core/` project, `scripts/build/build-native.sh`, 17 test suites |
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
-| CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + full browser matrix + external interop + dist build/integrity + Pages deploy on main + exact deployed-manifest/critical-byte smoke with bounded propagation retries) and `.github/workflows/core.yml` (fast per-branch feedback) |
+| CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + repository-pinned Playwright browser matrix + external interop + dist build/integrity + Pages deploy on main + exact deployed-manifest/critical-byte smoke with bounded propagation retries) and `.github/workflows/core.yml` (fast per-branch feedback) |
 | Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, integrated C64-layout virtual keyboard, Boot BASIC, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned Pascual C64 and DOS-1541 ROMs, and complete memory-only custom C64-set override |
 | Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and the exact Pascual binary/license/notice/source allowlist; WASM required (fail-not-skip) |
-| Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic, including the 66-key C64 layout and virtual matrix interaction) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI). The deep E2E enters BASIC commands through both physical and virtual keys and waits for observable machine state rather than treating browser pacing state as proof that a batch executed. |
+| Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic, including the 66-key C64 layout and virtual matrix interaction) and `tests/e2e/` (the `scripts/build/playwright-version.txt` Chromium/Firefox/WebKit revisions against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI). The deep E2E uses bounded polling for observable machine state rather than fixed sleeps or browser pacing state as proof that a batch executed. |
 | External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
 | GitHub Pages deploy | Implemented and live — `release.yml` deploys the gated `dist/` on merged `main` via official Pages actions, then rejects stale or partial publication unless the exact built manifest and critical bytes are served |
 
@@ -166,6 +166,8 @@ repository or CI data.
 - D64 import validates geometry, the directory chain, and file chains, but does not yet validate
   full BAM consistency (DOS version, free-count/bitmap agreement, allocation conflicts); an image
   whose only defect is an inconsistent BAM is currently accepted. Tracked in ebadger/c64#2.
-- The published browser matrix pins Playwright Chromium, Firefox, and WebKit and drives the full
-  journey against the production `dist` bytes at `/` and `/c64/`; capability detection/fallback is
-  tested honestly. It does not exercise physical devices or non-Playwright browser builds.
+- The published browser matrix installs the Playwright version in
+  `scripts/build/playwright-version.txt`, thereby pinning Chromium, Firefox, and WebKit, and drives
+  the full journey against the production `dist` bytes at `/` and `/c64/`; capability
+  detection/fallback is tested honestly. It does not exercise physical devices or non-Playwright
+  browser builds.
