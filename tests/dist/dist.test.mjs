@@ -59,6 +59,7 @@ const { manifest, wasmIncluded } = buildDist({ repoRoot, outDir: out, requireWas
 const bundledRoms = verifyBundledRomAssets(out, "roms");
 const approvedRomPaths = new Set([
   ...Object.values(bundledRoms.manifest.roles).map((entry) => `roms/${entry.path}`),
+  `roms/${bundledRoms.manifest.roles.kernal.basePath}`,
   `roms/${bundledRoms.manifest.drive.rom.path}`,
   `roms/${bundledRoms.manifest.drive.baseRom.path}`,
 ]);
@@ -85,6 +86,8 @@ test("dist contains the required app-rooted layout and nothing private", () => {
     "roms/LICENSE-megabase-notice.txt",
     "roms/NOTICE.md",
     "roms/PROVENANCE.md",
+    `roms/${bundledRoms.manifest.roles.kernal.basePath}`,
+    `roms/${bundledRoms.manifest.roles.kernal.patch.path}`,
     `roms/${bundledRoms.manifest.sourceArchive.path}`,
     `roms/${bundledRoms.manifest.drive.rom.path}`,
     `roms/${bundledRoms.manifest.drive.baseRom.path}`,
@@ -319,7 +322,8 @@ test("third-party notices inventory identifies Pascual redistribution and build-
   assert.match(notices, /LGPL-3.0-or-later/);
   assert.match(notices, /corresponding source/);
   assert.match(notices, /Pascual_DOS-1541/);
-  assert.match(notices, /wildcard patch/);
+  assert.match(notices, /KERNAL LOAD-compatibility patch/);
+  assert.match(notices, /wildcard and sequential-LOAD compatibility patches/);
   assert.match(notices, /No proprietary Commodore ROM dump/i);
   assert.match(notices, /Emscripten/);
   assert.match(notices, /Playwright/);

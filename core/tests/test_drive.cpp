@@ -1,5 +1,6 @@
 #include "c64/drive.hpp"
 
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <iterator>
@@ -89,6 +90,61 @@ bool screenContains(const Machine& machine, const std::string& needle) {
   return screen.find(needle) != std::string::npos;
 }
 
+template <typename Predicate>
+bool runUntil(Machine& machine, u64 maxCycles, Predicate predicate) {
+  constexpr u64 kBatchCycles = 200000;
+  for (u64 elapsed = 0; elapsed < maxCycles; elapsed += kBatchCycles) {
+    if (predicate()) return true;
+    const RunResult run = machine.runCycles(kBatchCycles);
+    if (run.stopReason == "fault" || run.stopReason == "brk") return false;
+  }
+  return predicate();
+}
+
+bool bootBundledMachine(Machine& machine, const std::vector<u8>& d64) {
+  MachineConfig config;
+  config.roms = bundledC64Roms();
+  config.driveRom = bundledDriveRom();
+  if (!machine.configure(config).ok() || !machine.mountD64(d64, 8).ok) return false;
+  return runUntil(machine, 20000000, [&] { return screenContains(machine, "READY."); });
+}
+
+bool queueKeyboard(Machine& machine, const std::string& text) {
+  if (text.empty() || text.size() > 10 || machine.debugReadRam(0x00C6) != 0) return false;
+  for (size_t index = 0; index < text.size(); ++index) {
+    machine.debugWriteRam(static_cast<u16>(0x0277 + index), static_cast<u8>(text[index]));
+  }
+  machine.debugWriteRam(0x00C6, static_cast<u8>(text.size()));
+  return true;
+}
+
+bool typeBasicCommand(Machine& machine, const std::string& text) {
+  for (size_t offset = 0; offset < text.size();) {
+    const size_t count = std::min<size_t>(10, text.size() - offset);
+    if (!queueKeyboard(machine, text.substr(offset, count))) return false;
+    if (!runUntil(machine, 2000000, [&] { return machine.debugReadRam(0x00C6) == 0; })) {
+      return false;
+    }
+    offset += count;
+  }
+  return true;
+}
+
+u16 basicProgramEnd(const Machine& machine) {
+  return static_cast<u16>(machine.debugReadRam(0x002A) |
+                          (static_cast<u16>(machine.debugReadRam(0x002B)) << 8));
+}
+
+std::vector<u8> basicBoundaryProgram() {
+  return {
+      0x01, 0x08,              // load address $0801
+      0x10, 0x08, 0x0A, 0x00,  // line link and line number 10
+      0x97, 0x20,              // POKE
+      '4',  '9',  '1',  '5', '2', ',', '6', '6', 0x00,
+      0x00, 0x00,
+  };
+}
+
 }  // namespace
 
 TEST(drive_iec_open_collector_lines) {
@@ -167,17 +223,8 @@ TEST(drive_clean_room_firmware_reaches_iec_main_loop) {
 
 TEST(drive_real_kernal_loads_prg_over_iec) {
   Machine machine;
-  MachineConfig config;
-  config.roms = bundledC64Roms();
-  config.driveRom = bundledDriveRom();
-  CHECK(machine.configure(config).ok());
-  CHECK(machine.mountD64(c64test::makeD64("PROG", {0x01, 0x08, 0x11, 0x22, 0x33}), 8).ok);
-
-  for (u8 batch = 0; batch < 100 && !screenContains(machine, "READY."); ++batch) {
-    const RunResult run = machine.runCycles(200000);
-    CHECK(run.stopReason != "fault");
-  }
-  CHECK(screenContains(machine, "READY."));
+  CHECK(bootBundledMachine(
+      machine, c64test::makeD64("PROG", {0x01, 0x08, 0x11, 0x22, 0x33})));
 
   machine.debugWriteRam(0x0500, '*');
   c64test::loadCodeAt(machine, 0xC000,
@@ -204,5 +251,90 @@ TEST(drive_real_kernal_loads_prg_over_iec) {
   CHECK_STR_EQ(run.stopReason, "brk");
   CHECK_EQ(machine.debugReadRam(0x0801), 0x11u);
   CHECK_EQ(machine.debugReadRam(0x0803), 0x33u);
+  CHECK(!(machine.cpuState().p & FlagC));
+}
+
+TEST(drive_basic_load_secondary_one_updates_program_boundaries_and_runs) {
+  Machine machine;
+  CHECK(bootBundledMachine(
+      machine, c64test::makeD64("BASIC", basicBoundaryProgram())));
+  CHECK_EQ(basicProgramEnd(machine), 0x0803u);
+
+  CHECK(typeBasicCommand(machine, "LOAD\"*\",8,1\r"));
+  CHECK(runUntil(machine, 12000000, [&] { return basicProgramEnd(machine) == 0x0812; }));
+  CHECK_EQ(basicProgramEnd(machine), 0x0812u);
+
+  machine.debugWriteRam(0xC000, 0);
+  CHECK(typeBasicCommand(machine, "RUN\r"));
+  CHECK(runUntil(machine, 4000000, [&] { return machine.debugReadRam(0xC000) == 66; }));
+  CHECK_EQ(machine.debugReadRam(0xC000), 66u);
+  CHECK(!screenContains(machine, "OUT OF DATA"));
+}
+
+TEST(drive_basic_load_secondary_zero_updates_program_boundaries_and_runs) {
+  Machine machine;
+  CHECK(bootBundledMachine(
+      machine, c64test::makeD64("BASIC", basicBoundaryProgram())));
+  CHECK_EQ(basicProgramEnd(machine), 0x0803u);
+
+  CHECK(typeBasicCommand(machine, "LOAD\"*\",8\r"));
+  CHECK(runUntil(machine, 12000000, [&] { return basicProgramEnd(machine) == 0x0812; }));
+  CHECK_EQ(basicProgramEnd(machine), 0x0812u);
+
+  machine.debugWriteRam(0xC000, 0);
+  CHECK(typeBasicCommand(machine, "RUN\r"));
+  CHECK(runUntil(machine, 4000000, [&] { return machine.debugReadRam(0xC000) == 66; }));
+  CHECK_EQ(machine.debugReadRam(0xC000), 66u);
+  CHECK(!screenContains(machine, "OUT OF DATA"));
+}
+
+TEST(drive_basic_load_secondary_one_preserves_boundaries_for_machine_code) {
+  Machine machine;
+  CHECK(bootBundledMachine(machine, c64test::makeD64("CODE", {0x00, 0xC0, 0x42})));
+  const u16 initialProgramEnd = basicProgramEnd(machine);
+  machine.debugWriteRam(0xC000, 0);
+
+  CHECK(typeBasicCommand(machine, "LOAD\"*\",8,1\r"));
+  CHECK(runUntil(machine, 12000000, [&] { return machine.debugReadRam(0xC000) == 0x42; }));
+  CHECK_EQ(machine.debugReadRam(0xC000), 0x42u);
+  CHECK_EQ(basicProgramEnd(machine), initialProgramEnd);
+}
+
+TEST(drive_sequential_exact_name_loads_start_with_fresh_filenames) {
+  Machine machine;
+  CHECK(bootBundledMachine(
+      machine, c64test::makeD64("PROG", {0x01, 0x08, 0x11, 0x22, 0x33})));
+
+  machine.debugWriteRam(0x0500, 'P');
+  machine.debugWriteRam(0x0501, 'R');
+  machine.debugWriteRam(0x0502, 'O');
+  machine.debugWriteRam(0x0503, 'G');
+  c64test::loadCodeAt(machine, 0xC000,
+                      {
+                          0xA9, 0x04,        // LDA #4 (filename length)
+                          0xA2, 0x00,        // LDX #<$0500
+                          0xA0, 0x05,        // LDY #>$0500
+                          0x20, 0xBD, 0xFF,  // JSR SETNAM
+                          0xA9, 0x01,        // LDA #1 (logical file)
+                          0xA2, 0x08,        // LDX #8 (device)
+                          0xA0, 0x01,        // LDY #1 (secondary address)
+                          0x20, 0xBA, 0xFF,  // JSR SETLFS
+                          0xA9, 0x00,        // LDA #0 (load)
+                          0x20, 0xD5, 0xFF,  // JSR LOAD
+                          0xA9, 0x00,
+                          0x8D, 0x01, 0x08,  // clear the first loaded byte
+                          0xA9, 0x00,        // LDA #0 (load again)
+                          0x20, 0xD5, 0xFF,  // JSR LOAD
+                          0x00,              // BRK
+                      });
+
+  RunResult run;
+  for (u8 batch = 0; batch < 40; ++batch) {
+    run = machine.runCycles(500000);
+    if (run.stopReason != "budget") break;
+  }
+  CHECK(run.stopReason != "fault");
+  CHECK_STR_EQ(run.stopReason, "brk");
+  CHECK_EQ(machine.debugReadRam(0x0801), 0x11u);
   CHECK(!(machine.cpuState().p & FlagC));
 }

@@ -142,6 +142,9 @@ decode KERNAL parameter blocks.
   entry points from Commodore's proprietary ROM. Fastloaders that upload and execute their own
   drive code can work only when they depend on the implemented 6502/VIA/GCR behavior and not on an
   absent proprietary ROM entry point or writable media.
+- Every channel-0 OPEN starts a fresh filename. Sequential or repeated standard LOAD requests must
+  not append the new name to a prior request, including when software probes a file before loading
+  it. CBM `*` and `?` filename patterns and exact names share this rule.
 - Cross-machine scheduling has the bounded instruction-atomic skew declared in
   [`EMULATOR.md`](./EMULATOR.md). This is digital GCR/line emulation, not flux, analog drive-speed,
   weak-bit, half-track, copy-protection, or physical-hardware verification.

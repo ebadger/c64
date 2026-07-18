@@ -1,0 +1,62 @@
+diff --git a/src/kernal.s b/src/kernal.s
+index 855776b..fb25111 100644
+--- a/src/kernal.s
++++ b/src/kernal.s
+@@ -27,6 +27,7 @@ KBITCNT = $00A6         ; contador de bits
+ KSERHI  = $00A7         ; byte alto del timeout RFD (espera de oyente)
+ KLDPTR  = $00AE         ; puntero destino/fin de LOAD-SAVE (lo/hi)
+ KLDTMP  = $00AC         ; byte bajo temporal de la direccion de carga
++KLDTMPHI = $00AD        ; byte alto original de la direccion de carga
+ KSAVPTR = $00C1         ; puntero de trabajo de SAVE (lo/hi)
+ KFNLEN  = $00B7         ; longitud del nombre de fichero
+ KLA     = $00B8         ; fichero logico actual
+@@ -48,6 +49,24 @@ KMATRIX = $02A0         ; estado anterior de la matriz (8 bytes)
+ SCREEN  = $0400
+ COLOR   = $D800
+-
++
++.org $E179              ; hueco libre antes de la continuacion del KERNAL
++KLOADHI:
++        jsr KACPTR
++        sta KLDTMPHI
++        rts
++
++BLOADBOUND:
++        lda KSA
++        beq @set
++        lda KLDTMP
++        cmp TXTTAB
++        bne @done
++        lda KLDTMPHI
++        cmp TXTTAB+1
++        bne @done
++@set:   stx VARTAB
++@done:  rts
++
+ .org $E200              ; tras la continuacion del BASIC
+-
++
+ ; ------------------------------------------------------------
+@@ -2074,10 +2093,9 @@ BLOAD:  jsr BPARSE
+         jsr $FFD5       ; LOAD via vector ILOAD (interceptable)
+         bcc @lok
+         jmp KIOERR      ; error de E/S
+-@lok:   ; si SA=0 (programa BASIC), fijar VARTAB=fin y reenlazar
+-        lda KSA
+-        bne @lret
+-        stx VARTAB      ; X/Y = fin+1 devuelto por KLOAD
++@lok:   jsr BLOADBOUND ; SA=0, o SA<>0 con direccion de fichero=TXTTAB
++        bne @lret
++        nop             ; conserva la direccion de la siguiente instruccion
+         sty VARTAB+1
+         ; Guarda: si la carga relocalizada dejo menos de 2 bytes (longitud =
+         ; VARTAB-TXTTAB < 2), el area de programa puede no tener un terminador
+@@ -2232,7 +2250,7 @@ KLOAD:  sta KVERCK
+ @addr:  ; leer la direccion de carga del fichero (2 bytes)
+         jsr KACPTR
+         sta KLDTMP
+-        jsr KACPTR          ; A = byte alto
++        jsr KLOADHI         ; A = byte alto; conservar la direccion original
+         ldx KSA
+         beq @loop           ; SA=0 -> relocalizar a KLDPTR (X/Y de entrada)
+         sta KLDPTR+1        ; SA<>0 -> usar la direccion del fichero
