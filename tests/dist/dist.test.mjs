@@ -259,13 +259,17 @@ test("the production shell uses the breadbin-inspired emulator-first workspace",
       `secondary text meets 4.5:1 contrast on ${background}`,
     );
   }
+  const editorBackground = css.match(/--editor-bg:\s*(#[0-9a-f]{6});/i)?.[1];
+  const editorText = css.match(/--editor-text:\s*(#[0-9a-f]{6});/i)?.[1];
+  assert.ok(editorBackground && editorText, "editor color tokens are declared");
   assert.ok(contrastRatio("#f4e8c7", "#493a33") >= 4.5, "key legends contrast on keycaps");
-  assert.ok(contrastRatio("#f1e5c5", "#251d19") >= 4.5, "editor text contrasts on editor");
+  assert.ok(contrastRatio(editorText, editorBackground) >= 4.5, "editor text contrasts on editor");
   assert.ok(contrastRatio("#b7b5ff", "#403e93") >= 4.5, "diagnostic text contrasts on C64 blue");
   assert.match(css, /\.brand-rainbow\s*\{[^}]*linear-gradient\(/s);
   assert.match(css, /\.screen-surface\s*\{[^}]*border:\s*2px solid #1d1613;/s);
   assert.match(css, /\.vk-key\s*\{[^}]*background:\s*linear-gradient\(/s);
   assert.match(css, /\.editor\s*\{[^}]*background:\s*var\(--editor-bg\);/s);
+  assert.match(css, /\.editor\s*\{[^}]*color:\s*var\(--editor-text\);/s);
   assert.match(css, /\.diagnostics\s*\{[^}]*background:\s*var\(--screen-blue\);/s);
   assert.match(css, /\.workspace\s*\{[^}]*display:\s*flex;/s);
   assert.match(css, /\.panel-machine\s*\{[^}]*width:\s*640px;/s);
