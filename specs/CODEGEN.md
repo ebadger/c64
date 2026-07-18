@@ -49,6 +49,9 @@ AssemblyResult {
 }
 ```
 
+Project inputs that omit `timingProfile` default to `ntsc-6567r8`. Explicit timing in saved
+projects and gallery entries remains authoritative.
+
 `buildId` is a lowercase SHA-256 over canonical project JSON, assembler version, and output
 bytes. Canonical JSON uses fixed key order, UTF-8, normalized `\n` line endings, and no
 insignificant whitespace.

@@ -832,6 +832,7 @@ input[type="range"] {
   min-width: 0;
   max-width: 100%;
   height: auto;
+  aspect-ratio: 384 / 284;
   border: 2px solid #070605;
   border-radius: 15px / 12px;
   overflow: hidden;

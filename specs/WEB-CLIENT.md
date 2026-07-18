@@ -118,7 +118,9 @@ intentionally has its own `buildId`; the two golden records do not have to match
   build-only, run-last-build, Boot BASIC, Stop, and Reset controls; machine profile; video and
   audio; a collapsed virtual C64 keyboard directly below the display; keyboard/joystick help;
   artifact downloads; share; gallery; ROM status; and D64 import/directory/run/eject.
-  Visual reorganization must not hide or remove any C64-specific workflow.
+  Visual reorganization must not hide or remove any C64-specific workflow. A new project with no
+  saved project or gallery timing starts in `ntsc-6567r8`; saved projects and gallery entries retain
+  their declared timing.
 - Build runs through the dual-use assembler, preferably in a worker. The same-origin,
   manifest-verified Pascual's BASIC/KERNAL set with the MEGA65 PXL chargen loads by default.
   **Boot BASIC** is enabled when the ROM set is ready; source **Run** additionally requires a
@@ -175,8 +177,11 @@ intentionally has its own `buildId`; the two golden records do not have to match
   display blur releases held physical keys, while window blur, visibility loss, keyboard-panel
   collapse, and Stop provide release-all paths for both physical and virtual input.
 - Audio begins only after a user gesture and recovers from suspended contexts visibly.
-- Canvas scaling preserves C64 aspect intent and pixel edges. Presentation may drop old
-  completed frames when behind but cannot mutate emulator state.
+- Canvas scaling preserves C64 aspect intent and pixel edges. PAL's 384x284 and NTSC's 384x235
+  framebuffers both use a stable 384:284 CSS presentation viewport: switching timing profiles
+  resizes the canvas backing buffer but not the monitor or its displayed viewport, and the complete
+  source frame is scaled without cropping. Presentation may drop old completed frames when behind
+  but cannot mutate emulator state.
 - Download controls create client-side `Blob` URLs, click a sanitized filename, and revoke
   the URL after use.
 - Assembly errors, bundled-ROM manifest/fetch/integrity failures, missing custom ROMs,
@@ -188,9 +193,9 @@ intentionally has its own `buildId`; the two golden records do not have to match
 The canvas renderer maps each 4-bit VIC-II colour index through a fixed declared 16-entry RGBA
 palette (the widely used "Pepto" PAL colodore-derived values). Palette selection is
 presentation only and never affects machine state or collision logic (per `VIC-II.md`). Scaling
-preserves the C64 pixel aspect intent and keeps pixel edges crisp (`image-rendering: pixelated`,
-integer-friendly scaling); presentation may drop old completed frames when behind but never
-mutates emulator state.
+uses the stable 384:284 presentation viewport for both timing profiles and keeps pixel edges crisp
+(`image-rendering: pixelated`, integer-friendly scaling); presentation may drop old completed
+frames when behind but never mutates emulator state.
 
 ### Physical and virtual keyboard mapping (declared)
 

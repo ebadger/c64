@@ -76,11 +76,12 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     // Wait until init() (including decideInitialProject) has fully run, so the starter project can
     // never overwrite the source we fill below.
     await page.waitForFunction(() => window.__c64.initialized && window.__c64.initialized() === true, null, { timeout: 8000 });
+    assert.equal(await page.locator("#sel-timing").inputValue(), "ntsc-6567r8", "new projects default to NTSC");
 
     // --- Build via the worker ---------------------------------------------------------------
     // The app auto-builds its starter program on load (which also sets the name field), so set a
     // known name + source and wait for the specific build that matches OURS (by buildId).
-    const expectedBuild = buildArtifacts({ name: "e2etest", source: OBSERVABLE_PROGRAM, timingProfile: "pal-6569", outputName: "e2etest" });
+    const expectedBuild = buildArtifacts({ name: "e2etest", source: OBSERVABLE_PROGRAM, timingProfile: "ntsc-6567r8", outputName: "e2etest" });
     assert.equal(expectedBuild.ok, true, "the observable program must assemble");
     await page.fill("#project-name", "e2etest");
     await page.fill("#editor", OBSERVABLE_PROGRAM);
@@ -100,6 +101,24 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     const build = await page.evaluate(() => window.__c64.lastBuild());
     assert.ok(build.buildId && build.prgLen > 0 && build.d64Len === 174848, "build produced a PRG and full D64");
     assert.equal(await page.evaluate(() => window.__c64.peek(0x0400)), 0x07, "Build & Run starts its exact successful result");
+    const ntscDisplay = await page.evaluate(() => {
+      const canvas = document.getElementById("screen");
+      const rect = canvas.getBoundingClientRect();
+      const frame = window.__c64.frame();
+      return {
+        backingWidth: canvas.width,
+        backingHeight: canvas.height,
+        frameWidth: frame.width,
+        frameHeight: frame.height,
+        cssWidth: rect.width,
+        cssHeight: rect.height,
+      };
+    });
+    assert.deepEqual(
+      [ntscDisplay.backingWidth, ntscDisplay.backingHeight, ntscDisplay.frameWidth, ntscDisplay.frameHeight],
+      [384, 235, 384, 235],
+      "NTSC uses its complete native framebuffer",
+    );
     await page.click("#btn-stop");
 
     // --- Bundled Pascual ROM default + real reset-vector BASIC boot ---------------------------
@@ -113,6 +132,35 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     assert.match(await page.locator("#rom-source-link").getAttribute("href"), /\/roms\/pascuals-basic-.*\.tar\.gz$/);
     assert.match(await page.locator("#rom-basic-license-link").getAttribute("href"), /\/roms\/LICENSE-microsoft\.txt$/);
 
+    await page.selectOption("#sel-timing", "pal-6569");
+    await page.click("#btn-boot-basic");
+    await page.waitForFunction(
+      () => window.__c64.running()
+        && window.__c64.frame().height === 284
+        && document.getElementById("screen").height === 284,
+      null,
+      { timeout: 15000 },
+    );
+    const palDisplay = await page.evaluate(() => {
+      const canvas = document.getElementById("screen");
+      const rect = canvas.getBoundingClientRect();
+      return {
+        backingWidth: canvas.width,
+        backingHeight: canvas.height,
+        cssWidth: rect.width,
+        cssHeight: rect.height,
+      };
+    });
+    assert.deepEqual(
+      [palDisplay.backingWidth, palDisplay.backingHeight],
+      [384, 284],
+      "PAL uses its complete native framebuffer",
+    );
+    assert.ok(Math.abs(palDisplay.cssWidth - ntscDisplay.cssWidth) < 0.5, "timing switches keep the display width");
+    assert.ok(Math.abs(palDisplay.cssHeight - ntscDisplay.cssHeight) < 0.5, "timing switches keep the display height");
+    await page.click("#btn-stop");
+    await page.selectOption("#sel-timing", "ntsc-6567r8");
+
     await page.click("#btn-boot-basic");
     await page.waitForFunction(
       () => {
@@ -122,6 +170,23 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
       null,
       { timeout: 15000 },
     );
+    const ntscAfterPal = await page.evaluate(() => {
+      const canvas = document.getElementById("screen");
+      const rect = canvas.getBoundingClientRect();
+      return {
+        backingWidth: canvas.width,
+        backingHeight: canvas.height,
+        cssWidth: rect.width,
+        cssHeight: rect.height,
+      };
+    });
+    assert.deepEqual(
+      [ntscAfterPal.backingWidth, ntscAfterPal.backingHeight],
+      [384, 235],
+      "switching back to NTSC restores its complete native framebuffer",
+    );
+    assert.ok(Math.abs(ntscAfterPal.cssWidth - palDisplay.cssWidth) < 0.5, "PAL to NTSC keeps the display width");
+    assert.ok(Math.abs(ntscAfterPal.cssHeight - palDisplay.cssHeight) < 0.5, "PAL to NTSC keeps the display height");
     assert.equal(await page.evaluate(() => window.__c64.activeMode()), "basic");
     const basicSeq1 = await page.evaluate(() => window.__c64.frame().sequence);
     await page.waitForTimeout(250);

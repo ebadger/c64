@@ -39,7 +39,7 @@ export const DEFAULT_PROJECT = Object.freeze({
   loadAddress: 0x0801,
   runMode: "basic-sys",
   runAddress: 0x0801,
-  timingProfile: "pal-6569",
+  timingProfile: "ntsc-6567r8",
   diskName: "c64 disk",
   diskId: "64",
   outputName: "program",
