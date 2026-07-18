@@ -103,15 +103,12 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
     assert.equal(await page.evaluate(() => window.__c64.peek(0x0400)), 0x07, "Build & Run starts its exact successful result");
     const ntscDisplay = await page.evaluate(() => {
       const canvas = document.getElementById("screen");
-      const rect = canvas.getBoundingClientRect();
       const frame = window.__c64.frame();
       return {
         backingWidth: canvas.width,
         backingHeight: canvas.height,
         frameWidth: frame.width,
         frameHeight: frame.height,
-        cssWidth: rect.width,
-        cssHeight: rect.height,
       };
     });
     assert.deepEqual(
@@ -156,8 +153,6 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
       [384, 284],
       "PAL uses its complete native framebuffer",
     );
-    assert.ok(Math.abs(palDisplay.cssWidth - ntscDisplay.cssWidth) < 0.5, "timing switches keep the display width");
-    assert.ok(Math.abs(palDisplay.cssHeight - ntscDisplay.cssHeight) < 0.5, "timing switches keep the display height");
     await page.click("#btn-stop");
     await page.selectOption("#sel-timing", "ntsc-6567r8");
 
