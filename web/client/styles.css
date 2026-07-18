@@ -740,6 +740,10 @@ input[type="range"] {
   object-fit: contain;
 }
 
+.monitor-frame:fullscreen .emulator-focus-exit {
+  display: none;
+}
+
 .screen-surface:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 4px;

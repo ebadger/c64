@@ -283,6 +283,7 @@ test("the production shell uses the breadbin and 1702-inspired emulator-first wo
   assert.match(html, /id="btn-fullscreen"[\s\S]*aria-pressed="false"[\s\S]*disabled[\s\S]*>Full screen<\/button>/);
   assert.match(css, /\.monitor-frame:fullscreen\s*\{[^}]*height:\s*100%;/s);
   assert.match(css, /\.monitor-frame:fullscreen \.screen\s*\{[^}]*object-fit:\s*contain;/s);
+  assert.match(css, /\.monitor-frame:fullscreen \.emulator-focus-exit\s*\{[^}]*display:\s*none;/s);
   assert.match(css, /\.vk-key\s*\{[^}]*background:\s*linear-gradient\(/s);
   assert.match(css, /\.editor\s*\{[^}]*background:\s*var\(--editor-bg\);/s);
   assert.match(css, /\.editor\s*\{[^}]*color:\s*var\(--editor-text\);/s);

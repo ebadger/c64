@@ -114,6 +114,9 @@ intentionally has its own `buildId`; the two golden records do not have to match
   Escape-initiated exits through `fullscreenchange`. In fullscreen, the bezel consumes the
   available viewport while the canvas uses contain scaling and letterboxing as needed, preserving
   the live framebuffer aspect ratio and crisp pixel rendering rather than stretching video.
+  Because the virtual keyboard is intentionally outside the fullscreen monitor frame, its
+  page-level skip-input control is removed from the fullscreen tab order; the visible toggle and
+  browser Escape action return keyboard users to the page.
   Fullscreen is optional: when unavailable the control is disabled and labelled honestly, and a
   rejected enter/exit request produces an explicit `capability/fullscreen` UI error.
 - On wide screens the emulator is the left, screen-first column (up to 640 CSS pixels) and the
