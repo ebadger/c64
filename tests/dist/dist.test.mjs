@@ -291,10 +291,10 @@ test("the production shell uses the breadbin and 1702-inspired emulator-first wo
       && html.indexOf('id="screen-surface"') < html.indexOf('id="virtual-keyboard"'),
     "focus escape, display, and virtual keyboard stay in source order",
   );
-  assert.ok(
-    html.indexOf('class="monitor-bezel"') < html.indexOf('id="screen"')
-      && html.indexOf('id="screen"') < html.indexOf('class="monitor-controls"'),
-    "the existing canvas stays inside the monitor enclosure",
+  assert.match(
+    html,
+    /<div class="monitor-bezel">\s*<canvas\b[^>]*\bid="screen"[^>]*><\/canvas>\s*<\/div>\s*<div class="monitor-controls" aria-hidden="true">/s,
+    "the existing canvas stays nested in the monitor bezel",
   );
   assert.match(css, /\.vk-function-column\s*\{[^}]*flex-direction:\s*column;/s);
   assert.match(css, /\.vk-space-row \.space\s*\{[^}]*flex-grow:\s*6;/s);
