@@ -135,6 +135,16 @@ u16 basicProgramEnd(const Machine& machine) {
                           (static_cast<u16>(machine.debugReadRam(0x002B)) << 8));
 }
 
+std::vector<u8> basicBoundaryProgram() {
+  return {
+      0x01, 0x08,              // load address $0801
+      0x10, 0x08, 0x0A, 0x00,  // line link and line number 10
+      0x97, 0x20,              // POKE
+      '4',  '9',  '1',  '5', '2', ',', '6', '6', 0x00,
+      0x00, 0x00,
+  };
+}
+
 }  // namespace
 
 TEST(drive_iec_open_collector_lines) {
@@ -245,18 +255,29 @@ TEST(drive_real_kernal_loads_prg_over_iec) {
 }
 
 TEST(drive_basic_load_secondary_one_updates_program_boundaries_and_runs) {
-  const std::vector<u8> basicProgram = {
-      0x01, 0x08,              // load address $0801
-      0x10, 0x08, 0x0A, 0x00,  // line link and line number 10
-      0x97, 0x20,              // POKE
-      '4',  '9',  '1',  '5', '2', ',', '6', '6', 0x00,
-      0x00, 0x00,
-  };
   Machine machine;
-  CHECK(bootBundledMachine(machine, c64test::makeD64("BASIC", basicProgram)));
+  CHECK(bootBundledMachine(
+      machine, c64test::makeD64("BASIC", basicBoundaryProgram())));
   CHECK_EQ(basicProgramEnd(machine), 0x0803u);
 
   CHECK(typeBasicCommand(machine, "LOAD\"*\",8,1\r"));
+  CHECK(runUntil(machine, 12000000, [&] { return basicProgramEnd(machine) == 0x0812; }));
+  CHECK_EQ(basicProgramEnd(machine), 0x0812u);
+
+  machine.debugWriteRam(0xC000, 0);
+  CHECK(typeBasicCommand(machine, "RUN\r"));
+  CHECK(runUntil(machine, 4000000, [&] { return machine.debugReadRam(0xC000) == 66; }));
+  CHECK_EQ(machine.debugReadRam(0xC000), 66u);
+  CHECK(!screenContains(machine, "OUT OF DATA"));
+}
+
+TEST(drive_basic_load_secondary_zero_updates_program_boundaries_and_runs) {
+  Machine machine;
+  CHECK(bootBundledMachine(
+      machine, c64test::makeD64("BASIC", basicBoundaryProgram())));
+  CHECK_EQ(basicProgramEnd(machine), 0x0803u);
+
+  CHECK(typeBasicCommand(machine, "LOAD\"*\",8\r"));
   CHECK(runUntil(machine, 12000000, [&] { return basicProgramEnd(machine) == 0x0812; }));
   CHECK_EQ(basicProgramEnd(machine), 0x0812u);
 
