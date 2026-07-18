@@ -216,11 +216,14 @@ test("index.html has the restrictive CSP and no inline script/style", () => {
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>[^<]*\S[^<]*<\/script>/.test(html), "no inline script body");
 });
 
-test("the production shell uses the 3RIC-compatible emulator-first workspace", () => {
+test("the production shell uses the breadbin-inspired emulator-first workspace", () => {
   const html = readFileSync(join(out, "index.html"), "utf8");
   const css = readFileSync(join(out, "styles.css"), "utf8");
 
   assert.ok(html.indexOf('id="emulator"') < html.indexOf('id="ide"'), "emulator precedes the editor");
+  assert.match(html, /<h1>C64 Development System<\/h1>/);
+  assert.equal([...html.matchAll(/class="brand-badge"/g)].length, 1, "single product badge");
+  assert.equal([...html.matchAll(/class="brand-rainbow"/g)].length, 1, "single product stripe");
   for (const id of [
     "btn-build-run",
     "btn-build",
@@ -238,18 +241,32 @@ test("the production shell uses the 3RIC-compatible emulator-first workspace", (
     assert.equal([...html.matchAll(new RegExp(`id="${id}"`, "g"))].length, 1, `${id} appears exactly once`);
   }
   assert.match(html, /id="btn-build-run"[\s\S]*aria-keyshortcuts="Control\+Enter Meta\+Enter"/);
-  assert.match(css, /--bg:\s*#0b0e0c;/);
-  assert.match(css, /--fg:\s*#33ff66;/);
-  assert.match(css, /--dim:\s*#1d6b33;/);
+  assert.match(css, /--bg:\s*#1e1814;/);
+  assert.match(css, /--case:\s*#c8b891;/);
+  assert.match(css, /--case-light:\s*#e6d7ae;/);
+  assert.match(css, /--keycap:\s*#493a33;/);
+  assert.match(css, /--key-legend:\s*#f4e8c7;/);
+  assert.match(css, /--screen-blue:\s*#403e93;/);
+  assert.match(css, /--screen-ink:\s*#b7b5ff;/);
+  assert.match(css, /--display:\s*"Arial Rounded MT Bold"/);
+  assert.match(css, /--mono:\s*"Cascadia Mono"/);
+  assert.doesNotMatch(css, /@font-face|url\(/, "shell has no external font or image dependency");
   const secondaryText = css.match(/--secondary-text:\s*(#[0-9a-f]{6});/i)?.[1];
   assert.ok(secondaryText, "secondary text color is declared");
-  for (const background of ["#0b0e0c", "#11140f", "#000000"]) {
+  for (const background of ["#c8b891", "#e6d7ae"]) {
     assert.ok(
       contrastRatio(secondaryText, background) >= 4.5,
       `secondary text meets 4.5:1 contrast on ${background}`,
     );
   }
-  assert.doesNotMatch(css, /^\s*color:\s*var\(--dim\)/m, "structural dim green is not used for text");
+  assert.ok(contrastRatio("#f4e8c7", "#493a33") >= 4.5, "key legends contrast on keycaps");
+  assert.ok(contrastRatio("#f1e5c5", "#251d19") >= 4.5, "editor text contrasts on editor");
+  assert.ok(contrastRatio("#b7b5ff", "#403e93") >= 4.5, "diagnostic text contrasts on C64 blue");
+  assert.match(css, /\.brand-rainbow\s*\{[^}]*linear-gradient\(/s);
+  assert.match(css, /\.screen-surface\s*\{[^}]*border:\s*2px solid #1d1613;/s);
+  assert.match(css, /\.vk-key\s*\{[^}]*background:\s*linear-gradient\(/s);
+  assert.match(css, /\.editor\s*\{[^}]*background:\s*var\(--editor-bg\);/s);
+  assert.match(css, /\.diagnostics\s*\{[^}]*background:\s*var\(--screen-blue\);/s);
   assert.match(css, /\.workspace\s*\{[^}]*display:\s*flex;/s);
   assert.match(css, /\.panel-machine\s*\{[^}]*width:\s*640px;/s);
   assert.match(css, /\.panel-editor\s*\{[^}]*max-width:\s*780px;/s);
