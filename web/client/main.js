@@ -14,6 +14,7 @@ import { BuildClient, createBuildWorker } from "./lib/buildClient.js";
 import { BuildRunIntent, isBuildAndRunShortcut } from "./lib/buildActions.js";
 import { MachineController } from "./lib/machine.js";
 import { CanvasRenderer } from "./lib/video.js";
+import { FullscreenController } from "./lib/fullscreen.js";
 import { AudioPlayer } from "./lib/audio.js";
 import { InputController } from "./lib/input.js";
 import { VirtualKeyboard } from "./lib/virtualKeyboard.js";
@@ -60,6 +61,7 @@ let els = {};
 let buildClient = null;
 let machine = null; // MachineController (lazy)
 let renderer = null;
+let fullscreen = null;
 let input = null;
 let virtualKeyboard = null;
 let pacer = null;
@@ -135,7 +137,8 @@ function cacheElements() {
     "projectName:project-name", "editor", "btnBuildRun:btn-build-run", "btnBuild:btn-build",
     "btnRun:btn-run", "btnBootBasic:btn-boot-basic",
     "btnStop:btn-stop", "btnReset:btn-reset", "diagSummary:diagnostics-summary",
-    "diagList:diagnostics-list", "emulator", "screen", "screenSurface:screen-surface",
+    "diagList:diagnostics-list", "emulator", "monitorFrame:monitor-frame",
+    "btnFullscreen:btn-fullscreen", "screen", "screenSurface:screen-surface",
     "skipEmulatorInput:skip-emulator-input", "virtualKeyboard:virtual-keyboard",
     "virtualKeyboardSummary:virtual-keyboard-summary", "virtualKeyboardKeys:virtual-keyboard-keys",
     "runStatus:run-status",
@@ -355,6 +358,10 @@ function onBuildResult(data) {
 
 function wireMachineControls() {
   renderer = new CanvasRenderer(els.screen);
+  fullscreen = new FullscreenController(els.monitorFrame, els.btnFullscreen, {
+    onError: (message) => errorBus.error("capability", "fullscreen", message),
+  });
+  fullscreen.mount();
   input = new InputController(els.screenSurface, {
     inputRegion: els.emulator,
     onReleasePhysical: () => {

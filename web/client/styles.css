@@ -656,6 +656,29 @@ input[type="range"] {
   text-transform: uppercase;
 }
 
+.monitor-frame {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.monitor-fullscreen {
+  min-height: 27px;
+  padding: 4px 8px;
+  font-size: 9px;
+  letter-spacing: 0.35px;
+}
+
+.monitor-fullscreen[aria-pressed="true"] {
+  border-color: var(--screen-blue);
+  box-shadow:
+    inset 0 2px 4px rgb(26 20 17 / 38%),
+    0 0 0 2px rgb(64 62 147 / 24%);
+}
+
 .screen-surface {
   display: flex;
   width: 100%;
@@ -675,6 +698,50 @@ input[type="range"] {
     0 5px 0 var(--monitor-case-shadow),
     0 8px 12px rgb(49 35 26 / 28%);
   outline: none;
+}
+
+.monitor-frame:fullscreen {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  padding: clamp(8px, 2vmin, 18px);
+  overflow: hidden;
+  gap: clamp(8px, 1.5vmin, 14px);
+  background: var(--bg);
+}
+
+.monitor-frame:fullscreen::backdrop {
+  background: var(--bg);
+}
+
+.monitor-frame:fullscreen .section-bar {
+  flex: 0 0 auto;
+  padding: 7px 9px;
+  border: 1px solid var(--case-edge);
+  border-radius: 7px;
+  background: var(--case);
+  box-shadow: inset 0 1px rgb(255 255 255 / 38%);
+}
+
+.monitor-frame:fullscreen .screen-surface {
+  min-height: 0;
+  max-width: none;
+  flex: 1 1 auto;
+}
+
+.monitor-frame:fullscreen .monitor-bezel {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.monitor-frame:fullscreen .screen {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.monitor-frame:fullscreen .emulator-focus-exit {
+  display: none;
 }
 
 .screen-surface:focus-visible {
