@@ -153,6 +153,8 @@ test("c64 IDE end-to-end against the production WASM artifact", async (t) => {
       [384, 284],
       "PAL uses its complete native framebuffer",
     );
+    assert.ok(palDisplay.cssWidth > 100, "the PAL display remains visibly wide");
+    assert.ok(palDisplay.cssHeight > 100, "the PAL display remains visibly tall");
     await page.click("#btn-stop");
     await page.selectOption("#sel-timing", "ntsc-6567r8");
 
