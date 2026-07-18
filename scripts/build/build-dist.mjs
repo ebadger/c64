@@ -40,6 +40,7 @@ import {
 import { fileURLToPath } from "node:url";
 import { dirname, extname, join, resolve } from "node:path";
 import { buildDriveRom } from "./build-drive-rom.mjs";
+import { buildKernalRom } from "./build-kernal-rom.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = resolve(here, "..", "..");
@@ -154,7 +155,7 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
     throw new Error(`build-dist: invalid bundled ROM manifest: ${String(err && err.message ? err.message : err)}`);
   }
   if (
-    !manifest || manifest.schema !== 3 || manifest.id !== "pascuals-basic-c64" ||
+    !manifest || manifest.schema !== 4 || manifest.id !== "pascuals-basic-c64" ||
     manifest.upstreamRepository !== "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC" ||
     typeof manifest.title !== "string" || !/^[0-9a-f]{40}$/.test(manifest.revision || "") ||
     typeof manifest.upstreamRepository !== "string" || typeof manifest.sourceUrl !== "string" ||
@@ -183,6 +184,26 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
       throw new Error(`build-dist: invalid bundled ROM ${role} manifest entry`);
     }
     integrityFiles.push({ label: `${role} ROM`, ...entry });
+    if (role === "kernal") {
+      if (
+        entry.basePath !== "kernal-upstream.rom" ||
+        !/^[0-9a-f]{64}$/.test(entry.baseSha256 || "") ||
+        !entry.patch ||
+        entry.patch.path !== "kernal-c64-load-compat.patch" ||
+        !Number.isSafeInteger(entry.patch.bytes) ||
+        entry.patch.bytes <= 0 ||
+        !/^[0-9a-f]{64}$/.test(entry.patch.sha256 || "")
+      ) {
+        throw new Error("build-dist: invalid bundled KERNAL compatibility metadata");
+      }
+      integrityFiles.push({
+        label: "upstream KERNAL",
+        path: entry.basePath,
+        bytes: entry.bytes,
+        sha256: entry.baseSha256,
+      });
+      integrityFiles.push({ label: "KERNAL source patch", ...entry.patch });
+    }
   }
   const sourceArchive = manifest.sourceArchive;
   if (
@@ -321,6 +342,12 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
       throw new Error(`build-dist: bundled ROM ${entry.label} failed size/sha256 verification: ${entry.path}`);
     }
   }
+  const kernal = manifest.roles.kernal;
+  buildKernalRom({
+    basePath: join(base, kernal.basePath),
+    outputPath: join(base, kernal.path),
+    check: true,
+  });
   buildDriveRom({
     basePath: join(base, drive.baseRom.path),
     outputPath: join(base, drive.rom.path),
@@ -330,6 +357,8 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
   const files = [
     "manifest.json",
     ...Object.values(manifest.roles).map((entry) => entry.path),
+    kernal.basePath,
+    kernal.patch.path,
     sourceArchive.path,
     ...manifest.redistributionFiles.map((entry) => entry.path),
     drive.rom.path,
@@ -517,8 +546,8 @@ function thirdPartyNotices() {
     "|-----------|--------|---------|-----------|",
     "| `wasm/c64core.mjs` (loader glue) | Emscripten-generated | MIT / University of Illinois/NCSA | Yes |",
     "| `wasm/c64core.wasm` | Compiled from first-party `core/` C++17 | Repository license (see CONTRIBUTING.md) | Yes |",
-    "| `roms/` Pascual's BASIC/KERNAL + MEGA65 PXL chargen | Pascual-Candel-Palazon/Pascuals-BASIC, pinned revision | MIT (project KERNAL/tooling); Microsoft MIT (BASIC); LGPL-3.0-or-later (chargen) | Yes — unmodified images, complete license/notices, provenance, corresponding source |",
-    "| `roms/dos1541.rom` | Pascual-Candel-Palazon/Pascual_DOS-1541, pinned revision; c64 wildcard patch | MIT | Yes — clean-room base and patched image, source patch, complete license/provenance, corresponding source |",
+    "| `roms/` Pascual's BASIC/KERNAL + MEGA65 PXL chargen | Pascual-Candel-Palazon/Pascuals-BASIC, pinned revision; c64 KERNAL LOAD-compatibility patch | MIT (project KERNAL/tooling); Microsoft MIT (BASIC); LGPL-3.0-or-later (chargen) | Yes — clean-room base and patched KERNAL, complete license/notices, provenance, corresponding source |",
+    "| `roms/dos1541.rom` | Pascual-Candel-Palazon/Pascual_DOS-1541, pinned revision; c64 wildcard and sequential-LOAD compatibility patches | MIT | Yes — clean-room base and patched image, source patch, complete license/provenance, corresponding source |",
     "| Web client, `lib/`, `pipeline/`, `emulator/` | First-party (this repository) | Repository license | Yes |",
     "",
     "## Build-time only (NOT shipped)",

@@ -8,7 +8,7 @@ const repoRoot = resolve(here, "..", "..");
 const romDir = join(repoRoot, "third_party", "pascual-roms");
 
 const BASE_SHA256 = "c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39";
-const OUTPUT_SHA256 = "0a77fedc1a65b0dca49bd3bf3d5607b05e6fbf3d6d10b7b14b005fe62532104d";
+const OUTPUT_SHA256 = "543577ca940e8ad88906de4d173bb995ec434a789698319d62f8441cecf579af";
 const ROM_BYTES = 16384;
 
 const matcherOffset = 0x0d4f;
@@ -19,7 +19,7 @@ const matcherAfter = Uint8Array.from([
   0x20, 0x15, 0xd3, 0x90, 0x0f, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
 ]);
 
-const routineOffset = 0x1315;
+const wildcardRoutineOffset = 0x1315;
 const wildcardRoutine = Uint8Array.from([
   0xbd, 0x80, 0x02,       // LDA NAME_BUF,X
   0xc9, 0x2a, 0xf0, 0x0f, // '*' matches the remaining filename
@@ -28,6 +28,27 @@ const wildcardRoutine = Uint8Array.from([
   0xc8, 0xe8, 0xe0, 0x10, 0xd0, 0xea,
   0x38, 0x60,             // match: SEC; RTS
   0x18, 0x60,             // mismatch: CLC; RTS
+]);
+
+const filenameResetOffset = 0x02cb;
+const filenameResetBefore = Uint8Array.from([
+  0xa5, 0x02,             // LDA iec_sa
+  0xd0, 0x03,             // BNE save_open
+  0x4c, 0x48, 0xc2,       // JMP command_loop
+]);
+const filenameResetAfter = Uint8Array.from([
+  0x4c, 0x30, 0xd3,       // JMP reset_channel_name
+  0xea, 0xea, 0xea, 0xea,
+]);
+const filenameResetRoutineOffset = 0x1330;
+const filenameResetRoutine = Uint8Array.from([
+  0xa5, 0x02,             // LDA iec_sa
+  0xd0, 0x09,             // BNE save_open
+  0xa9, 0x00,             // LDA #0
+  0x85, 0x09,             // STA data_idx
+  0x85, 0x0a,             // STA iec_chan_mode
+  0x4c, 0x48, 0xc2,       // JMP command_loop
+  0x4c, 0xd2, 0xc2,       // save_open: JMP original handler
 ]);
 
 function sha256(bytes) {
@@ -50,12 +71,28 @@ export function buildDriveRom({
   if (!equalAt(bytes, matcherOffset, matcherBefore)) {
     throw new Error("build-drive-rom: the upstream filename matcher no longer matches the reviewed patch site");
   }
-  if (!bytes.slice(routineOffset, routineOffset + wildcardRoutine.length).every((value) => value === 0xff)) {
+  if (
+    !bytes
+      .slice(wildcardRoutineOffset, wildcardRoutineOffset + wildcardRoutine.length)
+      .every((value) => value === 0xff)
+  ) {
     throw new Error("build-drive-rom: the reviewed wildcard routine region is not erased ROM space");
+  }
+  if (!equalAt(bytes, filenameResetOffset, filenameResetBefore)) {
+    throw new Error("build-drive-rom: the channel-0 OPEN handler no longer matches the reviewed patch site");
+  }
+  if (
+    !bytes
+      .slice(filenameResetRoutineOffset, filenameResetRoutineOffset + filenameResetRoutine.length)
+      .every((value) => value === 0xff)
+  ) {
+    throw new Error("build-drive-rom: the reviewed filename-reset routine region is not erased ROM space");
   }
 
   bytes.set(matcherAfter, matcherOffset);
-  bytes.set(wildcardRoutine, routineOffset);
+  bytes.set(wildcardRoutine, wildcardRoutineOffset);
+  bytes.set(filenameResetAfter, filenameResetOffset);
+  bytes.set(filenameResetRoutine, filenameResetRoutineOffset);
   const digest = sha256(bytes);
   if (digest !== OUTPUT_SHA256) {
     throw new Error("build-drive-rom: generated DOS-1541 digest does not match the reviewed identity");

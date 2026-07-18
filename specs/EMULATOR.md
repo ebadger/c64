@@ -167,6 +167,11 @@ boundary. Interrupts are sampled at instruction boundaries.
   The physical write path and persistent copy-on-write/export semantics are deferred.
 - Reset initializes both processors and drive devices while preserving the mounted immutable disk.
   Eject removes the medium immediately; the empty drive and IEC participant continue to execute.
+- The bundled replacement KERNAL and DOS retain standard LOAD semantics in firmware rather than
+  through a core trap. A BASIC command load updates and relinks BASIC boundaries for secondary
+  address zero, or for a nonzero secondary address when the file's embedded load address equals
+  `TXTTAB`; other nonzero-secondary-address loads preserve BASIC boundaries. The bundled drive
+  starts each channel-0 OPEN with an empty filename so sequential requests remain independent.
 
 The **NMOS one-instruction interrupt-enable delay** after `CLI`/`SEI`/`PLP` is implemented: the
 interrupt poll for the single instruction following one of these uses the pre-change I flag, so a

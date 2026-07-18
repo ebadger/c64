@@ -1,7 +1,7 @@
 {
-  "schema": 3,
+  "schema": 4,
   "id": "pascuals-basic-c64",
-  "title": "Pascual's BASIC/KERNAL with MEGA65 PXL chargen",
+  "title": "Pascual's BASIC/KERNAL with c64 LOAD compatibility and MEGA65 PXL chargen",
   "upstreamRepository": "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC",
   "revision": "45da60da4d39f9f3950cdf957996c1743c53bb6e",
   "sourceUrl": "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC/tree/45da60da4d39f9f3950cdf957996c1743c53bb6e",
@@ -62,8 +62,8 @@
     },
     {
       "path": "PROVENANCE.md",
-      "bytes": 3855,
-      "sha256": "3bbecf2f1350f96f07ae81552b619b738f2cd3ba69da078c47e4467d7560917e"
+      "bytes": 4830,
+      "sha256": "ce3197dcf5d065257037ef9db6aed13e1d283bea01a239991a95d0764c148760"
     }
   ],
   "roles": {
@@ -77,7 +77,14 @@
       "path": "kernal.rom",
       "upstreamPath": "bin/kernal_c64.bin",
       "bytes": 8192,
-      "sha256": "5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414"
+      "sha256": "6545abf06d097be2f95039a77e1cdf44eba3d669808717094a1fcf9cebb0fa97",
+      "basePath": "kernal-upstream.rom",
+      "baseSha256": "5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414",
+      "patch": {
+        "path": "kernal-c64-load-compat.patch",
+        "bytes": 2317,
+        "sha256": "027c5e8bef2adfa63969d79206c4b58bb3abd29c991c8b4ee9456feae180776d"
+      }
     },
     "chargen": {
       "path": "chargen.rom",
@@ -88,7 +95,7 @@
   },
   "drive": {
     "id": "pascual-dos-1541-c64",
-    "title": "Pascual DOS-1541 with c64 wildcard compatibility",
+    "title": "Pascual DOS-1541 with c64 filename compatibility",
     "upstreamRepository": "https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541",
     "revision": "72c2648494c71126cf5338f0c3c09b9e815a8b50",
     "sourceUrl": "https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541/tree/72c2648494c71126cf5338f0c3c09b9e815a8b50",
@@ -143,7 +150,7 @@
       "path": "dos1541.rom",
       "upstreamPath": "dos.bin",
       "bytes": 16384,
-      "sha256": "0a77fedc1a65b0dca49bd3bf3d5607b05e6fbf3d6d10b7b14b005fe62532104d",
+      "sha256": "543577ca940e8ad88906de4d173bb995ec434a789698319d62f8441cecf579af",
       "baseSha256": "c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39"
     }
   }

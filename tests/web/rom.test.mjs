@@ -149,6 +149,8 @@ test("loads the pinned vendored Pascual set only after every package asset passe
     new URL(bundledManifest.roles.kernal.path, manifestUrl).href,
     new URL(bundledManifest.roles.chargen.path, manifestUrl).href,
     new URL(bundledManifest.drive.rom.path, manifestUrl).href,
+    new URL(bundledManifest.roles.kernal.basePath, manifestUrl).href,
+    new URL(bundledManifest.roles.kernal.patch.path, manifestUrl).href,
     new URL(bundledManifest.sourceArchive.path, manifestUrl).href,
     ...bundledManifest.redistributionFiles.map((entry) => new URL(entry.path, manifestUrl).href),
     new URL(bundledManifest.drive.sourceArchive.path, manifestUrl).href,
@@ -224,6 +226,8 @@ test("a bundled role digest mismatch fails atomically and preserves the active s
 test("a bundled source or legal-file mismatch fails the runtime package closed", async () => {
   for (const changedPath of [
     bundledManifest.sourceArchive.path,
+    bundledManifest.roles.kernal.basePath,
+    bundledManifest.roles.kernal.patch.path,
     bundledManifest.licenses.basic.path,
     bundledManifest.drive.sourceArchive.path,
     bundledManifest.drive.license.path,

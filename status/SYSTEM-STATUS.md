@@ -3,8 +3,8 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-17 — 258 strict Node/browser/WASM/interop tests, 17 native suites,
-drive-ROM/dist integrity_
+_Last verified: 2026-07-18 — 258 strict Node/browser/WASM/interop tests, 17 native suites,
+KERNAL/drive-ROM/dist integrity_
 
 ## Environments
 
@@ -28,9 +28,10 @@ node scripts/dev/serve.mjs         # serve the static browser IDE at http://127.
 The static browser IDE in `web/client/` runs the production assembler in a module worker and the
 production WASM machine through `web/emulator/c64.mjs`. Edit/build/download work without the WASM
 artifact; **Boot BASIC** and **Run** additionally require the built WASM core. The pinned Pascual
-BASIC/KERNAL set with MEGA65 PXL chargen and the clean-room Pascual DOS-1541 firmware load by
-default. The explicit complete custom C64-ROM override remains memory-only while retaining the
-bundled drive firmware.
+BASIC/KERNAL set with its reviewed secondary-address LOAD compatibility patch, MEGA65 PXL chargen,
+and the clean-room Pascual DOS-1541 firmware with reviewed wildcard and sequential-LOAD
+compatibility patches load by default. The explicit complete custom C64-ROM override remains
+memory-only while retaining the bundled drive firmware.
 A collapsed original-layout C64 virtual keyboard below
 the canvas feeds the same active-low matrix as physical keys, including one-shot touch modifiers,
 persistent SHIFT LOCK, RESTORE NMI, paired cursor keys, and F1/F2 through F7/F8 keycaps.
@@ -122,7 +123,8 @@ repository or CI data.
 | `scripts/dev/run-node-tests.mjs` | Deterministically enumerate test files before invoking Node, preserving Node 18+ compatibility. |
 | `scripts/dev/test-critical-path.sh` | Product critical-path eval: full Node suite plus example golden-vector verification. |
 | `scripts/dev/review-template-updates.mjs` | Check canonical policy changes and record reviewed checkpoints. |
-| `scripts/build/build-drive-rom.mjs` | Reproduce or verify the reviewed wildcard-compatible DOS-1541 ROM from the exact pinned upstream binary. |
+| `scripts/build/build-kernal-rom.mjs` | Reproduce or verify the reviewed secondary-address BASIC LOAD compatibility KERNAL from the exact pinned upstream binary and source patch. |
+| `scripts/build/build-drive-rom.mjs` | Reproduce or verify the reviewed wildcard and sequential-LOAD-compatible DOS-1541 ROM from the exact pinned upstream binary. |
 | `scripts/build/build-dist.mjs` | Assemble the clean, flattened, base-path-agnostic production `dist/` with a sha256 manifest. |
 | `scripts/dev/verify-dist.mjs` | Verify the assembled `dist/` (manifest hashes, required files, CSP, no leaks). |
 | `scripts/dev/require-release-artifacts.mjs` | Release gate: fail (not skip) when the production WASM artifact is missing. |
@@ -136,9 +138,10 @@ repository or CI data.
   mounted media; Stop changes browser pacing only.
 - The pinned Pascual BASIC/KERNAL set, MEGA65 PXL chargen, and clean-room DOS-1541 firmware are
   the default and ship with complete per-component license texts/notices, provenance, and
-  corresponding source. A complete custom BASIC/KERNAL/character set can replace the C64 trio
-  for one page session while the bundled drive firmware remains active; custom bytes and source
-  selection are never persisted.
+  corresponding source. The bundled KERNAL and drive images are reproducibly rebuilt from pinned
+  upstream bytes plus reviewed compatibility patches. A complete custom BASIC/KERNAL/character
+  set can replace the C64 trio for one page session while the bundled drive firmware remains
+  active; custom bytes and source selection are never persisted.
 - **Web Audio is optional.** When a browser provides no Web Audio (e.g. headless WebKit), the
   emulator still loads, builds, runs video, accepts input, and downloads artifacts, but sound is
   unavailable and the audio control is disabled and labelled.
@@ -158,8 +161,8 @@ repository or CI data.
   modelled. Interrupts are sampled at instruction boundaries (the NMOS CLI/SEI/PLP enable delay
   is modelled).
 - No proprietary Commodore ROM dump ships. Core conformance tests retain synthetic generated ROMs;
-  production drive execution uses the pinned MIT clean-room Pascual DOS-1541 image and c64's
-  audited wildcard patch.
+  production execution uses the pinned Pascual C64 and DOS-1541 images with c64's audited
+  secondary-address BASIC LOAD, wildcard, and sequential-LOAD compatibility patches.
 - Generated D64 images are now independently verified against **external software tooling** (VICE
   `c1541`: 35-track directory metadata + byte-exact extracted PRG). This is a **software**
   interoperability claim only — it does not verify physical 1541 hardware, real GCR flux/timing, or

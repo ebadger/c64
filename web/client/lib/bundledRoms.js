@@ -12,7 +12,7 @@ const ASSET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const UPSTREAM_PATH = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
 export function validateBundledRomManifest(value) {
-  if (!isRecord(value) || value.schema !== 3) return manifestError("The bundled ROM manifest schema is invalid.");
+  if (!isRecord(value) || value.schema !== 4) return manifestError("The bundled ROM manifest schema is invalid.");
   for (const key of ["id", "title", "upstreamRepository", "revision", "sourceUrl"]) {
     if (typeof value[key] !== "string" || value[key].length === 0) {
       return manifestError(`The bundled ROM manifest field '${key}' is invalid.`);
@@ -90,6 +90,21 @@ export function validateBundledRomManifest(value) {
       bytes: entry.bytes,
       sha256: entry.sha256,
     };
+    if (role === "kernal") {
+      const patch = validateAsset(entry.patch, "KERNAL patch");
+      if (
+        !ASSET_NAME.test(entry.basePath || "") ||
+        entry.basePath === entry.path ||
+        typeof entry.baseSha256 !== "string" ||
+        !SHA256.test(entry.baseSha256) ||
+        !patch.ok
+      ) {
+        return manifestError("The bundled KERNAL compatibility metadata is invalid.");
+      }
+      roles[role].basePath = entry.basePath;
+      roles[role].baseSha256 = entry.baseSha256;
+      roles[role].patch = patch.asset;
+    }
   }
   const drive = validateDrive(value.drive);
   if (!drive.ok) return drive;
@@ -97,7 +112,7 @@ export function validateBundledRomManifest(value) {
   return {
     ok: true,
     manifest: {
-      schema: 3,
+      schema: 4,
       id: value.id,
       title: value.title,
       upstreamRepository: value.upstreamRepository,
@@ -151,6 +166,13 @@ export async function loadBundledRomSet(manifestUrl, fetchImpl = globalThis.fetc
   const loadedDrive = await fetchVerifiedAsset(baseUrl, manifest.drive.rom, "drive ROM", fetchImpl);
   if (!loadedDrive.ok) return loadedDrive;
   const packageAssets = [
+    {
+      path: manifest.roles.kernal.basePath,
+      bytes: manifest.roles.kernal.bytes,
+      sha256: manifest.roles.kernal.baseSha256,
+      label: "published upstream KERNAL",
+    },
+    { ...manifest.roles.kernal.patch, label: "KERNAL compatibility source patch" },
     { ...manifest.sourceArchive, label: "corresponding source archive" },
     ...manifest.redistributionFiles.map((entry) => ({
       ...entry,

@@ -44,7 +44,7 @@ DriveRom {
 }
 
 BundledRomManifest {
-  schema: 3
+  schema: 4
   id: string
   title: string
   upstreamRepository: string
@@ -63,7 +63,15 @@ BundledRomManifest {
   redistributionFiles: { path: string, bytes: uint32, sha256: string }[]
   roles: {
     basic:   { path: string, upstreamPath: string, bytes: 8192, sha256: string }
-    kernal:  { path: string, upstreamPath: string, bytes: 8192, sha256: string }
+    kernal:  {
+      path: string
+      upstreamPath: string
+      bytes: 8192
+      sha256: string
+      basePath: string
+      baseSha256: string
+      patch: { path: string, bytes: uint32, sha256: string }
+    }
     chargen: { path: string, upstreamPath: string, bytes: 4096, sha256: string }
   }
   drive: {
@@ -115,11 +123,11 @@ Microsoft's MIT-licensed `BASIC-M6502` source, and its character generator is th
 OpenROMs PXL font redistributed under `LGPL-3.0-or-later`. The approved role files and
 SHA-256 digests are:
 
-| Role | Upstream file | Bytes | SHA-256 |
-|------|---------------|------:|---------|
-| BASIC | `bin/basic_c64.bin` | 8192 | `06480f4be4b62b545bbc4185c22befa8cc3b958fa15db31d74f82ffc03fec2e5` |
-| KERNAL | `bin/kernal_c64.bin` | 8192 | `5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414` |
-| CHARGEN | `bin/chargen.bin` | 4096 | `5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7` |
+| Role | Upstream file | Bytes | Upstream SHA-256 | Runtime SHA-256 |
+|------|---------------|------:|-----------------|----------------|
+| BASIC | `bin/basic_c64.bin` | 8192 | `06480f4be4b62b545bbc4185c22befa8cc3b958fa15db31d74f82ffc03fec2e5` | same as upstream |
+| KERNAL | `bin/kernal_c64.bin` | 8192 | `5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414` | `6545abf06d097be2f95039a77e1cdf44eba3d669808717094a1fcf9cebb0fa97` |
+| CHARGEN | `bin/chargen.bin` | 4096 | `5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7` | same as upstream |
 
 The bundle also carries the exact GitHub source archive for that revision (165027 bytes,
 SHA-256 `8cab283a172f3eb1473320e4be65894ec43d68ef0ff29c68c486f2d98ad665b2`)
@@ -130,11 +138,21 @@ provenance record. Production assembly permits exactly the manifest-addressed im
 archive, and redistribution files; missing, extra, unsafe, or integrity-mismatched assets
 fail the build.
 
+The published KERNAL is preserved as `kernal-upstream.rom`. c64 applies the auditable
+`kernal-c64-load-compat.patch` and an equivalent deterministic byte patch to that exact
+binary. Standard secondary-address loads retain their embedded address. When that embedded
+address equals BASIC `TXTTAB`, the BASIC `LOAD` command also updates `VARTAB` from the returned
+end address and relinks the program, matching the existing secondary-address-zero BASIC path.
+Secondary-address machine-code loads at any other address leave BASIC boundaries unchanged.
+The runtime `kernal.rom` remains 8192 bytes with the runtime digest above. The build verifies
+the upstream digest, every replaced instruction range, and the zero-filled routine site.
+
 Upstream describes this revision as a full Microsoft 6502 BASIC-derived interpreter with a
 screen editor and IEC `LOAD`/`SAVE`/`VERIFY`. c64 treats those as upstream claims and asserts
 only the supported paths it tests locally: reset-vector startup reaches the Pascual banner
-and `READY.`, direct-entry assembly execution remains deterministic, and standard drive-8
-loads use the drive boundary in [`MEDIA.md`](./MEDIA.md).
+and `READY.`, direct-entry assembly execution remains deterministic, standard drive-8 BASIC
+loads work with secondary addresses zero and one, and machine-code loads preserve BASIC
+boundaries.
 
 The bundled 1541 firmware is
 [`Pascual-Candel-Palazon/Pascual_DOS-1541`](https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541),
@@ -144,10 +162,13 @@ Commodore DOS. The published `dos.bin` is preserved as `dos1541-upstream.rom` (1
 `c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39`). c64 applies the
 auditable `dos1541-c64-wildcards.patch` to the corresponding source and an equivalent
 deterministic byte patch to that exact published binary so standard CBM `*` and `?` filename
-patterns work. The runtime `dos1541.rom` is 16384 bytes with SHA-256
-`0a77fedc1a65b0dca49bd3bf3d5607b05e6fbf3d6d10b7b14b005fe62532104d`. The patch changes
-only the directory name matcher and uses erased space in the clean-room ROM; it does not add
-game-specific filenames, addresses, or proprietary code.
+patterns work. The binary patch also restores the pinned source revision's channel-0 OPEN
+behavior, which resets the received filename before every LOAD request but was omitted from
+the published `dos.bin`. This keeps sequential and repeated loads from concatenating filenames.
+The runtime `dos1541.rom` is 16384 bytes with SHA-256
+`543577ca940e8ad88906de4d173bb995ec434a789698319d62f8441cecf579af`. The compatibility
+changes use erased space in the clean-room ROM and do not add game-specific filenames,
+addresses, or proprietary code.
 
 The exact source archive is 82984 bytes with SHA-256
 `ade11365bd3ae671e681306d536d4942942be2a3fcb10ef0f54b2ffdff2fff9c`; its MIT license,
@@ -220,8 +241,8 @@ or source-sharing state.
 |------|--------|-------|
 | ROM manifest and validation | Implemented | Same-origin manifest loader; exact size/SHA-256 checks; atomic activation; deterministic set id; explicit manifest/fetch/integrity errors |
 | Synthetic test fixtures | Implemented | Legally-clean generated ROMs (with valid vectors) drive native/WASM tests; no Commodore bytes |
-| Redistributable default set | Implemented | Pinned Pascual's BASIC/KERNAL + MEGA65 PXL chargen; exact role/archive integrity gate; complete per-component licenses, notices, provenance, and corresponding source |
-| Redistributable drive ROM | Implemented | Pinned clean-room MIT Pascual DOS-1541 base plus exact source archive, c64 wildcard source/binary patch, provenance, hardware notes, tests, and integrity gate |
+| Redistributable default set | Implemented | Pinned Pascual's BASIC/KERNAL + MEGA65 PXL chargen; deterministic KERNAL LOAD-compatibility patch; exact role/archive integrity gate; complete per-component licenses, notices, provenance, and corresponding source |
+| Redistributable drive ROM | Implemented | Pinned clean-room MIT Pascual DOS-1541 base plus exact source archive, c64 wildcard and sequential-load binary compatibility patches, provenance, hardware notes, tests, and integrity gate |
 | User file picker | Implemented | Explicit custom source mode requires all three roles; size/digest validation, unknown-digest confirmation, memory-only |
 | Custom drive-ROM picker | Deferred | Bundled clean-room drive ROM remains active with custom C64 ROM sets; a local original-ROM override needs its own compatibility UI/tests |
 | Persistent user-ROM cache | Deferred | Requires explicit privacy/storage design |
