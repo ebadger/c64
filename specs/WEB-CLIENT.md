@@ -89,21 +89,29 @@ intentionally has its own `buildId`; the two golden records do not have to match
 
 ## IDE and emulator behaviour
 
-- The presentation shell intentionally shares 3RIC Studio's compact terminal visual language:
-  a full-height near-black surface (`#0b0e0c`), bright and dim phosphor greens (`#33ff66` and
-  `#1d6b33`), a readable secondary green (`#75bd89`), a dark panel surface (`#11140f`), system
-  monospace text, and one-pixel controls. Dim green is structural (borders/dividers); normal-size
-  secondary text uses the lighter green and maintains at least 4.5:1 contrast on its declared
-  surfaces. The client loads no external font or style dependency. On wide screens the emulator
-  is the left, screen-first column (up to 640 CSS pixels) and the assembler is the flexible right
-  column (up to 780 CSS pixels), with C64-specific utility panels below. The two columns wrap
-  without horizontal page scrolling, and the narrow layout keeps emulator then editor source
-  order.
+- The presentation shell uses a self-contained breadbin C64 product language rather than a
+  generic terminal theme: a dark walnut desk (`#1e1814`), warm molded-plastic case (`#c8b891`)
+  and highlight (`#e6d7ae`) surfaces, deep brown bezel/keycaps (`#493a33`), cream key legends
+  (`#f4e8c7`), C64-inspired blue/periwinkle screen accents (`#403e93` / `#b7b5ff`), and a
+  five-color product stripe. Geometric system sans-serif fallbacks are used for product labels
+  and controls; source, diagnostics, and key legends use local system monospace fallbacks.
+  The wordmark and stripe are HTML/CSS, not a bundled logo, font, image, or claim of official
+  Commodore affiliation. The client loads no external font or style dependency.
+- Molded ridges, bevels, shadows, and stripe colors are decorative. Normal-size text maintains at
+  least 4.5:1 contrast on its declared case, keycap, editor, and diagnostic surfaces; focus remains
+  visibly distinct without relying on color alone. Controls read as tactile keys, while the
+  emulator display stays inside a dark inset bezel and the virtual keyboard uses the same case and
+  keycap materials as the surrounding machine deck.
+- On wide screens the emulator is the left, screen-first column (up to 640 CSS pixels) and the
+  assembler is the flexible right column (up to 780 CSS pixels), with C64-specific utility panels
+  below. The two columns wrap without horizontal page scrolling, and the narrow layout keeps
+  emulator then editor source order. Decorative treatments must not reduce usable display/editor
+  space below the existing responsive contract.
 - Initial UI areas: a compact machine toolbar; source editor and diagnostics; Build & Run,
   build-only, run-last-build, Boot BASIC, Stop, and Reset controls; machine profile; video and
   audio; a collapsed virtual C64 keyboard directly below the display; keyboard/joystick help;
   artifact downloads; share; gallery; ROM status; and D64 import/directory/run/eject.
-  Reorganization for the sibling-site layout must not hide or remove any C64-specific workflow.
+  Visual reorganization must not hide or remove any C64-specific workflow.
 - Build runs through the dual-use assembler, preferably in a worker. The same-origin,
   manifest-verified Pascual's BASIC/KERNAL set with the MEGA65 PXL chargen loads by default.
   **Boot BASIC** is enabled when the ROM set is ready; source **Run** additionally requires a
@@ -324,7 +332,7 @@ commands live in `SETUP.md`.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Static IDE shell | Implemented | Vanilla HTML/CSS/ES-module client under `web/client/` |
+| Static IDE shell | Implemented | Responsive breadbin-inspired C64 product shell in vanilla HTML/CSS/ES modules under `web/client/` |
 | Worker assembler integration | Implemented | Module worker imports the same `src/` modules as Node tests; stale-result sequencing |
 | WASM video/audio/input bridge | Implemented | Uses the committed `web/emulator/c64.mjs`; browser pacing outside the core; physical and virtual keys share the active-low matrix path |
 | Integrated virtual C64 keyboard | Implemented | Collapsed responsive physical-layout panel with one-shot SHIFT/CTRL/C=, persistent SHIFT LOCK, RESTORE NMI, paired cursor/function legends, accessible focus escape, and release-all safety |
