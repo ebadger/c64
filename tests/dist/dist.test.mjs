@@ -4,9 +4,9 @@
 // sha256 manifest with correct MIME types, byte-identical repeated builds, no source maps/private
 // inputs/unapproved ROMs, a restrictive CSP with no inline script/style, and a fail-not-skip WASM gate.
 //
-// These run under `node --test tests/` with no toolchain: the dist assembler is pure Node and the
-// production WASM artifact is optional here (its presence/absence is asserted, its bytes are
-// covered by the WASM parity + browser E2E gates).
+// These run through `scripts/dev/run-node-tests.mjs` with no toolchain: the dist assembler is pure
+// Node and the production WASM artifact is optional here (its presence/absence is asserted, its
+// bytes are covered by the WASM parity + browser E2E gates).
 
 import test from "node:test";
 import assert from "node:assert/strict";

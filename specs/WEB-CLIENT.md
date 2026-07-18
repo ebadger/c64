@@ -236,10 +236,11 @@ machine panel at phone widths without page-level horizontal scrolling.
   is absent (e.g. some headless WebKit builds) the emulator still loads, builds, runs video,
   accepts input, and downloads artifacts, but the audio control is disabled and honestly labelled
   ("Audio unavailable in this browser"). Capability status is computed before initialization.
-- The release browser matrix pins Playwright **Chromium, Firefox, and WebKit** and drives the full
-  user journey against the production `dist/` bytes at both the localhost root (`/`) and the GitHub
-  Pages project base (`/c64/`), asserting base-path independence and honest optional-capability
-  fallback (see `tests/e2e/matrix.e2e.test.mjs`).
+- The release browser matrix installs the exact Playwright version declared in
+  `scripts/build/playwright-version.txt`, pins its **Chromium, Firefox, and WebKit** revisions, and
+  drives the full user journey against the production `dist/` bytes at both the localhost root
+  (`/`) and the GitHub Pages project base (`/c64/`), asserting base-path independence and honest
+  optional-capability fallback (see `tests/e2e/matrix.e2e.test.mjs`).
 - The site uses a restrictive static Content Security Policy compatible with same-origin
   workers/WASM and no third-party scripts. The concrete policy, delivered by a `<meta
   http-equiv>` tag (Pages-compatible) and echoed by the dev server, is:
@@ -333,7 +334,12 @@ the assembled `dist/` (the actual deployable bytes). It sets correct MIME types
 production WASM artifact** in `dist/` across the Chromium/Firefox/WebKit matrix. Locally they skip
 cleanly when the artifact or a browser binary is absent; on the release path CI sets
 `C64_E2E_REQUIRE` so a missing artifact or required browser **fails** rather than skips. Exact
-commands live in `SETUP.md`.
+commands live in `SETUP.md`. Runtime-progression checks poll bounded observable machine state
+instead of sleeping for a fixed wall-clock interval, so a slow headless browser cannot turn a
+working build into a spurious deployment-gate failure. Repository test entrypoints pass test
+directories through `scripts/dev/run-node-tests.mjs`, which deterministically enumerates test files
+before invoking the Node test runner so the declared Node 18+ support does not depend on
+version-specific directory-argument behavior.
 
 ## Implementation Status
 

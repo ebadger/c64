@@ -22,8 +22,8 @@ node examples/build-example.mjs          # verify every example matches its expe
 node examples/build-example.mjs --write  # regenerate expected.json after an intended change
 ```
 
-`node --test tests/` also asserts each example against its committed golden vectors and runs
-the full `source -> PRG -> D64 -> extracted PRG` round-trip.
+`node scripts/dev/run-node-tests.mjs tests` also asserts each example against its committed golden
+vectors and runs the full `source -> PRG -> D64 -> extracted PRG` round-trip.
 
 ## Examples
 

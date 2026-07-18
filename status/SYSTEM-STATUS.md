@@ -3,7 +3,7 @@
 > Downstream-owned current state. Planned architecture belongs in specs; this file records
 > only what can actually be run or verified now, plus clearly labeled next-state plans.
 
-_Last verified: 2026-07-17 — 256 strict Node/browser/WASM/interop tests, 17 native suites,
+_Last verified: 2026-07-17 — 258 strict Node/browser/WASM/interop tests, 17 native suites,
 drive-ROM/dist integrity_
 
 ## Environments
@@ -19,7 +19,7 @@ The deterministic source-to-artifact pipeline (assembler → PRG → D64) runs u
 with no dependency install. From the repository root:
 
 ```sh
-node --test tests/                 # full pipeline + web-client tests (uses production modules in src/ and web/client/lib/)
+node scripts/dev/run-node-tests.mjs tests  # full pipeline + web-client tests
 node examples/build-example.mjs    # verify example golden vectors
 node web/client/tools/build-gallery.mjs  # verify gallery.json golden vectors
 node scripts/dev/serve.mjs         # serve the static browser IDE at http://127.0.0.1:8080/web/client/
@@ -48,7 +48,7 @@ install). In short:
 ```sh
 sh scripts/build/build-native.sh        # native CMake build + CTest (17 suites)
 sh scripts/build/build-wasm.sh          # production build/wasm/c64core.mjs + c64core.wasm
-node --test tests/wasm/                  # headless native/WASM byte-identical parity + smoke
+node scripts/dev/run-node-tests.mjs tests/wasm  # native/WASM byte-identical parity + smoke
 ```
 
 Implemented and verifiable now: the complete documented NMOS 6510 CPU plus the declared stable
@@ -78,7 +78,7 @@ sh -n scripts/dev/pre-push-tests.sh
 sh -n scripts/dev/test-critical-path.sh
 node --check .github/extensions/compliance-hooks/extension.mjs
 node --test .github/extensions/compliance-hooks/policy.test.mjs
-node --test tests/
+node scripts/dev/run-node-tests.mjs tests
 node examples/build-example.mjs
 ```
 
@@ -97,10 +97,10 @@ in `SETUP.md`).
 | Native CMake build + CTest | Implemented — `core/` project, `scripts/build/build-native.sh`, 17 test suites |
 | WebAssembly build | Implemented — production embind loader `c64core.mjs` + `c64core.wasm` via `scripts/build/build-wasm.sh` |
 | Node/native/WASM tests | Implemented — `tests/wasm/` byte-identical parity + smoke over the production artifact |
-| CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + full browser matrix + external interop + dist build/integrity + Pages deploy on main + exact deployed-manifest/critical-byte smoke with bounded propagation retries) and `.github/workflows/core.yml` (fast per-branch feedback) |
+| CI workflow | Implemented — `.github/workflows/release.yml` (authoritative release gate: native + WASM + repository-pinned Playwright browser matrix + external interop + dist build/integrity + Pages deploy on main + exact deployed-manifest/critical-byte smoke with bounded propagation retries) and `.github/workflows/core.yml` (fast per-branch feedback) |
 | Static asset build (IDE, gallery, ROMs) | Implemented — `web/client/` IDE, build worker, integrated C64-layout virtual keyboard, Boot BASIC, D64 directory/run/eject controls, visibly animated canonical example, `gallery.json`, bundled pinned Pascual C64 and DOS-1541 ROMs, and complete memory-only custom C64-set override |
 | Production dist build + integrity | Implemented — `scripts/build/build-dist.mjs` assembles a clean, flattened, base-path-agnostic `dist/` with a sha256 `asset-manifest.json`; `scripts/dev/verify-dist.mjs` + `tests/dist/` verify references/MIME/determinism/CSP and the exact Pascual binary/license/notice/source allowlist; WASM required (fail-not-skip) |
-| Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic, including the 66-key C64 layout and virtual matrix interaction) and `tests/e2e/` (Playwright Chromium/Firefox/WebKit against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI). The deep E2E enters BASIC commands through both physical and virtual keys and waits for observable machine state rather than treating browser pacing state as proof that a batch executed. |
+| Web-client tests (Node + browser matrix E2E) | Implemented — `tests/web/` (environment-free logic, including the 66-key C64 layout and virtual matrix interaction) and `tests/e2e/` (the `scripts/build/playwright-version.txt` Chromium/Firefox/WebKit revisions against the production `dist` bytes at `/` and `/c64/`; skips locally, required in CI). The deep E2E uses bounded polling for observable machine state rather than fixed sleeps or browser pacing state as proof that a batch executed. |
 | External D64 interoperability | Implemented — `tests/interop/` verifies 35-track directory metadata + byte-exact extracted PRG via VICE `c1541` (provisioned reproducibly, no committed binary; `tests/interop/PROVENANCE.md`) |
 | GitHub Pages deploy | Implemented and live — `release.yml` deploys the gated `dist/` on merged `main` via official Pages actions, then rejects stale or partial publication unless the exact built manifest and critical bytes are served |
 
@@ -119,7 +119,8 @@ repository or CI data.
 | `scripts/dev/install-hooks.sh` | Set `core.hooksPath=.githooks`. |
 | `scripts/dev/check-learnings-budget.sh` | Enforce the durable-rules budget. |
 | `scripts/dev/pre-push-tests.sh` | Run operating validations and, when critical-path files change, the non-bypassable pipeline eval. |
-| `scripts/dev/test-critical-path.sh` | Product critical-path eval: full `node --test tests/` plus example golden-vector verification. |
+| `scripts/dev/run-node-tests.mjs` | Deterministically enumerate test files before invoking Node, preserving Node 18+ compatibility. |
+| `scripts/dev/test-critical-path.sh` | Product critical-path eval: full Node suite plus example golden-vector verification. |
 | `scripts/dev/review-template-updates.mjs` | Check canonical policy changes and record reviewed checkpoints. |
 | `scripts/build/build-drive-rom.mjs` | Reproduce or verify the reviewed wildcard-compatible DOS-1541 ROM from the exact pinned upstream binary. |
 | `scripts/build/build-dist.mjs` | Assemble the clean, flattened, base-path-agnostic production `dist/` with a sha256 manifest. |
@@ -166,6 +167,8 @@ repository or CI data.
 - D64 import validates geometry, the directory chain, and file chains, but does not yet validate
   full BAM consistency (DOS version, free-count/bitmap agreement, allocation conflicts); an image
   whose only defect is an inconsistent BAM is currently accepted. Tracked in ebadger/c64#2.
-- The published browser matrix pins Playwright Chromium, Firefox, and WebKit and drives the full
-  journey against the production `dist` bytes at `/` and `/c64/`; capability detection/fallback is
-  tested honestly. It does not exercise physical devices or non-Playwright browser builds.
+- The published browser matrix installs the Playwright version in
+  `scripts/build/playwright-version.txt`, thereby pinning Chromium, Firefox, and WebKit, and drives
+  the full journey against the production `dist` bytes at `/` and `/c64/`; capability
+  detection/fallback is tested honestly. It does not exercise physical devices or non-Playwright
+  browser builds.

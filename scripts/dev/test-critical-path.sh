@@ -15,8 +15,8 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "test-critical-path: running pipeline test suite (node --test tests/)..." >&2
-node --test tests/
+echo "test-critical-path: running pipeline test suite..." >&2
+node scripts/dev/run-node-tests.mjs tests
 
 echo "test-critical-path: verifying example golden vectors..." >&2
 node examples/build-example.mjs

@@ -55,6 +55,18 @@ const EXPECTED = (() => {
 })();
 const EXPECTED_PRG = EXPECTED.prg;
 const EXPECTED_BUILD_ID = EXPECTED.buildId;
+const FRAME_ADVANCE_TIMEOUT_MS = 5000;
+
+async function waitForFrameAdvance(page, base, label) {
+  const initialSequence = await page.evaluate(() => window.__c64.frame().sequence);
+  await page.waitForFunction(
+    (sequence) => Number(window.__c64.frame().sequence) > Number(sequence),
+    initialSequence,
+    { timeout: FRAME_ADVANCE_TIMEOUT_MS },
+  );
+  const advancedSequence = await page.evaluate(() => window.__c64.frame().sequence);
+  assert.ok(Number(advancedSequence) > Number(initialSequence), `${base}: ${label} frame sequence advances`);
+}
 
 async function runJourney(browser, base, url, expectedPrgLen) {
   const page = await browser.newPage();
@@ -119,19 +131,13 @@ async function runJourney(browser, base, url, expectedPrgLen) {
       null,
       { timeout: 15000 },
     );
-    const basicSeq1 = await page.evaluate(() => window.__c64.frame().sequence);
-    await page.waitForTimeout(250);
-    const basicSeq2 = await page.evaluate(() => window.__c64.frame().sequence);
-    assert.ok(Number(basicSeq2) > Number(basicSeq1), `${base}: BASIC frame sequence advances`);
+    await waitForFrameAdvance(page, base, "BASIC");
     await page.click("#btn-stop");
 
     // Direct-entry Run remains deterministic and writes observable RAM.
     await page.click("#btn-build-run");
     await page.waitForFunction(() => window.__c64.running() === true, null, { timeout: 8000 });
-    const seq1 = await page.evaluate(() => window.__c64.frame().sequence);
-    await page.waitForTimeout(250);
-    const seq2 = await page.evaluate(() => window.__c64.frame().sequence);
-    assert.ok(Number(seq2) > Number(seq1), `${base}: frame sequence advances`);
+    await waitForFrameAdvance(page, base, "direct-run");
     assert.equal(await page.evaluate(() => window.__c64.peek(0x0400)), 0x07, `${base}: program wrote $07 to $0400`);
 
     // Keyboard release on blur (stuck-key prevention).

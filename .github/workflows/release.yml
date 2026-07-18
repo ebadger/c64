@@ -41,6 +41,10 @@ jobs:
         id: emsdk
         run: echo "version=$(grep -Eo '^[0-9.]+' scripts/build/emscripten-version.txt | head -n1)" >> "$GITHUB_OUTPUT"
 
+      - name: Read pinned Playwright version
+        id: playwright
+        run: echo "version=$(grep -Eo '^[0-9.]+' scripts/build/playwright-version.txt | head -n1)" >> "$GITHUB_OUTPUT"
+
       - name: Set up Emscripten (pinned)
         uses: mymindstorm/setup-emsdk@v14
         with:
@@ -65,16 +69,17 @@ jobs:
       - name: Require release artifacts (fail, do not skip, if missing)
         run: node scripts/dev/require-release-artifacts.mjs
 
-      - name: Install Playwright browser matrix (Chromium, Firefox, WebKit)
+      - name: Install pinned Playwright browser matrix (Chromium, Firefox, WebKit)
         run: |
-          npm i --no-save playwright
+          npm i --no-save --no-package-lock "playwright@${{ steps.playwright.outputs.version }}"
+          npx playwright --version
           npx playwright install --with-deps chromium firefox webkit
 
       - name: Full gated test suite (WASM parity, dist, interop, browser matrix — non-skipping)
         env:
           C64_E2E_REQUIRE: "1"
           C64_INTEROP_REQUIRE: "1"
-        run: node --test tests/
+        run: node scripts/dev/run-node-tests.mjs tests
 
       - name: Example golden vectors
         run: node examples/build-example.mjs
