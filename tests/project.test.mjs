@@ -15,7 +15,7 @@ test("defaults are applied when optional fields are omitted", () => {
   assert.equal(project.target, "nmos-6510");
   assert.equal(project.loadAddress, 0x0801);
   assert.equal(project.runMode, "basic-sys");
-  assert.equal(project.timingProfile, "pal-6569");
+  assert.equal(project.timingProfile, "ntsc-6567r8");
   assert.equal(project.diskName, DEFAULT_PROJECT.diskName);
 });
 
@@ -53,7 +53,7 @@ test("canonical JSON uses fixed key order and no insignificant whitespace", () =
   const json = canonicalJson(project);
   assert.equal(
     json,
-    '{"schema":1,"name":"n","source":"x","target":"nmos-6510","loadAddress":2049,"runMode":"basic-sys","runAddress":2049,"timingProfile":"pal-6569","diskName":"c64 disk","diskId":"64","outputName":"program"}',
+    '{"schema":1,"name":"n","source":"x","target":"nmos-6510","loadAddress":2049,"runMode":"basic-sys","runAddress":2049,"timingProfile":"ntsc-6567r8","diskName":"c64 disk","diskId":"64","outputName":"program"}',
   );
 });
 

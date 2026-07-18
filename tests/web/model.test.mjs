@@ -24,6 +24,7 @@ test("makeProject normalizes line endings and applies defaults", () => {
   const p = makeProject({ source: "a\r\nb\rc" });
   assert.equal(p.source, "a\nb\nc");
   assert.equal(p.runMode, "basic-sys");
+  assert.equal(p.timingProfile, "ntsc-6567r8");
 });
 
 test("projectFromGalleryEntry is deterministic and buildable", () => {

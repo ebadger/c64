@@ -40,13 +40,13 @@ loop
 
 // Independently assemble the EXPECTED artifacts with the Node pipeline, mirroring EXACTLY the
 // project the app builds from the UI (syncProjectFromUI: name + outputName from the project-name
-// field, default pal-6569 timing). This lets the browser test wait for OUR specific build by
+// field, default ntsc-6567r8 timing). This lets the browser test wait for OUR specific build by
 // buildId (never a stale starter build) and compare the downloaded PRG byte-for-byte.
 const EXPECTED = (() => {
   const project = makeProject({
     name: "matrixtest",
     source: OBSERVABLE_PROGRAM,
-    timingProfile: "pal-6569",
+    timingProfile: "ntsc-6567r8",
     outputName: "matrixtest",
   });
   const r = buildArtifacts(project);
@@ -80,6 +80,7 @@ async function runJourney(browser, base, url, expectedPrgLen) {
     // Wait until init() (incl. decideInitialProject + the starter auto-build) has fully run, so the
     // starter project can never overwrite the source we fill below or leave a stale pending build.
     await page.waitForFunction(() => window.__c64.initialized && window.__c64.initialized() === true, null, { timeout: 8000 });
+    assert.equal(await page.locator("#sel-timing").inputValue(), "ntsc-6567r8", `${base}: new projects default to NTSC`);
     // Gallery loaded through the same-origin relative path -> init completed successfully.
     await page.waitForFunction(() => document.querySelectorAll("#gallery-list .gallery-item").length >= 1);
     // Capability detection succeeded (no capability-error banner) for this evergreen browser.
