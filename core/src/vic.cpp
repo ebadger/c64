@@ -1,6 +1,14 @@
 #include "c64/vic.hpp"
 
 namespace c64 {
+namespace {
+
+constexpr u32 kFramebufferWidth = 384;
+constexpr u32 kVerticalBlankingLines = 28;
+constexpr u16 kPalFirstVisibleLine = 16;
+constexpr u16 kNtscFirstVisibleLine = 28;
+
+}  // namespace
 
 Vic::Vic() { fb_.assign(static_cast<size_t>(width_) * height_, 0); }
 
@@ -12,12 +20,13 @@ void Vic::configure(const TimingProfile& profile, const u8* ram, const u8* color
   ram_ = ram;
   colorRam_ = colorRam;
   chargen_ = chargen;
-  // A stable indexed framebuffer covering the display window plus a border. The vertical extent
-  // differs per profile (PAL has more raster lines); horizontal is fixed at 384 px (320 display
-  // + 32 px border each side). firstVisibleLine_ places raster 51 near the top border.
-  width_ = 384;
-  firstVisibleLine_ = 16;
-  height_ = rasterLines_ - 28;  // trim vertical blanking; PAL -> 284, NTSC -> 235
+  // Keep the complete 200-line display between visible top and bottom borders. NTSC has only
+  // twelve post-display raster lines, so its window trims vertical blanking from the top.
+  width_ = kFramebufferWidth;
+  firstVisibleLine_ = profile.id == TimingProfileId::Ntsc6567R8
+                          ? kNtscFirstVisibleLine
+                          : kPalFirstVisibleLine;
+  height_ = rasterLines_ - kVerticalBlankingLines;
   fb_.assign(static_cast<size_t>(width_) * height_, 0);
 }
 

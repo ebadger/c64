@@ -56,6 +56,10 @@ FrameInfo {
   interpreted through the selected bank and current banking rules.
 - Frame completion is a machine event, not permission to vary emulated cycle counts to
   match browser refresh.
+- The indexed framebuffer uses a profile-specific, non-wrapping raster window: PAL exports
+  lines 16 through 299 as 384x284, while NTSC exports lines 28 through 262 as 384x235.
+  Both windows contain the complete 25-row display at lines 51 through 250 and visible
+  top and bottom borders; raster lines outside the window are vertical blanking.
 - Palette selection affects presentation only and never machine state or collision logic.
 
 ## Data flow
@@ -97,7 +101,6 @@ broad-compatibility MVP and are the honestly-labelled unsupported fidelity.
 | Colour RAM | Implemented | Low nibble from colour RAM through the bus |
 | Sprites | Implemented | 8 sprites: enable, X (incl. MSB), Y, X/Y expansion, multicolor, priority, pointer/DMA fetch, sprite-sprite and sprite-background collision latches + IRQ |
 | CIA2 VIC bank | Implemented | 16 KB bank from CIA2 port A; char-ROM overlay in banks 0/2 |
-| Indexed framebuffer + FrameInfo | Implemented | One 4-bit colour index per byte; stable per-profile dimensions (PAL 384x284, NTSC 384x235) |
+| Indexed framebuffer + FrameInfo | Implemented | One 4-bit colour index per byte; stable profile windows (PAL 384x284 at raster 16–299, NTSC 384x235 at raster 28–262) |
 | Pixel-cycle-exact rendering | Not implemented | Line-based renderer; documented above |
 | Browser renderer | Implemented | Lives in the web client (`web/client/lib/video.js` + palette), not this module |
-
