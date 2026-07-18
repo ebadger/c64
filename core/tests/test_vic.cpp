@@ -16,8 +16,11 @@ struct VicFixture {
   std::vector<u8> colorRam = std::vector<u8>(0x0400, 0);
   std::vector<u8> chargen = std::vector<u8>(0x1000, 0);
   Vic vic;
+  u32 cyclesPerLine;
+  u32 cyclesPerFrame;
 
-  explicit VicFixture(const TimingProfile& p = palProfile()) {
+  explicit VicFixture(const TimingProfile& p = palProfile())
+      : cyclesPerLine(p.cyclesPerLine), cyclesPerFrame(p.cyclesPerFrame) {
     vic.configure(p, ram.data(), colorRam.data(), chargen.data());
     vic.reset();
     vic.setBank(0);
@@ -25,11 +28,11 @@ struct VicFixture {
   void tickCycles(u32 n) {
     for (u32 i = 0; i < n; ++i) vic.tickCycle();
   }
-  void tickLines(u32 lines) { tickCycles(lines * palProfile().cyclesPerLine); }
+  void tickLines(u32 lines) { tickCycles(lines * cyclesPerLine); }
   // Tick so that onLineStart() for the given raster line has executed (it runs on the line's
   // first cycle): raster compare, bad-line qualification, and BA steal are evaluated there.
-  void tickToLineStart(u32 line) { tickCycles(line * palProfile().cyclesPerLine + 1); }
-  void tickFrame() { tickCycles(palProfile().cyclesPerFrame); }
+  void tickToLineStart(u32 line) { tickCycles(line * cyclesPerLine + 1); }
+  void tickFrame() { tickCycles(cyclesPerFrame); }
 };
 
 }  // namespace
@@ -165,9 +168,35 @@ TEST(vic_sprite_sprite_collision) {
   CHECK_EQ(f.vic.read(0x1E, true), 0x00u);         // cleared on read
 }
 
-TEST(vic_ntsc_dimensions_differ) {
+TEST(vic_profile_framebuffer_windows) {
   VicFixture pal(palProfile());
   VicFixture ntsc(ntscProfile());
-  CHECK(pal.vic.fbHeight() != ntsc.vic.fbHeight());  // different raster line counts
-  CHECK_EQ(pal.vic.fbWidth(), ntsc.vic.fbWidth());   // same width
+  CHECK_EQ(pal.vic.fbWidth(), 384u);
+  CHECK_EQ(pal.vic.fbHeight(), 284u);
+  CHECK_EQ(ntsc.vic.fbWidth(), 384u);
+  CHECK_EQ(ntsc.vic.fbHeight(), 235u);
+
+  pal.vic.write(0x20, 0x02);
+  pal.vic.write(0x21, 0x06);
+  pal.tickFrame();
+
+  const u32 palWidth = pal.vic.fbWidth();
+  const u32 palCenter = palWidth / 2;
+  const u8* palFb = pal.vic.framebuffer();
+  CHECK_EQ(palFb[palCenter], 0x02u);                              // raster 16
+  CHECK_EQ(palFb[234 * palWidth + palCenter], 0x06u);             // raster 250
+  CHECK_EQ(palFb[235 * palWidth + palCenter], 0x02u);             // raster 251
+  CHECK_EQ(palFb[(pal.vic.fbHeight() - 1) * palWidth + palCenter], 0x02u);  // raster 299
+
+  ntsc.vic.write(0x20, 0x02);  // red border
+  ntsc.vic.write(0x21, 0x06);  // blue background
+  ntsc.tickFrame();
+
+  const u32 w = ntsc.vic.fbWidth();
+  const u32 center = w / 2;
+  const u8* fb = ntsc.vic.framebuffer();
+  CHECK_EQ(fb[center], 0x02u);                         // raster 28: top border
+  CHECK_EQ(fb[222 * w + center], 0x06u);               // raster 250: last display line
+  CHECK_EQ(fb[223 * w + center], 0x02u);               // raster 251: bottom border opens
+  CHECK_EQ(fb[(ntsc.vic.fbHeight() - 1) * w + center], 0x02u);  // raster 262
 }

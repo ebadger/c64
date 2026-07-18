@@ -55,6 +55,42 @@ test("bundled Pascual ROMs cold-start to the BASIC READY prompt through WASM", a
   }
 });
 
+test("NTSC framebuffer includes its bottom border through WASM", async (t) => {
+  if (!wasmArtifactExists()) {
+    t.skip("WASM artifact not built");
+    return;
+  }
+  const emu = await loadEmulator();
+  const machine = emu.createMachine();
+  try {
+    const err = machine.configure({
+      timingProfile: "ntsc-6567r8",
+      ...makeSyntheticRoms(),
+    });
+    assert.equal(err, "none");
+    assert.equal(machine.loadPrg(Uint8Array.from([
+      0x00, 0xc0,       // load address $C000
+      0x4c, 0x00, 0xc0, // JMP $C000
+    ])).ok, true);
+    machine.setProgramCounter(0xc000);
+    assert.notEqual(machine.runCycles(20000).stopReason, "fault");
+
+    const frame = machine.copyFramebuffer();
+    assert.equal(frame.width, 384);
+    assert.equal(frame.height, 235);
+    assert.ok(frame.sequence >= 1);
+
+    const center = frame.width / 2;
+    const border = frame.pixels[center];
+    assert.equal(border, 0x0e);
+    assert.notEqual(frame.pixels[222 * frame.width + center], border);
+    assert.equal(frame.pixels[223 * frame.width + center], border);
+    assert.equal(frame.pixels[(frame.height - 1) * frame.width + center], border);
+  } finally {
+    machine.dispose();
+  }
+});
+
 test("bundled BASIC LOAD wildcard reads a mounted D64 through WASM", async (t) => {
   if (!wasmArtifactExists()) {
     t.skip("WASM artifact not built");
