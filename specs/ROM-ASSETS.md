@@ -126,7 +126,7 @@ SHA-256 digests are:
 | Role | Upstream file | Bytes | Upstream SHA-256 | Runtime SHA-256 |
 |------|---------------|------:|-----------------|----------------|
 | BASIC | `bin/basic_c64.bin` | 8192 | `06480f4be4b62b545bbc4185c22befa8cc3b958fa15db31d74f82ffc03fec2e5` | same as upstream |
-| KERNAL | `bin/kernal_c64.bin` | 8192 | `5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414` | `6545abf06d097be2f95039a77e1cdf44eba3d669808717094a1fcf9cebb0fa97` |
+| KERNAL | `bin/kernal_c64.bin` | 8192 | `5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414` | `dbf227205959580b188d5e93c9f1cffb6e19897957af6d2525c88e5e72ab6f06` |
 | CHARGEN | `bin/chargen.bin` | 4096 | `5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7` | same as upstream |
 
 The bundle also carries the exact GitHub source archive for that revision (165027 bytes,
@@ -145,14 +145,19 @@ and corresponding source archive. Production verification rejects any other `.ro
 independently checks those exact approval fields plus every manifest-addressed file's bytes
 and digest before admitting the upstream image to `dist/`.
 
-c64 applies the auditable `kernal-c64-load-compat.patch` and an equivalent deterministic byte
-patch to that exact binary. Standard secondary-address loads retain their embedded address.
-When that embedded address equals BASIC `TXTTAB`, the BASIC `LOAD` command also updates
-`VARTAB` from the returned end address and relinks the program, matching the existing
-secondary-address-zero BASIC path. Secondary-address machine-code loads at any other address
-leave BASIC boundaries unchanged. The runtime `kernal.rom` remains 8192 bytes with the runtime
-digest above. The build verifies the upstream digest, every replaced instruction range, and
-the zero-filled routine site.
+c64 applies the auditable `kernal-c64-compat.patch` and an equivalent deterministic byte patch
+to that exact binary. Standard secondary-address loads retain their embedded address. When that
+embedded address equals BASIC `TXTTAB`, the BASIC `LOAD` command also updates `VARTAB` from the
+returned end address and relinks the program, matching the existing secondary-address-zero BASIC
+path. Secondary-address machine-code loads at any other address leave BASIC boundaries unchanged.
+
+The same compatibility patch preserves the 6510 processor-port contract during `RAMTAS` by
+clearing only zero-page `$02-$FF`, provides the stock-compatible `$EA31` custom-IRQ continuation,
+transmits the required `$3F` byte after the `UNLSN` turnaround delay, and leaves CIA1 port A at
+`$7F` after keyboard/STOP scans so idle joystick-2 fire remains released. The displaced internal
+cursor routine is relocated within reviewed zero-filled ROM space. The runtime `kernal.rom`
+remains 8192 bytes with the runtime digest above. The build verifies the upstream digest, every
+replaced instruction range, copied routine, and zero-filled compatibility region.
 
 Upstream describes this revision as a full Microsoft 6502 BASIC-derived interpreter with a
 screen editor and IEC `LOAD`/`SAVE`/`VERIFY`. c64 treats those as upstream claims and asserts
@@ -166,14 +171,18 @@ The bundled 1541 firmware is
 pinned to revision `72c2648494c71126cf5338f0c3c09b9e815a8b50` under MIT. It is a clean-room
 implementation from public 1541 hardware and IEC documentation, not a derivative or disassembly of
 Commodore DOS. The published `dos.bin` is preserved as `dos1541-upstream.rom` (16384 bytes, SHA-256
-`c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39`). c64 applies the
-auditable `dos1541-c64-wildcards.patch` to the corresponding source and an equivalent
+`c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39`).
+c64 applies the auditable `dos1541-c64-compat.patch` to the corresponding source and an equivalent
 deterministic byte patch to that exact published binary so standard CBM `*` and `?` filename
-patterns work. The binary patch also restores the pinned source revision's channel-0 OPEN
-behavior, which resets the received filename before every LOAD request but was omitted from
-the published `dos.bin`. This keeps sequential and repeated loads from concatenating filenames.
+patterns work. The binary patch also restores pinned-source behavior omitted from the published
+`dos.bin`: channel-0 OPEN resets the received filename before every LOAD request, channel 15
+returns DOS status, direct-access channels opened with `#` can expose a sector buffer, and the
+public `U1` block-read command validates drive/track/sector fields and fills that buffer. A direct
+channel sends its assigned buffer-number byte followed by exactly 256 sector bytes; the final
+sector byte carries EOI. This keeps sequential and repeated loads independent and supports
+documented sector access without host-side KERNAL traps or title-specific logic.
 The runtime `dos1541.rom` is 16384 bytes with SHA-256
-`543577ca940e8ad88906de4d173bb995ec434a789698319d62f8441cecf579af`. The compatibility
+`725047c3310d843b99c02dbd35699b2d6ccfe07f16adef28025cb5519d89dd39`. The compatibility
 changes use erased space in the clean-room ROM and do not add game-specific filenames,
 addresses, or proprietary code.
 
@@ -250,8 +259,8 @@ or source-sharing state.
 |------|--------|-------|
 | ROM manifest and validation | Implemented | Same-origin manifest loader; exact size/SHA-256 checks; atomic activation; deterministic set id; explicit manifest/fetch/integrity errors |
 | Synthetic test fixtures | Implemented | Legally-clean generated ROMs (with valid vectors) drive native/WASM tests; no Commodore bytes |
-| Redistributable default set | Implemented | Pinned Pascual's BASIC/KERNAL + MEGA65 PXL chargen; deterministic KERNAL LOAD-compatibility patch; exact role/archive integrity gate; complete per-component licenses, notices, provenance, and corresponding source |
-| Redistributable drive ROM | Implemented | Pinned clean-room MIT Pascual DOS-1541 base plus exact source archive, c64 wildcard and sequential-load binary compatibility patches, provenance, hardware notes, tests, and integrity gate |
+| Redistributable default set | Implemented | Pinned Pascual's BASIC/KERNAL + MEGA65 PXL chargen; deterministic KERNAL LOAD/processor-port/IRQ/IEC/input compatibility patch; exact role/archive integrity gate; complete per-component licenses, notices, provenance, and corresponding source |
+| Redistributable drive ROM | Implemented | Pinned clean-room MIT Pascual DOS-1541 base plus exact source archive, c64 filename/status/direct-channel/U1 compatibility patch, provenance, hardware notes, tests, and integrity gate |
 | User file picker | Implemented | Explicit custom source mode requires all three roles; size/digest validation, unknown-digest confirmation, memory-only |
 | Custom drive-ROM picker | Deferred | Bundled clean-room drive ROM remains active with custom C64 ROM sets; a local original-ROM override needs its own compatibility UI/tests |
 | Persistent user-ROM cache | Deferred | Requires explicit privacy/storage design |

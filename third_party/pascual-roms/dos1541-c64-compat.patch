@@ -1,0 +1,52 @@
+diff --git a/src/dos.s b/src/dos.s
+index 1ff9fc4..a2b8d53 100644
+--- a/src/dos.s
++++ b/src/dos.s
+@@ -424,6 +424,8 @@ iec_execute_command:
+     bcs @syntax
+     sta want_sector
+     sta err_sector
++    lda #$00
++    sta DATA_DEC_BUF            ; numero del buffer de acceso directo
+     jsr disk_read_sector_hw
+     lda fsec_error
+     bne @read_error
+@@ -487,11 +489,11 @@ iec_talk:
+ @direct:
+     lda direct_ready
+     beq @notdir
+-    lda #<(DATA_DEC_BUF+1)
++    lda #<DATA_DEC_BUF
+     sta tx_ptr
+-    lda #>(DATA_DEC_BUF+1)
++    lda #>DATA_DEC_BUF
+     sta tx_ptr+1
+-    lda #$00
++    lda #$01
+     sta tx_len
+     lda #$01
+     sta tx_len+1
+@@ -2507,15 +2507,23 @@ dir_find_in_buf:
+     adc #5
+     tay
+     ldx #0
+ @cmp:
++    ; comodines CBM: '*' acepta el resto del nombre; '?' acepta un caracter
++    lda NAME_BUF,x
++    cmp #'*'
++    beq @matched
++    cmp #'?'
++    beq @advance
+     lda DIR_BUF,y
+     cmp NAME_BUF,x
+     bne @next
++@advance:
+     iny
+     inx
+     cpx #16
+     bne @cmp
+     ; coincide
++@matched:
+     jsr dir_extract
+     lda #$FF
+     sta dir_found

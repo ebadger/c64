@@ -147,8 +147,8 @@ const APPROVED_UPSTREAM_KERNAL = Object.freeze({
   },
   provenance: {
     path: "PROVENANCE.md",
-    bytes: 4830,
-    sha256: "ce3197dcf5d065257037ef9db6aed13e1d283bea01a239991a95d0764c148760",
+    bytes: 5304,
+    sha256: "292c138ea9edc9e9b18dee9d85d2ca95f5a43dc9aaa30b7f2278d64b062f3d7d",
   },
   sourceArchive: {
     path: "pascuals-basic-45da60da4d39f9f3950cdf957996c1743c53bb6e.tar.gz",
@@ -214,7 +214,7 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
         entry.bytes !== APPROVED_UPSTREAM_KERNAL.bytes ||
         entry.baseSha256 !== APPROVED_UPSTREAM_KERNAL.sha256 ||
         !entry.patch ||
-        entry.patch.path !== "kernal-c64-load-compat.patch" ||
+        entry.patch.path !== "kernal-c64-compat.patch" ||
         !Number.isSafeInteger(entry.patch.bytes) ||
         entry.patch.bytes <= 0 ||
         !/^[0-9a-f]{64}$/.test(entry.patch.sha256 || "")
@@ -357,7 +357,7 @@ export function verifyBundledRomAssets(root, baseDir = BUNDLED_ROM_SOURCE_DIR) {
   }
   if (
     drive.rom.baseSha256 !== drive.baseRom.sha256 ||
-    drive.patch.path !== "dos1541-c64-wildcards.patch" ||
+    drive.patch.path !== "dos1541-c64-compat.patch" ||
     !Number.isSafeInteger(drive.patch.bytes) ||
     drive.patch.bytes <= 0 ||
     !/^[0-9a-f]{64}$/.test(drive.patch.sha256 || "")
@@ -586,8 +586,8 @@ function thirdPartyNotices() {
     "|-----------|--------|---------|-----------|",
     "| `wasm/c64core.mjs` (loader glue) | Emscripten-generated | MIT / University of Illinois/NCSA | Yes |",
     "| `wasm/c64core.wasm` | Compiled from first-party `core/` C++17 | Repository license (see CONTRIBUTING.md) | Yes |",
-    "| `roms/` Pascual's BASIC/KERNAL + MEGA65 PXL chargen | Pascual-Candel-Palazon/Pascuals-BASIC, pinned revision; c64 KERNAL LOAD-compatibility patch | MIT (project KERNAL/tooling); Microsoft MIT (BASIC); LGPL-3.0-or-later (chargen) | Yes — clean-room base and patched KERNAL, complete license/notices, provenance, corresponding source |",
-    "| `roms/dos1541.rom` | Pascual-Candel-Palazon/Pascual_DOS-1541, pinned revision; c64 wildcard and sequential-LOAD compatibility patches | MIT | Yes — clean-room base and patched image, source patch, complete license/provenance, corresponding source |",
+    "| `roms/` Pascual's BASIC/KERNAL + MEGA65 PXL chargen | Pascual-Candel-Palazon/Pascuals-BASIC, pinned revision; c64 KERNAL LOAD/processor-port/IRQ/IEC/input compatibility patch | MIT (project KERNAL/tooling); Microsoft MIT (BASIC); LGPL-3.0-or-later (chargen) | Yes — clean-room base and patched KERNAL, complete license/notices, provenance, corresponding source |",
+    "| `roms/dos1541.rom` | Pascual-Candel-Palazon/Pascual_DOS-1541, pinned revision; c64 filename/status/direct-channel/U1 compatibility patch | MIT | Yes — clean-room base and patched image, source patch, complete license/provenance, corresponding source |",
     "| Web client, `lib/`, `pipeline/`, `emulator/` | First-party (this repository) | Repository license | Yes |",
     "",
     "## Build-time only (NOT shipped)",

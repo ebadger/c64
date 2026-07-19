@@ -145,6 +145,47 @@ std::vector<u8> basicBoundaryProgram() {
   };
 }
 
+void emit(std::vector<u8>& code, std::initializer_list<u8> bytes) {
+  code.insert(code.end(), bytes.begin(), bytes.end());
+}
+
+void emitBranchBack(std::vector<u8>& code, u8 opcode, size_t target) {
+  emit(code, {opcode, static_cast<u8>(static_cast<int>(target) -
+                                     static_cast<int>(code.size() + 2))});
+}
+
+void emitU1Read(std::vector<u8>& code, u16 command, u16 status, u16 destination,
+                u16 bufferNumber) {
+  emit(code, {0xA2, 0x0F, 0x20, 0xC9, 0xFF,  // LDX #15; JSR CHKOUT
+              0xA0, 0x00});                   // LDY #0
+  const size_t commandLoop = code.size();
+  emit(code, {0xB9, static_cast<u8>(command & 0xFF), static_cast<u8>(command >> 8),
+              0x20, 0xD2, 0xFF,  // LDA command,Y; JSR CHROUT
+              0xC8, 0xC0, 0x0D}); // INY; CPY #13
+  emitBranchBack(code, 0xD0, commandLoop);
+  emit(code, {0x20, 0xCC, 0xFF,              // JSR CLRCHN
+              0xA2, 0x0F, 0x20, 0xC6, 0xFF, // LDX #15; JSR CHKIN
+              0xA0, 0x00});                   // LDY #0
+  const size_t statusLoop = code.size();
+  emit(code, {0x20, 0xCF, 0xFF,  // JSR CHRIN
+              0x99, static_cast<u8>(status & 0xFF), static_cast<u8>(status >> 8),
+              0xC8, 0xC9, 0x0D}); // STA status,Y; INY; CMP #RETURN
+  emitBranchBack(code, 0xD0, statusLoop);
+  emit(code, {0x20, 0xCC, 0xFF,              // JSR CLRCHN
+              0xA2, 0x02, 0x20, 0xC6, 0xFF, // LDX #2; JSR CHKIN
+              0x20, 0xCF, 0xFF,              // JSR CHRIN (buffer number)
+              0x8D, static_cast<u8>(bufferNumber & 0xFF),
+              static_cast<u8>(bufferNumber >> 8),
+              0xA0, 0x00}); // STA bufferNumber; LDY #0
+  const size_t sectorLoop = code.size();
+  emit(code, {0x20, 0xCF, 0xFF,  // JSR CHRIN
+              0x99, static_cast<u8>(destination & 0xFF),
+              static_cast<u8>(destination >> 8),
+              0xC8}); // STA destination,Y; INY
+  emitBranchBack(code, 0xD0, sectorLoop);
+  emit(code, {0x20, 0xCC, 0xFF}); // JSR CLRCHN
+}
+
 }  // namespace
 
 TEST(drive_iec_open_collector_lines) {
@@ -221,6 +262,75 @@ TEST(drive_clean_room_firmware_reaches_iec_main_loop) {
   CHECK(drive.cpuState().pc >= 0xC000);
 }
 
+TEST(drive_bundled_kernal_preserves_processor_port_for_banked_ram) {
+  Machine machine;
+  CHECK(bootBundledMachine(
+      machine, c64test::makeD64("PROG", {0x01, 0x08, 0x11})));
+  CHECK_EQ(machine.dataDirection(), 0x2Fu);
+  CHECK_EQ(machine.processorPort(), 0x37u);
+
+  machine.debugWriteRam(0xB500, 0x42);
+  c64test::loadCodeAt(machine, 0xC000,
+                      {
+                          0xA5, 0x01,        // LDA $01
+                          0x29, 0xFE,        // AND #$FE
+                          0x85, 0x01,        // STA $01 (bank out BASIC)
+                          0xAD, 0x00, 0xB5,  // LDA $B500
+                          0x8D, 0x02, 0xC2,  // STA $C202
+                          0x00,              // BRK
+                      });
+  const RunResult run = machine.runCycles(1000);
+  CHECK_STR_EQ(run.stopReason, "brk");
+  CHECK_EQ(machine.dataDirection(), 0x2Fu);
+  CHECK_EQ(machine.processorPort(), 0x36u);
+  CHECK_EQ(static_cast<int>(machine.regionOf(0xB500)),
+           static_cast<int>(MappedRegion::Ram));
+  CHECK_EQ(machine.debugReadRam(0xC202), 0x42u);
+}
+
+TEST(drive_bundled_kernal_custom_irq_continues_and_releases_joystick) {
+  Machine machine;
+  CHECK(bootBundledMachine(
+      machine, c64test::makeD64("PROG", {0x01, 0x08, 0x11})));
+
+  machine.debugWriteRam(0xC100, 0xEE); // INC $C200
+  machine.debugWriteRam(0xC101, 0x00);
+  machine.debugWriteRam(0xC102, 0xC2);
+  machine.debugWriteRam(0xC103, 0x4C); // JMP $EA31
+  machine.debugWriteRam(0xC104, 0x31);
+  machine.debugWriteRam(0xC105, 0xEA);
+  c64test::loadCodeAt(machine, 0xC000,
+                      {
+                          0x78,                    // SEI
+                          0xA9, 0x00, 0x8D, 0x00, 0xC2, // marker = 0
+                          0x8D, 0x01, 0xC2,        // idle port capture = 0
+                          0xA9, 0x00, 0x8D, 0x14, 0x03, // IRQ vector low
+                          0xA9, 0xC1, 0x8D, 0x15, 0x03, // IRQ vector high
+                          0xA9, 0xD0, 0x8D, 0x04, 0xDC, // timer A low
+                          0xA9, 0x07, 0x8D, 0x05, 0xDC, // timer A high
+                          0xA9, 0x81, 0x8D, 0x0D, 0xDC, // enable timer A IRQ
+                          0xA9, 0x11, 0x8D, 0x0E, 0xDC, // start continuous timer
+                          0x58,                          // CLI
+                          0xAD, 0x00, 0xC2,              // wait for three IRQs
+                          0xC9, 0x03,
+                          0x90, 0xF9,
+                          0x78,                    // SEI
+                          0xAD, 0x00, 0xDC,        // LDA CIA1 PRA
+                          0x8D, 0x01, 0xC2,        // STA idle port capture
+                          0x00,                    // BRK
+                      });
+
+  RunResult run;
+  for (u8 batch = 0; batch < 10; ++batch) {
+    run = machine.runCycles(50000);
+    if (run.stopReason != "budget") break;
+  }
+  CHECK(run.stopReason != "fault");
+  CHECK_STR_EQ(run.stopReason, "brk");
+  CHECK(machine.debugReadRam(0xC200) >= 3u);
+  CHECK_EQ(machine.debugReadRam(0xC201), 0x7Fu);
+}
+
 TEST(drive_real_kernal_loads_prg_over_iec) {
   Machine machine;
   CHECK(bootBundledMachine(
@@ -252,6 +362,64 @@ TEST(drive_real_kernal_loads_prg_over_iec) {
   CHECK_EQ(machine.debugReadRam(0x0801), 0x11u);
   CHECK_EQ(machine.debugReadRam(0x0803), 0x33u);
   CHECK(!(machine.cpuState().p & FlagC));
+}
+
+TEST(drive_command_channel_repeats_u1_direct_sector_reads) {
+  std::vector<u8> prg(400);
+  prg[0] = 0x01;
+  prg[1] = 0x08;
+  for (size_t index = 2; index < prg.size(); ++index) {
+    prg[index] = static_cast<u8>((index * 37 + 11) & 0xFF);
+  }
+  const std::vector<u8> d64 = c64test::makeD64("BLOCKS", prg);
+  Machine machine;
+  CHECK(bootBundledMachine(machine, d64));
+
+  machine.debugWriteRam(0x0500, '#');
+  const std::string firstCommand = "U1:02 0 1 00\r";
+  const std::string secondCommand = "U1:02 0 1 01\r";
+  for (size_t index = 0; index < firstCommand.size(); ++index) {
+    machine.debugWriteRam(static_cast<u16>(0x0510 + index),
+                          static_cast<u8>(firstCommand[index]));
+    machine.debugWriteRam(static_cast<u16>(0x0520 + index),
+                          static_cast<u8>(secondCommand[index]));
+  }
+
+  std::vector<u8> code;
+  emit(code, {
+                 0xA9, 0x00, 0xA2, 0x00, 0xA0, 0x00, 0x20, 0xBD, 0xFF, // SETNAM ""
+                 0xA9, 0x0F, 0xA2, 0x08, 0xA0, 0x0F, 0x20, 0xBA, 0xFF, // SETLFS 15,8,15
+                 0x20, 0xC0, 0xFF,                                     // OPEN
+                 0xA9, 0x01, 0xA2, 0x00, 0xA0, 0x05, 0x20, 0xBD, 0xFF, // SETNAM "#"
+                 0xA9, 0x02, 0xA2, 0x08, 0xA0, 0x02, 0x20, 0xBA, 0xFF, // SETLFS 2,8,2
+                 0x20, 0xC0, 0xFF,                                     // OPEN
+             });
+  emitU1Read(code, 0x0510, 0xC300, 0x2000, 0xC2F0);
+  emitU1Read(code, 0x0520, 0xC320, 0x2100, 0xC2F1);
+  emit(code, {0x00}); // BRK
+
+  std::vector<u8> program = {0x00, 0xC0};
+  program.insert(program.end(), code.begin(), code.end());
+  CHECK(machine.loadPrg(program).ok);
+  machine.setProgramCounter(0xC000);
+
+  RunResult run;
+  for (u8 batch = 0; batch < 80; ++batch) {
+    run = machine.runCycles(500000);
+    if (run.stopReason != "budget") break;
+  }
+  CHECK(run.stopReason != "fault");
+  CHECK_STR_EQ(run.stopReason, "brk");
+  CHECK_EQ(machine.debugReadRam(0xC2F0), 0u);
+  CHECK_EQ(machine.debugReadRam(0xC2F1), 0u);
+  CHECK_EQ(machine.debugReadRam(0xC300), static_cast<u8>('0'));
+  CHECK_EQ(machine.debugReadRam(0xC301), static_cast<u8>('0'));
+  CHECK_EQ(machine.debugReadRam(0xC320), static_cast<u8>('0'));
+  CHECK_EQ(machine.debugReadRam(0xC321), static_cast<u8>('0'));
+  for (u16 offset = 0; offset < 256; ++offset) {
+    CHECK_EQ(machine.debugReadRam(static_cast<u16>(0x2000 + offset)), d64[offset]);
+    CHECK_EQ(machine.debugReadRam(static_cast<u16>(0x2100 + offset)), d64[256 + offset]);
+  }
 }
 
 TEST(drive_basic_load_secondary_one_updates_program_boundaries_and_runs) {

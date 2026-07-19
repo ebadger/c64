@@ -58,7 +58,9 @@ AudioInfo {
   and TOD/alarm registers.
 - TOD advances from the selected machine profile's 50/60 Hz source, not host wall-clock.
 - CIA 1 resolves keyboard matrix and joystick ports with active-low line interactions. Key
-  ghosting behavior is deterministic and documented by matrix tests.
+  ghosting behavior is deterministic and documented by matrix tests. The bundled KERNAL restores
+  CIA1 port A to `$7F` after keyboard and STOP scans, keeping all joystick-2 directions/fire
+  released while preserving the active-low STOP-row readback.
 - CIA 2 drives VIC bank selection and the IEC-facing lines needed by the selected disk-drive
   model. Port A bits 3/4/5 are the inverted open-collector ATN/CLOCK/DATA outputs and bits 6/7
   read CLOCK/DATA line state. A released line reads high; any participant asserting it drives the

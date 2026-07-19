@@ -136,8 +136,10 @@ decode KERNAL parameter blocks.
   a standard header sync/header/checksum/gap and data sync/data/checksum/gap; physical track
   lengths follow the four 1541 density zones. VIA2 exposes motor, stepper, density, write-protect,
   SYNC, byte latch, and byte-ready/SO behavior.
-- Standard KERNAL `LOAD`, `OPEN`, command/status channels, and software serial routines therefore
-  use the same drive-side path. Compatibility is constrained by the selected clean-room DOS ROM:
+- Standard KERNAL `LOAD`, `OPEN`, command/status channels, direct-access `#` channels, public `U1`
+  block reads, and software serial routines therefore use the same drive-side path. A successful
+  `U1` response exposes one buffer-number byte followed by the exact 256-byte sector, with EOI on
+  the final sector byte. Compatibility is constrained by the selected clean-room DOS ROM:
   it implements documented serial/file operations but intentionally does not reproduce private
   entry points from Commodore's proprietary ROM. Fastloaders that upload and execute their own
   drive code can work only when they depend on the implemented 6502/VIA/GCR behavior and not on an

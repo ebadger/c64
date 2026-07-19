@@ -20,7 +20,7 @@ The runtime KERNAL carries the small c64 compatibility patch described below.
 |------------|---------------|------:|---------|---------|
 | `basic.rom` | `bin/basic_c64.bin` | 8192 | `06480f4be4b62b545bbc4185c22befa8cc3b958fa15db31d74f82ffc03fec2e5` | Microsoft MIT (`LICENSE-microsoft.txt`) |
 | `kernal-upstream.rom` | `bin/kernal_c64.bin` | 8192 | `5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414` | Pascual project MIT (`LICENSE.txt`) |
-| `kernal.rom` | c64-patched `bin/kernal_c64.bin` | 8192 | `6545abf06d097be2f95039a77e1cdf44eba3d669808717094a1fcf9cebb0fa97` | Pascual project MIT (`LICENSE.txt`) |
+| `kernal.rom` | c64-patched `bin/kernal_c64.bin` | 8192 | `dbf227205959580b188d5e93c9f1cffb6e19897957af6d2525c88e5e72ab6f06` | Pascual project MIT (`LICENSE.txt`) |
 | `chargen.rom` | `bin/chargen.bin` | 4096 | `5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7` | LGPL-3.0-or-later (`COPYING.LESSER`, `COPYING`, `LICENSE-megabase-notice.txt`, `NOTICE.md`) |
 
 The BASIC is mechanically derived from Microsoft's published `BASIC-M6502` source. The
@@ -29,11 +29,14 @@ the MEGA65 OpenROMs PXL font by Retrofan, redistributed under LGPL-3.0-or-later.
 bundle includes the exact pinned source archive and every applicable license/notice listed
 above, so recipients do not depend on mutable external URLs for corresponding source.
 
-The source-level change is `kernal-c64-load-compat.patch`.
+The source-level change is `kernal-c64-compat.patch`.
 `scripts/build/build-kernal-rom.mjs` applies the equivalent reviewed byte replacements to the
-exact upstream KERNAL after validating its digest, both call sites, and a zero-filled routine
-area. It preserves nonzero-secondary-address machine-code loads while repairing BASIC
-boundaries when a file's embedded address is the BASIC text start.
+exact upstream KERNAL after validating its digest, every replaced instruction range, the copied
+cursor routine, and a zero-filled compatibility area. It preserves nonzero-secondary-address
+machine-code loads while repairing BASIC boundaries when a file's embedded address is the BASIC
+text start. It also keeps the 6510 processor port intact during `RAMTAS`, exposes the standard
+`$EA31` custom-IRQ continuation, transmits `$3F` from `UNLSN`, and restores CIA1 port A to `$7F`
+after keyboard and STOP scans.
 
 No original Commodore ROM dump is included.
 
@@ -44,7 +47,8 @@ screen editor, and IEC `LOAD`/`SAVE`/`VERIFY`. c64 records those as upstream cla
 release gate verifies reset-vector startup through the production WASM artifact to the Pascual
 banner and `READY.`, deterministic direct-entry assembly execution, and drive-8 access through
 c64's documented 1541 CPU/VIA/IEC/GCR boundary. Synthetic media also verifies standard
-`LOAD "*",8,1` BASIC boundary handling and independent sequential LOAD requests.
+`LOAD "*",8,1` BASIC boundary handling, processor-port banking, custom IRQ continuation,
+independent sequential LOAD requests, and repeated byte-exact direct-channel sector reads.
 
 ## Clean-room DOS-1541 firmware
 
@@ -67,11 +71,12 @@ consulting or disassembling Commodore's proprietary drive ROM. Its archived `LIC
 `README.md`, `PROCEDENCIA.md`, and hardware notes ship under drive-specific filenames beside
 the source archive.
 
-c64 adds standard CBM `*` and `?` directory-name matching. The source change is
-`dos1541-c64-wildcards.patch`; `scripts/build/build-drive-rom.mjs` applies the equivalent
-reviewed byte replacements to the exact published binary after checking both its digest and
-patch sites. The script also restores the pinned source revision's channel-0 filename reset,
-which is present in `src/dos.s` but absent from the published `dos.bin`, so each LOAD request
-starts with an independent name. The resulting deployed `dos1541.rom` is 16384 bytes with
-SHA-256 `543577ca940e8ad88906de4d173bb995ec434a789698319d62f8441cecf579af`.
+c64 adds standard CBM `*` and `?` directory-name matching and corrects direct-channel framing to
+send the buffer number followed by all 256 sector bytes. The source change is
+`dos1541-c64-compat.patch`; `scripts/build/build-drive-rom.mjs` applies equivalent reviewed byte
+replacements to the exact published binary after checking its digest, every hook, and the erased
+compatibility area. The binary patch also restores pinned-source behavior omitted from the
+published `dos.bin`: independent channel-0 filenames, channel-15 DOS status, direct-access
+channels, and validated public `U1` sector reads. The resulting deployed `dos1541.rom` is 16384
+bytes with SHA-256 `725047c3310d843b99c02dbd35699b2d6ccfe07f16adef28025cb5519d89dd39`.
 No proprietary bytes, game-specific names, or private Commodore entry points are added.

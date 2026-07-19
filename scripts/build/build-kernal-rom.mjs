@@ -8,11 +8,11 @@ const repoRoot = resolve(here, "..", "..");
 const romDir = join(repoRoot, "third_party", "pascual-roms");
 
 const BASE_SHA256 = "5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414";
-const OUTPUT_SHA256 = "6545abf06d097be2f95039a77e1cdf44eba3d669808717094a1fcf9cebb0fa97";
+const OUTPUT_SHA256 = "dbf227205959580b188d5e93c9f1cffb6e19897957af6d2525c88e5e72ab6f06";
 const ROM_BYTES = 8192;
 
-const routineOffset = 0x0179;
-const routine = Uint8Array.from([
+const loadRoutineOffset = 0x0179;
+const loadRoutine = Uint8Array.from([
   0x20, 0xd2, 0xed,       // JSR KACPTR
   0x85, 0xad,             // STA KLDTMPHI
   0x60,                   // RTS
@@ -27,6 +27,58 @@ const routine = Uint8Array.from([
   0x86, 0x2a,             // set_boundary: STX VARTAB
   0x60,                   // done: RTS
 ]);
+
+const cursorRoutineOffset = 0x0a2b;
+const cursorRoutine = Uint8Array.from([
+  0x48,                   // PHA
+  0xad, 0xad, 0x02,       // LDA KBLON
+  0xf0, 0x23,             // BEQ done
+  0x78,                   // SEI
+  0x98, 0x48,             // TYA; PHA
+  0xa4, 0xd3,             // LDY KCOL
+  0xb1, 0xd1,             // LDA (KPNT),Y
+  0x49, 0x80,             // EOR #$80
+  0x91, 0xd1,             // STA (KPNT),Y
+  0xa5, 0xd1, 0x85, 0xfb, // KCPTR = KPNT
+  0xa5, 0xd2, 0x18,       // LDA KPNT+1; CLC
+  0x69, 0xd4, 0x85, 0xfc, // ADC #$D4; STA KCPTR+1
+  0xad, 0x87, 0x02,       // LDA KGDCOL
+  0x91, 0xfb,             // STA (KCPTR),Y
+  0xa9, 0x00,             // LDA #0
+  0x8d, 0xad, 0x02,       // STA KBLON
+  0x68, 0xa8,             // PLA; TAY
+  0x58,                   // CLI
+  0x68, 0x60,             // done: PLA; RTS
+]);
+const relocatedCursorOffset = 0x0192;
+const cursorRedirect = Uint8Array.from([0x4c, 0x92, 0xe1]); // JMP relocated cursor routine
+const irqContinueOffset = 0x0a31;
+const irqContinue = Uint8Array.from([0x4c, 0x95, 0xea]); // JMP default IRQ handler
+
+const unlistenCallOffset = 0x0ccd;
+const unlistenCallBefore = Uint8Array.from([0x20, 0x06, 0xed]); // JSR KISEND
+const unlistenCallAfter = Uint8Array.from([0x20, 0xbd, 0xe1]); // JSR send_unlisten
+const unlistenRoutineOffset = 0x01bd;
+const unlistenRoutine = Uint8Array.from([
+  0xa9, 0x3f,             // LDA #$3F
+  0x4c, 0x06, 0xed,       // JMP KISEND
+]);
+
+const ramClearOffset = 0x025f;
+const ramClearBefore = Uint8Array.from([0x95, 0x02, 0xe8, 0xd0, 0xfb]);
+const ramClearAfter = Uint8Array.from([0x20, 0xc2, 0xe1, 0xea, 0xea]); // JSR clear_zp; NOP; NOP
+const ramClearRoutineOffset = 0x01c2;
+const ramClearRoutine = Uint8Array.from([
+  0xa2, 0x02,             // LDX #2
+  0x95, 0x00,             // clear_zp: STA $00,X
+  0xe8,                   // INX
+  0xd0, 0xfb,             // BNE clear_zp
+  0x60,                   // RTS
+]);
+
+const keyboardIdleOffsets = [0x05bc, 0x0a70];
+const keyboardIdleBefore = 0x00;
+const keyboardIdleAfter = 0x7f;
 
 const basicBoundaryOffset = 0x1019;
 const basicBoundaryBefore = Uint8Array.from([
@@ -67,16 +119,43 @@ export function buildKernalRom({
   if (!equalAt(bytes, loadAddressOffset, loadAddressBefore)) {
     throw new Error("build-kernal-rom: the load-address patch site no longer matches");
   }
-  if (!bytes.slice(routineOffset, routineOffset + routine.length).every((value) => value === 0x00)) {
+  if (!equalAt(bytes, cursorRoutineOffset, cursorRoutine)) {
+    throw new Error("build-kernal-rom: the cursor routine no longer matches the reviewed bytes");
+  }
+  if (!equalAt(bytes, unlistenCallOffset, unlistenCallBefore)) {
+    throw new Error("build-kernal-rom: the UNLSN patch site no longer matches");
+  }
+  if (!equalAt(bytes, ramClearOffset, ramClearBefore)) {
+    throw new Error("build-kernal-rom: the RAMTAS patch site no longer matches");
+  }
+  if (!keyboardIdleOffsets.every((offset) => bytes[offset] === keyboardIdleBefore)) {
+    throw new Error("build-kernal-rom: a keyboard idle-state patch site no longer matches");
+  }
+  const compatibilityEnd = ramClearRoutineOffset + ramClearRoutine.length;
+  if (
+    !bytes
+      .slice(loadRoutineOffset, compatibilityEnd)
+      .every((value) => value === 0x00)
+  ) {
     throw new Error("build-kernal-rom: the reviewed compatibility routine region is not zero-filled");
   }
 
-  bytes.set(routine, routineOffset);
+  bytes.set(loadRoutine, loadRoutineOffset);
+  bytes.set(cursorRoutine, relocatedCursorOffset);
+  bytes.set(unlistenRoutine, unlistenRoutineOffset);
+  bytes.set(ramClearRoutine, ramClearRoutineOffset);
+  bytes.set(cursorRedirect, cursorRoutineOffset);
+  bytes.set(irqContinue, irqContinueOffset);
+  bytes.set(unlistenCallAfter, unlistenCallOffset);
+  bytes.set(ramClearAfter, ramClearOffset);
+  for (const offset of keyboardIdleOffsets) bytes[offset] = keyboardIdleAfter;
   bytes.set(basicBoundaryAfter, basicBoundaryOffset);
   bytes.set(loadAddressAfter, loadAddressOffset);
   const digest = sha256(bytes);
   if (digest !== OUTPUT_SHA256) {
-    throw new Error("build-kernal-rom: generated KERNAL digest does not match the reviewed identity");
+    throw new Error(
+      `build-kernal-rom: generated KERNAL digest ${digest} does not match the reviewed identity`,
+    );
   }
 
   if (check) {
