@@ -319,8 +319,8 @@ test("third-party notices inventory identifies Pascual redistribution and build-
   assert.match(notices, /LGPL-3.0-or-later/);
   assert.match(notices, /corresponding source/);
   assert.match(notices, /Pascual_DOS-1541/);
-  assert.match(notices, /KERNAL LOAD-compatibility patch/);
-  assert.match(notices, /wildcard and sequential-LOAD compatibility patches/);
+  assert.match(notices, /KERNAL LOAD\/processor-port\/IRQ\/IEC\/input compatibility patch/);
+  assert.match(notices, /filename\/status\/direct-channel\/U1 compatibility patch/);
   assert.match(notices, /No proprietary Commodore ROM dump/i);
   assert.match(notices, /Emscripten/);
   assert.match(notices, /Playwright/);

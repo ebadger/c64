@@ -1,7 +1,7 @@
 {
   "schema": 4,
   "id": "pascuals-basic-c64",
-  "title": "Pascual's BASIC/KERNAL with c64 LOAD compatibility and MEGA65 PXL chargen",
+  "title": "Pascual's BASIC/KERNAL with c64 compatibility and MEGA65 PXL chargen",
   "upstreamRepository": "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC",
   "revision": "45da60da4d39f9f3950cdf957996c1743c53bb6e",
   "sourceUrl": "https://github.com/Pascual-Candel-Palazon/Pascuals-BASIC/tree/45da60da4d39f9f3950cdf957996c1743c53bb6e",
@@ -62,8 +62,8 @@
     },
     {
       "path": "PROVENANCE.md",
-      "bytes": 4830,
-      "sha256": "ce3197dcf5d065257037ef9db6aed13e1d283bea01a239991a95d0764c148760"
+      "bytes": 5394,
+      "sha256": "f65fa5667081ddfc0554fc81ba0d5f3666abcaa3f2d6322f8b330a8f3bd39a7c"
     }
   ],
   "roles": {
@@ -77,13 +77,13 @@
       "path": "kernal.rom",
       "upstreamPath": "bin/kernal_c64.bin",
       "bytes": 8192,
-      "sha256": "6545abf06d097be2f95039a77e1cdf44eba3d669808717094a1fcf9cebb0fa97",
+      "sha256": "dbf227205959580b188d5e93c9f1cffb6e19897957af6d2525c88e5e72ab6f06",
       "basePath": "kernal-upstream.rom",
       "baseSha256": "5423d7dbbf678a17640f08465705aaab5bf04975281c48b3d343e7cb64a3c414",
       "patch": {
-        "path": "kernal-c64-load-compat.patch",
-        "bytes": 2317,
-        "sha256": "027c5e8bef2adfa63969d79206c4b58bb3abd29c991c8b4ee9456feae180776d"
+        "path": "kernal-c64-compat.patch",
+        "bytes": 4816,
+        "sha256": "7d2b67fab3fd4bc45872fef5e0876ea865ca37807b1e6dc67c7c1f3fd3697162"
       }
     },
     "chargen": {
@@ -95,7 +95,7 @@
   },
   "drive": {
     "id": "pascual-dos-1541-c64",
-    "title": "Pascual DOS-1541 with c64 filename compatibility",
+    "title": "Pascual DOS-1541 with c64 compatibility",
     "upstreamRepository": "https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541",
     "revision": "72c2648494c71126cf5338f0c3c09b9e815a8b50",
     "sourceUrl": "https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541/tree/72c2648494c71126cf5338f0c3c09b9e815a8b50",
@@ -142,15 +142,15 @@
       "sha256": "c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39"
     },
     "patch": {
-      "path": "dos1541-c64-wildcards.patch",
-      "bytes": 530,
-      "sha256": "758a990a715021952ce3ea70bccce9639c8a5fe310a964d178bae7210cace401"
+      "path": "dos1541-c64-compat.patch",
+      "bytes": 8615,
+      "sha256": "3152bf26a0df4071f48c1dcef994741b94547fbdf2af20a14fa800769eba764e"
     },
     "rom": {
       "path": "dos1541.rom",
       "upstreamPath": "dos.bin",
       "bytes": 16384,
-      "sha256": "543577ca940e8ad88906de4d173bb995ec434a789698319d62f8441cecf579af",
+      "sha256": "725047c3310d843b99c02dbd35699b2d6ccfe07f16adef28025cb5519d89dd39",
       "baseSha256": "c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39"
     }
   }

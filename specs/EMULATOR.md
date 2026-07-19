@@ -171,7 +171,10 @@ boundary. Interrupts are sampled at instruction boundaries.
   through a core trap. A BASIC command load updates and relinks BASIC boundaries for secondary
   address zero, or for a nonzero secondary address when the file's embedded load address equals
   `TXTTAB`; other nonzero-secondary-address loads preserve BASIC boundaries. The bundled drive
-  starts each channel-0 OPEN with an empty filename so sequential requests remain independent.
+  starts each channel-0 OPEN with an empty filename so sequential requests remain independent,
+  serves channel-15 status, and supports read-only direct-access channels plus public `U1` sector
+  reads. The bundled KERNAL's `RAMTAS` preserves `$00/$01`, custom IRQ handlers may continue at
+  `$EA31`, `UNLSN` emits `$3F`, and its idle keyboard scan releases joystick-2 input lines.
 
 The **NMOS one-instruction interrupt-enable delay** after `CLI`/`SEI`/`PLP` is implemented: the
 interrupt poll for the single instruction following one of these uses the pre-change I flag, so a
