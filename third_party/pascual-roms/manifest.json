@@ -62,8 +62,8 @@
     },
     {
       "path": "PROVENANCE.md",
-      "bytes": 5304,
-      "sha256": "292c138ea9edc9e9b18dee9d85d2ca95f5a43dc9aaa30b7f2278d64b062f3d7d"
+      "bytes": 5394,
+      "sha256": "f65fa5667081ddfc0554fc81ba0d5f3666abcaa3f2d6322f8b330a8f3bd39a7c"
     }
   ],
   "roles": {
@@ -143,8 +143,8 @@
     },
     "patch": {
       "path": "dos1541-c64-compat.patch",
-      "bytes": 1079,
-      "sha256": "a8506839d3969d8cf79106cb61ed5b23d784fb1197b65b91416b6b98da50314f"
+      "bytes": 8615,
+      "sha256": "3152bf26a0df4071f48c1dcef994741b94547fbdf2af20a14fa800769eba764e"
     },
     "rom": {
       "path": "dos1541.rom",

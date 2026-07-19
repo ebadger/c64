@@ -1,52 +1,284 @@
 diff --git a/src/dos.s b/src/dos.s
-index 1ff9fc4..a2b8d53 100644
+index 88a9f67..9c7a527 100644
 --- a/src/dos.s
 +++ b/src/dos.s
-@@ -424,6 +424,8 @@ iec_execute_command:
-     bcs @syntax
-     sta want_sector
-     sta err_sector
+@@ -213,6 +213,13 @@ cur_lo:      .res 1       ; numero de bloques de la entrada (lo)
+ cur_hi:      .res 1       ; numero de bloques de la entrada (hi)
+ list_dig:    .res 1       ; temporal (digitos / longitud / tipo)
+ 
++; --- c64 compat: canal de acceso directo (#) y comando de bloque U1 ---
++direct_chan:  .res 1      ; canal asociado al buffer de acceso directo (arg de U1)
++direct_ready: .res 1      ; $FF si DATA_DEC_BUF contiene un bloque leido por U1
++dec_acc:      .res 1      ; acumulador del parser decimal de U1
++dec_tmp:      .res 1      ; temporal (acc*2) del parser decimal
++dec_digit:    .res 1      ; digito actual del parser decimal
++
+ .code
+ ; ----------------------------------------------------------------------------
+ reset:
+@@ -343,6 +350,20 @@ iec_recv_data:
+ ; ----------------------------------------------------------------------------
+ iec_talk:
+     jsr iec_turnaround
++    ; --- c64 compat: canal de estado (15) y canal de acceso directo (#/U1) ---
++    lda iec_sa
++    cmp #$0F
++    beq @status                 ; canal 15: enviar la cadena de estado
++    lda direct_ready
++    beq @seldata                ; sin bloque U1 pendiente: talk normal
++    lda direct_chan             ; hay bloque: enviarlo solo en su canal (2..14)
++    cmp #$02
++    bcc @seldata
++    cmp #$0F
++    bcs @seldata
++    cmp iec_sa
++    beq @direct
++@seldata:
+     ; elegir el origen de los datos a transmitir segun el nombre recibido
+     lda DATA_BUF
+     cmp #'$'                    ; LOAD "$": directorio
+@@ -366,6 +387,42 @@ iec_talk:
+ @notdir:
+     ; LOAD de un fichero por nombre: localizarlo y transmitir su contenido
+     jsr iec_load_file
++    jmp @done
++@status:
++    ; si llegaron bytes de comando por el canal 15, ejecutarlos (U1) antes de
++    ; construir el estado; iec_u1_exec deja la cadena en STATUS_BUF.
++    lda data_idx
++    beq @status_send
++    jsr iec_u1_exec
 +    lda #$00
-+    sta DATA_DEC_BUF            ; numero del buffer de acceso directo
-     jsr disk_read_sector_hw
-     lda fsec_error
-     bne @read_error
-@@ -487,11 +489,11 @@ iec_talk:
- @direct:
-     lda direct_ready
-     beq @notdir
--    lda #<(DATA_DEC_BUF+1)
++    sta data_idx
++@status_send:
++    lda #<STATUS_BUF
++    sta tx_ptr
++    lda #>STATUS_BUF
++    sta tx_ptr+1
++    lda stat_idx                ; longitud de la cadena de estado
++    sta tx_len
++    lda #$00
++    sta tx_len+1
++    lda #$FF
++    sta tx_last
++    jsr iec_send_buffer
++    jmp @done
++@direct:
++    ; canal de acceso directo: enviar el bloque leido por U1. El framing exacto
++    ; es DATA_DEC_BUF[0]=0 y a continuacion los 256 bytes del sector (257, EOI).
 +    lda #<DATA_DEC_BUF
-     sta tx_ptr
--    lda #>(DATA_DEC_BUF+1)
++    sta tx_ptr
 +    lda #>DATA_DEC_BUF
-     sta tx_ptr+1
--    lda #$00
++    sta tx_ptr+1
 +    lda #$01
-     sta tx_len
-     lda #$01
-     sta tx_len+1
-@@ -2507,15 +2507,23 @@ dir_find_in_buf:
++    sta tx_len
++    lda #$01
++    sta tx_len+1                ; 257 = $0101 bytes
++    lda #$FF
++    sta tx_last
++    jsr iec_send_buffer
+ @done:
+     ; canal agotado: limpiar ST_TALK para no retransmitir
+     lda iec_state
+@@ -691,10 +748,14 @@ iec_atn:
+     jmp @cmdloop
+ @sec_open:
+     lda iec_sa                  ; canal 0 = LOAD; canal != 0 = posible SAVE
++    beq @so_reset
++    cmp #$0F                    ; canal 15 (comando): tambien reinicia el buffer
+     bne @so_go
+-    lda #$00                    ; canal 0: nombre nuevo, reiniciar el indice de
+-    sta data_idx                ; recepcion. Sin esto, en una peticion posterior
+-    sta iec_chan_mode           ; el nombre se acumula mal alineado en DATA_BUF.
++@so_reset:
++    lda #$00                    ; canal 0/15: nombre/comando nuevo, reiniciar el
++    sta data_idx                ; indice de recepcion. Sin esto, en una peticion
++    sta iec_chan_mode           ; posterior el nombre se acumula mal alineado.
++    sta iec_save_opening
+     jmp @cmdloop
+ @so_go:
+     lda #$FF
+@@ -704,9 +765,19 @@ iec_atn:
+     sta iec_chan_mode
+     jmp @cmdloop
+ @sec_data:
++    lda iec_state               ; en modo talk no se reinicia el comando en curso
++    and #ST_TALK
++    bne @sd_cmdloop
+     lda iec_sa
+-    bne @sd_go
+-    jmp @cmdloop                ; canal 0 (LOAD lo gestiona iec_talk)
++    beq @sd_cmdloop             ; canal 0 (LOAD lo gestiona iec_talk)
++    cmp #$0F
++    bne @sd_go                  ; canal de datos normal (posible SAVE)
++    lda #$00                    ; canal 15: empezar a acumular un comando nuevo
++    sta data_idx
++    sta iec_chan_mode
++    sta iec_save_opening
++@sd_cmdloop:
++    jmp @cmdloop
+ @sd_go:
+     lda iec_save_opening
+     bne @sd_open                ; veniamos de OPEN: abrir el fichero
+@@ -2501,20 +2572,14 @@ dir_find_in_buf:
+     lda DIR_BUF,y
+     and #$0F                ; tipo (bits 0-3)
+     beq @next               ; 0 -> entrada vacia o borrada
+-    ; comparar 16 bytes del nombre
++    ; comparar 16 bytes del nombre (con comodines '*' y '?')
+     lda dir_slot
+     clc
      adc #5
      tay
      ldx #0
- @cmp:
-+    ; comodines CBM: '*' acepta el resto del nombre; '?' acepta un caracter
-+    lda NAME_BUF,x
-+    cmp #'*'
-+    beq @matched
-+    cmp #'?'
-+    beq @advance
-     lda DIR_BUF,y
-     cmp NAME_BUF,x
-     bne @next
-+@advance:
-     iny
-     inx
-     cpx #16
-     bne @cmp
+-@cmp:
+-    lda DIR_BUF,y
+-    cmp NAME_BUF,x
+-    bne @next
+-    iny
+-    inx
+-    cpx #16
+-    bne @cmp
++    jsr dir_name_match
++    bcc @next
      ; coincide
-+@matched:
      jsr dir_extract
      lda #$FF
-     sta dir_found
+@@ -3337,6 +3402,137 @@ disk_link_valid:
+     lda #$00
+     rts
+ 
++; ----------------------------------------------------------------------------
++;  c64 compat: comodines de directorio y acceso directo por bloque (U1).
++;  Reproducen, en fuente, las correcciones de compatibilidad que el constructor
++;  de ROM aplica sobre el binario DOS-1541 empaquetado (dos1541-upstream.rom).
++; ----------------------------------------------------------------------------
++
++;  dir_name_match: compara NAME_BUF (patron, con '*'/'?') contra la entrada de
++;  directorio en DIR_BUF,Y. Entra con X=0 e Y=offset del nombre en DIR_BUF. '*'
++;  casa con el resto; '?' casa con un caracter cualquiera. Devuelve carry set si
++;  casa (SEC) y carry clear si no (CLC). Consume X e Y.
++dir_name_match:
++@nm:
++    lda NAME_BUF,x
++    cmp #'*'
++    beq @match                  ; '*' casa con lo que quede
++    cmp #'?'
++    beq @skip                   ; '?' casa con un caracter cualquiera
++    cmp DIR_BUF,y
++    bne @nomatch
++@skip:
++    iny
++    inx
++    cpx #16
++    bne @nm
++@match:
++    sec
++    rts
++@nomatch:
++    clc
++    rts
++
++;  u1_parse_dec: lee un numero decimal de DATA_BUF a partir de X, saltando los
++;  separadores no numericos, hasta data_idx. Devuelve A = valor con carry clear;
++;  carry set si no hay ningun digito antes de data_idx. Avanza X tras el numero.
++u1_parse_dec:
++@skip:
++    cpx data_idx
++    bcs @err                    ; fin del comando sin digito
++    lda DATA_BUF,x
++    cmp #'0'
++    bcc @notdig
++    cmp #':'                    ; '9' + 1
++    bcc @parse
++@notdig:
++    inx
++    bne @skip                   ; siempre (X < 256)
++@err:
++    sec
++    rts
++@parse:
++    lda #$00
++    sta dec_acc
++@ploop:
++    cpx data_idx
++    bcs @done
++    lda DATA_BUF,x
++    cmp #'0'
++    bcc @done
++    cmp #':'
++    bcs @done
++    sec
++    sbc #'0'
++    sta dec_digit
++    lda dec_acc
++    asl a
++    sta dec_tmp                 ; acc*2
++    asl a
++    asl a                       ; acc*8
++    clc
++    adc dec_tmp                 ; acc*10
++    clc
++    adc dec_digit
++    sta dec_acc
++    inx
++    bne @ploop
++@done:
++    lda dec_acc
++    clc
++    rts
++
++;  iec_u1_exec: interpreta "U1 canal unidad pista sector" acumulado en DATA_BUF
++;  (data_idx bytes), lee el sector en DATA_DEC_BUF+1 y marca el buffer de acceso
++;  directo como listo. Fija err_code (0 ok, 20 error de lectura, 30 sintaxis) y
++;  construye la cadena de estado en STATUS_BUF (tail-call a err_build_status).
++iec_u1_exec:
++    lda #$00
++    sta direct_ready
++    sta err_track
++    sta err_sector
++    lda DATA_BUF+0
++    cmp #'U'
++    bne @syntax
++    lda DATA_BUF+1
++    cmp #'1'
++    bne @syntax
++    ldx #2
++    jsr u1_parse_dec            ; canal
++    bcs @syntax
++    sta direct_chan
++    jsr u1_parse_dec            ; unidad (debe ser 0)
++    bcs @syntax
++    cmp #$00
++    bne @syntax
++    jsr u1_parse_dec            ; pista
++    bcs @syntax
++    sta want_track
++    sta err_track
++    jsr u1_parse_dec            ; sector
++    bcs @syntax
++    sta want_sector
++    sta err_sector
++    jsr disk_read_sector_hw     ; -> DATA_DEC_BUF+1, fsec_error
++    lda fsec_error
++    bne @readerr
++    lda #$00
++    sta DATA_DEC_BUF            ; byte de framing del canal de acceso directo
++    lda #$FF
++    sta direct_ready
++    lda #$00                    ; 00 = OK
++    sta err_code
++    jmp @build
++@syntax:
++    lda #$1E                    ; 30 = SYNTAX ERROR
++    sta err_code
++    jmp @build
++@readerr:
++    lda #$14                    ; 20 = READ ERROR
++    sta err_code
++@build:
++    jmp err_build_status        ; construye STATUS_BUF y retorna (rts)
++
+ ; ----------------------------------------------------------------------------
+ irq_brk:
+     rti

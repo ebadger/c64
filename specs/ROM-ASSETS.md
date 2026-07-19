@@ -172,15 +172,16 @@ pinned to revision `72c2648494c71126cf5338f0c3c09b9e815a8b50` under MIT. It is a
 implementation from public 1541 hardware and IEC documentation, not a derivative or disassembly of
 Commodore DOS. The published `dos.bin` is preserved as `dos1541-upstream.rom` (16384 bytes, SHA-256
 `c63f4933689e7582e6fa857564eb03df3466bd56ca1f9ab78e6b9f798ddeee39`).
-c64 applies the auditable `dos1541-c64-compat.patch` to the corresponding source and an equivalent
-deterministic byte patch to that exact published binary so standard CBM `*` and `?` filename
-patterns work. The binary patch also restores pinned-source behavior omitted from the published
-`dos.bin`: channel-0 OPEN resets the received filename before every LOAD request, channel 15
-returns DOS status, direct-access channels opened with `#` can expose a sector buffer, and the
-public `U1` block-read command validates drive/track/sector fields and fills that buffer. A direct
-channel sends its assigned buffer-number byte followed by exactly 256 sector bytes; the final
-sector byte carries EOI. This keeps sequential and repeated loads independent and supports
-documented sector access without host-side KERNAL traps or title-specific logic.
+c64 applies the auditable `dos1541-c64-compat.patch` to the corresponding pinned source and an
+equivalent deterministic byte patch to that exact published binary. Both express the same
+compatibility behavior: standard CBM `*` and `?` filename patterns match, channel 15 returns DOS
+status, direct-access channels opened with `#` expose a sector buffer, and the public `U1`
+block-read command validates drive/track/sector fields and fills that buffer. A direct channel
+sends a leading buffer byte followed by exactly 256 sector bytes; the final sector byte carries
+EOI. The byte patch additionally restores one pinned-source behavior the published `dos.bin`
+omits: channel-0 OPEN resets the received filename before every LOAD request. This keeps
+sequential and repeated loads independent and supports documented sector access without host-side
+KERNAL traps or title-specific logic.
 The runtime `dos1541.rom` is 16384 bytes with SHA-256
 `725047c3310d843b99c02dbd35699b2d6ccfe07f16adef28025cb5519d89dd39`. The compatibility
 changes use erased space in the clean-room ROM and do not add game-specific filenames,

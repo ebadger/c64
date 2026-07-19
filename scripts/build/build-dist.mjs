@@ -147,8 +147,8 @@ const APPROVED_UPSTREAM_KERNAL = Object.freeze({
   },
   provenance: {
     path: "PROVENANCE.md",
-    bytes: 5304,
-    sha256: "292c138ea9edc9e9b18dee9d85d2ca95f5a43dc9aaa30b7f2278d64b062f3d7d",
+    bytes: 5394,
+    sha256: "f65fa5667081ddfc0554fc81ba0d5f3666abcaa3f2d6322f8b330a8f3bd39a7c",
   },
   sourceArchive: {
     path: "pascuals-basic-45da60da4d39f9f3950cdf957996c1743c53bb6e.tar.gz",

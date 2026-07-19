@@ -71,12 +71,14 @@ consulting or disassembling Commodore's proprietary drive ROM. Its archived `LIC
 `README.md`, `PROCEDENCIA.md`, and hardware notes ship under drive-specific filenames beside
 the source archive.
 
-c64 adds standard CBM `*` and `?` directory-name matching and corrects direct-channel framing to
-send the buffer number followed by all 256 sector bytes. The source change is
-`dos1541-c64-compat.patch`; `scripts/build/build-drive-rom.mjs` applies equivalent reviewed byte
-replacements to the exact published binary after checking its digest, every hook, and the erased
-compatibility area. The binary patch also restores pinned-source behavior omitted from the
-published `dos.bin`: independent channel-0 filenames, channel-15 DOS status, direct-access
-channels, and validated public `U1` sector reads. The resulting deployed `dos1541.rom` is 16384
-bytes with SHA-256 `725047c3310d843b99c02dbd35699b2d6ccfe07f16adef28025cb5519d89dd39`.
+c64 adds standard CBM `*` and `?` directory-name matching, channel-15 DOS status, direct-access
+`#` channels, and the validated public `U1` block-read command, and a direct channel sends a
+leading buffer byte followed by all 256 sector bytes. The source change is
+`dos1541-c64-compat.patch`, which applies cleanly to the pinned `src/dos.s`;
+`scripts/build/build-drive-rom.mjs` applies equivalent reviewed byte replacements to the exact
+published binary after checking its digest, every hook, and the erased compatibility area. The
+byte replacements additionally restore one pinned-source behavior the published `dos.bin` omits:
+channel-0 OPEN resets the received filename before every LOAD. The resulting deployed
+`dos1541.rom` is 16384 bytes with SHA-256
+`725047c3310d843b99c02dbd35699b2d6ccfe07f16adef28025cb5519d89dd39`.
 No proprietary bytes, game-specific names, or private Commodore entry points are added.
